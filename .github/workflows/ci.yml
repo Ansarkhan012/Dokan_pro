@@ -14,7 +14,8 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # Recovery branches (r1/*, r2/*, ...) must be verified before any merge.
+    branches: [main, 'r[0-9]*/**']
   pull_request:
   workflow_dispatch:
 
