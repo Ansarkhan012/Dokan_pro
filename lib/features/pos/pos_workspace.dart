@@ -186,7 +186,6 @@ class _PosWorkspaceState extends State<PosWorkspace>
     if (plan == null || !mounted) return;
     final payment = plan;
     setState(() => completing = true);
-    final receiptLines = List<PosCartLine>.from(cart.lines);
     final CreatedSale sale;
     try {
       sale = await const PosCheckoutController().complete(
@@ -220,40 +219,52 @@ class _PosWorkspaceState extends State<PosWorkspace>
       lastSavedSale = null;
     });
     unawaited(_reloadCatalog());
+    final receipt = await _committedReceipt(sale.saleId, payment);
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (_) => ReceiptDialog(
-        receipt: ReceiptModel(
-          shopName: widget.shopName,
-          reference: sale.saleId,
-          dateTime: DateTime.now().toUtc(),
-          cashier: widget.cashierName,
-          customer: catalog.customers
-              .where((customer) => customer.id == payment.customerId)
-              .firstOrNull
-              ?.name,
-          lines: [
-            for (final line in receiptLines)
-              ReceiptLine(
-                name: line.product.name,
-                quantity: line.quantity,
-                unitPrice: line.product.salePriceMinor,
-                total: line.totalMinor,
-              ),
-          ],
-          subtotal: sale.grandTotalMinor,
-          total: sale.grandTotalMinor,
-          payments: {
-            for (final row in payment.payments)
-              row.method.name: row.amountMinor,
-          },
-          received: payment.cashReceivedMinor,
-          change: payment.changeDueFor(sale.grandTotalMinor),
-        ),
+        receipt: receipt,
         synced: false,
         onView: () => setState(() => destination = 2),
       ),
     );
+  }
+
+  /// The receipt of the committed sale, read back from the local database
+  /// through the same path as Bills reprints. Cash received and change are
+  /// not stored with the sale, so they come from this confirmation. Null if
+  /// it cannot be read: the sale stays saved and is reprintable from Bills.
+  Future<ReceiptModel?> _committedReceipt(
+    String saleId,
+    PosPaymentPlan payment,
+  ) async {
+    try {
+      final history = widget.salesHistory;
+      final row = await history.sale(saleId);
+      if (row == null) return null;
+      final stored = await history.receipt(await history.detail(row));
+      return ReceiptModel(
+        shopName: stored.shopName,
+        phone: stored.phone,
+        address: stored.address,
+        footer: stored.footer,
+        reference: stored.reference,
+        dateTime: stored.dateTime,
+        cashier: stored.cashier,
+        customer: stored.customer,
+        lines: stored.lines,
+        subtotal: stored.subtotal,
+        total: stored.total,
+        returned: stored.returned,
+        status: stored.status,
+        payments: stored.payments,
+        received: payment.cashReceivedMinor,
+        change: payment.changeDueFor(stored.total),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _reloadCatalog() async {
@@ -841,39 +852,38 @@ class _PaymentDialogState extends State<PaymentDialog> {
   void confirm() {
     // A second tap while the dialog is closing must not confirm again.
     if (confirmed) return;
-    // A Rs 0 sale is paid by nothing: it carries no payment row at all.
-    final due = widget.totalMinor > 0;
     late PosPaymentPlan plan;
-    if (mode == PaymentMethod.cash) {
+    if (widget.totalMinor == 0) {
+      // A Rs 0 sale is paid by nothing: no payment row and no amount to
+      // enter, whichever payment mode is selected.
+      plan = PosPaymentPlan(payments: const [], customerId: customerId);
+    } else if (mode == PaymentMethod.cash) {
       final received = parseMoneyMinor(cash.text);
       plan = PosPaymentPlan(
         payments: [
-          if (due)
-            PosPayment(
-              method: PaymentMethod.cash,
-              amountMinor: widget.totalMinor,
-            ),
+          PosPayment(
+            method: PaymentMethod.cash,
+            amountMinor: widget.totalMinor,
+          ),
         ],
         cashReceivedMinor: received,
       );
     } else if (mode == PaymentMethod.digital) {
       plan = PosPaymentPlan(
         payments: [
-          if (due)
-            PosPayment(
-              method: PaymentMethod.digital,
-              amountMinor: widget.totalMinor,
-            ),
+          PosPayment(
+            method: PaymentMethod.digital,
+            amountMinor: widget.totalMinor,
+          ),
         ],
       );
     } else if (mode == PaymentMethod.credit) {
       plan = PosPaymentPlan(
         payments: [
-          if (due)
-            PosPayment(
-              method: PaymentMethod.credit,
-              amountMinor: widget.totalMinor,
-            ),
+          PosPayment(
+            method: PaymentMethod.credit,
+            amountMinor: widget.totalMinor,
+          ),
         ],
         customerId: customerId,
       );
@@ -1051,7 +1061,9 @@ class ReceiptDialog extends StatelessWidget {
     required this.synced,
     required this.onView,
   });
-  final ReceiptModel receipt;
+
+  /// Null when the saved sale could not be read back; it is still in Bills.
+  final ReceiptModel? receipt;
   final bool synced;
   final VoidCallback onView;
 
@@ -1070,7 +1082,10 @@ class ReceiptDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ReceiptView(receipt: receipt),
+          if (receipt case final receipt?)
+            ReceiptView(receipt: receipt)
+          else
+            const Text('The sale is saved. Open its receipt from Bills.'),
           const SizedBox(height: 8),
           Text(
             synced ? 'Saved locally • Synced' : 'Saved locally • Pending sync',

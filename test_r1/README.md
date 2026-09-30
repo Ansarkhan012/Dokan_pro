@@ -40,7 +40,9 @@ original names and assertions, plus that substage's contract tests. R1.1
 (checkout durability + zero total) moved the three F-1 tests here and added
 the checkout contract (commit-then-sync failure/hang, same/different content
 under one checkout id, rapid double tap, restart after commit, zero-total,
-rollback before commit). It runs the production committer and background
+rollback before commit) and its review corrections (Split at Rs 0, receipt
+read back from the committed sale, customer-payment sync semantics, sales
+findable in Bills after any restart delay, canonical replay audit). It runs the production committer and background
 sync runner on local Drift databases only (`support/pos_fixture.dart`).
 `support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
 aggregate that R1.1 no longer creates but the server must keep rejecting.

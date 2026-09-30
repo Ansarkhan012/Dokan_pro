@@ -237,15 +237,25 @@ final class DriftSalesHistoryRepository {
               ])
               ..limit(1))
             .getSingleOrNull();
-    if (latest == null) return null;
+    return latest == null ? null : sale(latest.id);
+  }
+
+  /// The history row of one completed local sale, whatever its age or sync
+  /// state: the same row the Bills list shows and reprints from.
+  Future<SaleHistoryRow?> sale(String saleId) async {
+    final stored =
+        await (db.select(db.sales)
+              ..where((s) => s.shopId.equals(shopId) & s.id.equals(saleId)))
+            .getSingleOrNull();
+    if (stored == null) return null;
     final rows = await page(
       filter: SaleHistoryFilter(
         range: ReportRange(
-          latest.createdAt,
-          latest.createdAt.add(const Duration(seconds: 1)),
-          label: 'Last sale',
+          stored.createdAt,
+          stored.createdAt.add(const Duration(seconds: 1)),
+          label: 'Sale',
         ),
-        query: latest.id,
+        query: stored.id,
       ),
       limit: 1,
     );

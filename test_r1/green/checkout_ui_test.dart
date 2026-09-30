@@ -162,7 +162,7 @@ void main() {
     await _disposePos(tester, h);
   });
 
-  for (final mode in ['Cash', 'Digital', 'Udhaar']) {
+  for (final mode in ['Cash', 'Digital', 'Udhaar', 'Split']) {
     testWidgets('G: zero-total payment confirmation carries no payment row ($mode)', (tester) async {
       PosPaymentPlan? plan;
       await tester.pumpWidget(MaterialApp(

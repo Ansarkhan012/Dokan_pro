@@ -206,7 +206,7 @@ jobs:
           set -uo pipefail
           flutter test test_r1/green --reporter expanded --file-reporter json:"${RUNNER_TEMP}/green.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/green.json" \
-            --label "R1.1 checkout durability (green)" --min-passed 34 --max-skipped 0
+            --label "R1.1 checkout durability (green)" --min-passed 60 --max-skipped 0
       - name: Start fresh local Supabase stack (all migrations + seed from zero)
         run: |
           set -euo pipefail
