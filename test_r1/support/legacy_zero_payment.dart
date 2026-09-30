@@ -14,6 +14,7 @@ import 'package:drift/drift.dart';
 import 'package:dukaan_pro/core/domain/enums.dart';
 import 'package:dukaan_pro/core/ids/id_generator.dart';
 import 'package:dukaan_pro/database/app_database.dart';
+import 'package:dukaan_pro/sync/sync_time.dart';
 
 Future<void> addLegacyZeroCashPayment(AppDatabase db, String saleId) =>
     db.transaction(() async {
@@ -34,11 +35,9 @@ Future<void> addLegacyZeroCashPayment(AppDatabase db, String saleId) =>
             ..where((t) => t.entityType.equals('sale_aggregate') & t.entityId.equals(saleId)))
           .getSingle();
       final payload = jsonDecode(operation.payload) as Map<String, dynamic>;
-      payload['payments'] = [
-        payment.toJson(
-          serializer: const ValueSerializer.defaults(serializeDateTimeValuesAsString: true),
-        ),
-      ];
+      // Timestamps use the explicit-UTC wire form (R1.2), so the Rs 0 row
+      // stays the only defect in this payload.
+      payload['payments'] = [payment.toJson(serializer: SyncTime.payloadSerializer)];
       await (db.update(db.syncOperations)..where((t) => t.id.equals(operation.id)))
           .write(SyncOperationsCompanion(payload: Value(jsonEncode(payload))));
     });

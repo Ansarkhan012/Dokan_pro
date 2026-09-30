@@ -1,6 +1,7 @@
 // R1 Stage A reproduction of audit finding O-2 (client-clock pull cursors).
 // Asserts the CORRECT invariant, so it FAILS on the current code.
-// T-1 is neutralised with undoZoneShift() so only the cursor defect is tested.
+// Server timestamps are real instants since R1.2 (T-1 fixed), so only the
+// cursor defect is tested.
 @Tags(['recovery-red'])
 library;
 
@@ -83,14 +84,12 @@ void main() {
       // A sells online at "now"; B pulls and advances its cursor to "now".
       final s1 = await _sell(a, f, f.deviceA, now);
       await _upload(a, f, 'A');
-      await undoZoneShift(s1);
       await _pull(b, f);
       final cursorAfterFirstPull = await _cursor(b);
 
       // A was offline two hours ago; it uploads that older sale only now.
       final s0 = await _sell(a, f, f.deviceA, now.subtract(const Duration(hours: 2)));
       await _upload(a, f, 'A');
-      await undoZoneShift(s0);
       await _pull(b, f);
 
       final onServer = await psql("select count(*) from sales where id='$s0'");
@@ -127,14 +126,12 @@ O2A_EVIDENCE
       // A's clock is one day fast for one sale.
       final future = await _sell(a, f, f.deviceA, now.add(const Duration(days: 1)));
       await _upload(a, f, 'A');
-      await undoZoneShift(future);
       await _pull(b, f);
       final cursorAfterFuture = await _cursor(b);
 
       // Clock corrected; normal sale at "now".
       final normal = await _sell(a, f, f.deviceA, now);
       await _upload(a, f, 'A');
-      await undoZoneShift(normal);
       await _pull(b, f);
 
       final bStock = await localStock(b, f.productId);

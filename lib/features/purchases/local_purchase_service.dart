@@ -4,6 +4,7 @@ import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
 import '../../database/app_database.dart';
 import '../../subscription/entitlement_policy.dart';
+import '../../sync/sync_time.dart';
 import 'purchase_models.dart';
 
 final class LocalPurchaseService {
@@ -248,7 +249,8 @@ final class LocalPurchaseService {
     String purchase,
     String audit,
   ) async {
-    const s = ValueSerializer.defaults(serializeDateTimeValuesAsString: true);
+    // Instants leave the device as UTC ('Z'), never as a local wall clock.
+    const s = SyncTime.payloadSerializer;
     final p = await (db.select(
       db.purchases,
     )..where((t) => t.id.equals(purchase) & t.shopId.equals(shop))).getSingle();

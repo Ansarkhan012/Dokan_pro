@@ -4,6 +4,7 @@ import '../../../core/domain/enums.dart';
 import '../../../core/ids/id_generator.dart';
 import '../../../database/app_database.dart';
 import '../../../subscription/entitlement_policy.dart';
+import '../../../sync/sync_time.dart';
 import '../domain/sale_draft.dart';
 
 final class LocalSaleService {
@@ -455,9 +456,8 @@ final class LocalSaleService {
     final ledger = await (db.select(
       db.customerLedgerEntries,
     )..where((t) => t.saleId.equals(saleId) & t.shopId.equals(shopId))).get();
-    const serializer = ValueSerializer.defaults(
-      serializeDateTimeValuesAsString: true,
-    );
+    // Instants leave the device as UTC ('Z'), never as a local wall clock.
+    const serializer = SyncTime.payloadSerializer;
     return {
       'version': 1,
       'operation': 'sync_sale_transaction',

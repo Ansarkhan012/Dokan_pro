@@ -24,9 +24,7 @@ final class SupabaseSaleUploadGateway implements SaleUploadGateway {
     await client.rpc(
       rpc,
       params: {
-        'p_payload': operation == 'sync_sale_transaction'
-            ? normalizeSalePayloadForCloud(payload)
-            : payload,
+        'p_payload': payloadForCloud(payload),
         'p_cashier_token': cashierSessionToken,
       },
     );

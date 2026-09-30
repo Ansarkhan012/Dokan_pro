@@ -1,25 +1,17 @@
-// Expected-red reproductions of T-1 (local payload path) and T-1b (cursor
-// truncation). Pure local: no Docker, no network.
-//
-// T-1 is time-zone dependent: it fails on any device whose offset is not zero
-// (CI runs the red suite with TZ=Asia/Karachi) and passes on a UTC device,
-// which is exactly why UTC-only CI hid it.
+// Expected-red reproduction of T-1b (cursor truncation). Pure local: no
+// Docker, no network. T-1 (local payload path), which shared this file, was
+// fixed by R1.2 and moved unchanged to test_r1/green/t1_timestamp_local_test.dart;
+// T-1b stays red until the R1.4 server_seq cursor.
 @Tags(['recovery-red'])
 library;
-
-import 'dart:convert';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:dukaan_pro/core/domain/enums.dart';
-import 'package:dukaan_pro/core/ids/id_generator.dart';
 import 'package:dukaan_pro/database/app_database.dart';
-import 'package:dukaan_pro/features/sales/application/local_sale_service.dart';
-import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/sync/pull/pull_models.dart';
 import 'package:dukaan_pro/sync/pull/reference_pull_gateway.dart';
 import 'package:dukaan_pro/sync/pull/reference_pull_service.dart';
-import 'package:dukaan_pro/sync/sale_payload_codec.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<AppDatabase> _shopDb() async {
@@ -76,31 +68,6 @@ final class _MicrosecondRowsGateway implements ReferencePullGateway {
 }
 
 void main() {
-  test('T-1 (local): uploaded sale timestamp is the real instant on this device', () async {
-    final db = await _shopDb();
-    addTearDown(db.close);
-    final soldAt = DateTime.utc(2026, 9, 30, 4, 59, 26);
-    await LocalSaleService(db, const UuidV7Generator(), clock: () => soldAt).createSale(
-      const SaleDraft(
-        shopId: 'shop',
-        cashierId: 'owner',
-        deviceId: 'device',
-        lines: [SaleLineDraft(productId: 'p', quantity: 1000)],
-        payments: [SalePaymentDraft(method: PaymentMethod.cash, amountMinor: 18000)],
-      ),
-    );
-    final queued = await db.select(db.syncOperations).getSingle();
-    final uploaded = normalizeSalePayloadForCloud(
-      jsonDecode(queued.payload) as Map<String, dynamic>,
-    );
-    final uploadedAt = DateTime.parse((uploaded['sale'] as Map)['createdAt'] as String);
-    // ignore: avoid_print
-    print('T1_LOCAL_EVIDENCE zone=${DateTime.now().timeZoneName} '
-        'offset=${DateTime.now().timeZoneOffset} real=${soldAt.toIso8601String()} '
-        'uploaded=${uploadedAt.toIso8601String()} skew=${uploadedAt.difference(soldAt)}');
-    expect(uploadedAt.difference(soldAt), Duration.zero);
-  });
-
   test('T-1b: rows sharing one second do not loop or re-fetch through a truncated cursor', () async {
     final db = await _shopDb();
     addTearDown(db.close);

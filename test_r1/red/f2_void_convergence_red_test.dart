@@ -53,21 +53,6 @@ void main() {
         ),
       );
       expect((await worker.runOnce()).synced, 1, reason: upload.calls.join('\n'));
-      // Isolate F-2 from T-1: on a non-UTC device the server stores the sale
-      // shifted by the zone offset, and the void is then rejected as outside
-      // its window before F-2 can happen. Undo that shift on the scratch
-      // server so this device behaves like a UTC device (e.g. CI).
-      final offset = DateTime.now().timeZoneOffset.inSeconds;
-      if (offset != 0) {
-        await psql('''
-update sales set created_at = created_at - interval '$offset seconds' where id='${sale.saleId}';
-update sale_items set created_at = created_at - interval '$offset seconds' where sale_id='${sale.saleId}';
-update sale_payments set created_at = created_at - interval '$offset seconds' where sale_id='${sale.saleId}';
-update inventory_movements set created_at = created_at - interval '$offset seconds' where reference_id='${sale.saleId}';
-update customer_ledger_entries set created_at = created_at - interval '$offset seconds' where sale_id='${sale.saleId}';
-''');
-      }
-
       final stockAfterSale = await localStock(db, f.productId);
       final balanceAfterSale = await localBalance(db, f.customerId);
 

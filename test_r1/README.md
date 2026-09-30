@@ -42,7 +42,12 @@ the checkout contract (commit-then-sync failure/hang, same/different content
 under one checkout id, rapid double tap, restart after commit, zero-total,
 rollback before commit) and its review corrections (Split at Rs 0, receipt
 read back from the committed sale, customer-payment sync semantics, sales
-findable in Bills after any restart delay, canonical replay audit). It runs the production committer and background
+findable in Bills after any restart delay, canonical replay audit).
+R1.2 (T-1 timestamps) added `green/t1_timestamp_local_test.dart`,
+`direct_db/t1_timestamp_test.dart` and `http/timestamp_http_test.dart`; these
+three run under `TZ=UTC`, `Asia/Karachi` and `EST5` (UTC−05:00) with fixed
+expected instants, and PostgreSQL renders the stored instant itself.
+The green suite runs the production committer and background
 sync runner on local Drift databases only (`support/pos_fixture.dart`).
 `support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
 aggregate that R1.1 no longer creates but the server must keep rejecting.
@@ -50,8 +55,8 @@ aggregate that R1.1 no longer creates but the server must keep rejecting.
 ## Expected-red suite
 
 `red/` contains reproductions of accepted findings F-2, O-2 (A and B),
-F-3/O-4, O-6, T-1, T-1b and the HTTP contract skeletons for R1.3–R1.5 (F-1
-was fixed by R1.1 and its tests moved to `green/`). Each
+F-3/O-4, O-6, T-1b and the HTTP contract skeletons for R1.3–R1.5 (F-1 was
+fixed by R1.1 and T-1 by R1.2; their tests moved to the green layers). Each
 asserts the correct invariant and therefore fails on the current code.
 `red/EXPECTED_RED.txt` lists every test by exact name.
 `.github/scripts/expect_red.py` passes only if every listed test fails for an
@@ -60,8 +65,9 @@ skip, missing or extra test fails the gate), and it fails when a listed test
 turns green — the fixing substage must move that test into the green suite and
 remove its manifest line in the same change.
 
-T-1 depends on the device time zone, so the red suite always runs with
-`TZ=Asia/Karachi`; under UTC it would pass, which is how CI hid it before.
+Time-zone dependent tests run under explicit `TZ` values and `tz/` proves each
+zone took effect (UTC, Asia/Karachi, EST5): under UTC alone T-1 passed, which
+is how CI hid it before R1.0. The red suite runs with `TZ=Asia/Karachi`.
 
 ## Running locally
 

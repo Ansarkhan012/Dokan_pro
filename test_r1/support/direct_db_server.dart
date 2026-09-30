@@ -122,11 +122,7 @@ final class PsqlUploadGateway implements SaleUploadGateway {
       'sync_sale_void' => 'sync_sale_void',
       _ => 'sync_sale_transaction',
     };
-    final body = jsonEncode(
-      operation == 'sync_sale_transaction'
-          ? normalizeSalePayloadForCloud(payload)
-          : payload,
-    );
+    final body = jsonEncode(payloadForCloud(payload));
     final token = cashierSessionToken == null ? 'null' : _q(cashierSessionToken);
     final result = await asOwner(
       ownerId,
@@ -299,17 +295,3 @@ Future<int> localBalance(AppDatabase db, String customerId) async => (await db
     .read<int>('b');
 
 Future<int> serverScalar(String sql) async => int.parse(await psql(sql));
-
-/// Undo finding T-1 on the scratch server for one sale so a test isolates a
-/// different finding, making this device behave like a UTC device.
-Future<void> undoZoneShift(String saleId) async {
-  final offset = DateTime.now().timeZoneOffset.inSeconds;
-  if (offset == 0) return;
-  await psql('''
-update sales set created_at = created_at - interval '$offset seconds' where id='$saleId';
-update sale_items set created_at = created_at - interval '$offset seconds' where sale_id='$saleId';
-update sale_payments set created_at = created_at - interval '$offset seconds' where sale_id='$saleId';
-update inventory_movements set created_at = created_at - interval '$offset seconds' where reference_id='$saleId';
-update customer_ledger_entries set created_at = created_at - interval '$offset seconds' where sale_id='$saleId';
-''');
-}

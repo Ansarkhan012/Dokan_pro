@@ -16,10 +16,16 @@ KEY=$(grep '^R1_HTTP_ANON_KEY=' "$OUT/env.txt" | cut -d= -f2-)
 echo "== guard"; flutter test test_r1/guard
 echo "== tz UTC"; TZ=UTC flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=0
 echo "== tz Asia/Karachi"; TZ=Asia/Karachi flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=300
+echo "== tz EST5 (UTC-05:00)"; TZ=EST5 flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=-300
 echo "== R1.1 checkout durability (green)"; flutter test test_r1/green
 echo "== direct-DB (green)"; flutter test test_r1/direct_db --dart-define=R1_SERVER=true
 echo "== HTTP (green)"; flutter test test_r1/http \
   --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY"
+for zone in UTC Asia/Karachi EST5; do
+  echo "== R1.2 timestamps (TZ=$zone)"; TZ="$zone" flutter test test_r1/green/t1_timestamp_local_test.dart \
+    test_r1/direct_db/t1_timestamp_test.dart test_r1/http/timestamp_http_test.dart --dart-define=R1_SERVER=true \
+    --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY"
+done
 echo "== expected-red (TZ=Asia/Karachi)"
 TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \
   --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY" \
