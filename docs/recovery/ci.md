@@ -19,9 +19,22 @@ must stay green before any recovery phase merges.
 
 ## Pinning
 
-Flutter, the Supabase CLI and gitleaks are pinned to exact versions. GitHub
-Actions are pinned to exact release tags; once a remote exists, convert them
-to full commit SHAs (for example with a pinning tool) and verify.
+Flutter, the Supabase CLI and gitleaks are pinned to exact versions. Every
+GitHub Action is pinned to a full commit SHA. Each SHA was resolved on
+2026-09-30 from two independent sources (`git ls-remote` of the tag and the
+GitHub commits API); both agreed, and all three are lightweight tags.
+
+| Action / tool | Version | Immutable reference |
+| --- | --- | --- |
+| `actions/checkout` | v4.2.2 | `11bd71901bbe5b1630ceea73d27597364c9af683` |
+| `subosito/flutter-action` | v2.18.0 | `f2c4f6686ca8e8d6e6d0f28410eeef506ed66aff` |
+| `supabase/setup-cli` | v1.5.0 | `d347ba47d3fb7eeeddbbc793bc8d4779caf773ea` |
+| `ghcr.io/gitleaks/gitleaks` image | v8.21.2 | `sha256:0e99e8821643ea5b235718642b93bb32486af9c8162c8b8731f7cbdc951a7f46` |
+| Supabase CLI (installed by setup-cli) | 2.113.0 | release `v2.113.0` |
+| Flutter SDK | 3.44.1 (Dart 3.12.1) | tag `3.44.1` = `924134a44c189315be2148659913dda1671cbe99` |
+
+Upgrading any row is a deliberate change: re-resolve and re-verify the SHA
+or digest, and update this table in the same commit.
 
 ## Local equivalents
 
