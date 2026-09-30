@@ -121,7 +121,17 @@ jobs:
           installed=$(supabase --version)
           test "${installed}" = "${SUPABASE_CLI_VERSION}"
           echo "::notice title=Supabase CLI::supabase CLI ${installed}"
-          supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector
+          # Step logs of this public repository need sign-in; surface the tail
+          # of a failed start as an annotation so the cause is reviewable.
+          if ! supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector \
+              > "${RUNNER_TEMP}/supabase-start.txt" 2>&1; then
+            cat "${RUNNER_TEMP}/supabase-start.txt"
+            tail -n 25 "${RUNNER_TEMP}/supabase-start.txt" | sed -E 's/(eyJ|sb_secret_|sb_publishable_)[A-Za-z0-9._-]*/[redacted]/g' \
+              | awk 'BEGIN{ORS="%0A"} {print}' | sed 's/^/::error title=supabase start failed::/'
+            echo
+            exit 1
+          fi
+          cat "${RUNNER_TEMP}/supabase-start.txt" | grep -vE 'key|secret|JWT' || true
       - name: Every migration file applied
         run: |
           set -euo pipefail
