@@ -118,6 +118,9 @@ jobs:
       - name: Start ephemeral local stack (applies all migrations + seed from zero)
         run: |
           set -euo pipefail
+          installed=$(supabase --version)
+          test "${installed}" = "${SUPABASE_CLI_VERSION}"
+          echo "::notice title=Supabase CLI::supabase CLI ${installed}"
           supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector
       - name: Every migration file applied
         run: |
