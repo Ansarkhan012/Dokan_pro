@@ -1,9 +1,6 @@
 # Expected-red R1 recovery tests (run under TZ=Asia/Karachi).
 # Each line is an exact test name. When a substage fixes a defect, move the
 # test to the green suite and delete its line here in the same change.
-F-1 UI layer (hang): committed sale must show a receipt, not an endless spinner
-F-1 UI layer (throw): committed sale must not be reported as "Nothing was charged"
-F-1 data layer: post-commit sync failure escapes, cart is not cleared, retry creates a second sale
 F-2: voided credit sale converges to opening stock and zero Udhaar on the voiding device
 F-3 cross-device credit limit: second offline Udhaar sale is recorded or flagged, never retried forever
 F-3 zero-amount payment: locally committed sale reaches a terminal state instead of retrying forever

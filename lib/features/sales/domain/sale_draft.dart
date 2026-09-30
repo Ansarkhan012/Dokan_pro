@@ -31,9 +31,16 @@ final class SaleDraft {
     required this.deviceId,
     required this.lines,
     required this.payments,
+    this.saleId,
     this.customerId,
     this.invoiceNumber,
   });
+
+  /// The checkout attempt id, minted before the local transaction and used
+  /// as the sale id. Committing the same id again returns the committed sale
+  /// when the content is the same and throws [CheckoutConflict] otherwise.
+  /// Null only for callers without an attempt identity (a fresh id is used).
+  final String? saleId;
   final String shopId;
   final String cashierId;
   final String deviceId;
@@ -59,4 +66,14 @@ final class SaleValidationException implements Exception {
   final String message;
   @override
   String toString() => 'SaleValidationException: $message';
+}
+
+/// The checkout id is already committed with different content. Nothing was
+/// written; the committed sale is unchanged.
+final class CheckoutConflict implements Exception {
+  const CheckoutConflict(this.saleId);
+  final String saleId;
+  @override
+  String toString() =>
+      'CheckoutConflict: sale $saleId is already saved with different content';
 }

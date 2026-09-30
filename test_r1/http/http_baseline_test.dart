@@ -6,11 +6,11 @@ library;
 import 'dart:convert';
 
 import 'package:dukaan_pro/core/domain/enums.dart';
-import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/sync/supabase_sale_upload_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/http_stack.dart';
+import '../support/legacy_zero_payment.dart';
 import '../support/sim_device.dart';
 
 void main() {
@@ -130,10 +130,9 @@ void main() {
   test('server rejection surfaces a structured error code and message', () async {
     final shop = await newShop();
     final a = await device('a', shop, shop.deviceA);
-    await a.sell(
-      productId: shop.freeProductId,
-      payments: const [SalePaymentDraft(method: PaymentMethod.cash, amountMinor: 0)],
-    );
+    // A pre-R1.1 queued aggregate with a Rs 0 cash row: the server rejects it.
+    final free = await a.sell(productId: shop.freeProductId, payments: const []);
+    await addLegacyZeroCashPayment(a.db, free.saleId);
     final payload = jsonDecode((await a.queue()).single.payload) as Map<String, dynamic>;
     ServerError? error;
     try {

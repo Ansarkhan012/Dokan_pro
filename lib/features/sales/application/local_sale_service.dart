@@ -21,6 +21,12 @@ final class LocalSaleService {
   Future<CreatedSale> createSale(SaleDraft draft) async {
     await _authorizer.authorize(shopId: draft.shopId, deviceId: draft.deviceId);
     return db.transaction(() async {
+      // Replay of a committed checkout id: return it or refuse it, never
+      // write a second aggregate (first statement, inside the transaction).
+      if (draft.saleId case final checkoutId?) {
+        final existing = await _existingCheckout(checkoutId, draft);
+        if (existing != null) return existing;
+      }
       final now = _clock().toUtc();
       final shop = await (db.select(
         db.shops,
@@ -49,12 +55,15 @@ final class LocalSaleService {
       if (draft.lines.isEmpty) {
         throw const SaleValidationException('Cart must not be empty');
       }
-      if (draft.payments.isEmpty ||
-          draft.payments.any((p) => p.amountMinor < 0)) {
-        throw const SaleValidationException('Payments must be non-negative');
+      // Every payment row is a real tender (> 0). A zero-total sale has no
+      // payment rows; the total check below rejects an empty list otherwise.
+      if (draft.payments.any((p) => p.amountMinor <= 0)) {
+        throw const SaleValidationException(
+          'Payment amounts must be greater than zero',
+        );
       }
 
-      final saleId = ids.next();
+      final saleId = draft.saleId ?? ids.next();
       final itemRows = <Map<String, Object?>>[];
       var subtotal = 0;
       var discountTotal = 0;
@@ -112,6 +121,9 @@ final class LocalSaleService {
         }
       }
       final grandTotal = subtotal - discountTotal;
+      if (grandTotal < 0) {
+        throw const SaleValidationException('Sale total cannot be negative');
+      }
       final paid = draft.payments.fold(0, (sum, p) => sum + p.amountMinor);
       if (paid != grandTotal) {
         throw const SaleValidationException(
@@ -284,6 +296,94 @@ final class LocalSaleService {
         syncOperationId: operationId,
         grandTotalMinor: grandTotal,
       );
+    });
+  }
+
+  /// The committed sale for [checkoutId], if any. Same checkout content →
+  /// that sale (idempotent); different content → [CheckoutConflict].
+  Future<CreatedSale?> _existingCheckout(
+    String checkoutId,
+    SaleDraft draft,
+  ) async {
+    final sale = await (db.select(
+      db.sales,
+    )..where((t) => t.id.equals(checkoutId))).getSingleOrNull();
+    if (sale == null) return null;
+    if (sale.shopId != draft.shopId) throw CheckoutConflict(checkoutId);
+    final items = await (db.select(
+      db.saleItems,
+    )..where((t) => t.saleId.equals(checkoutId))).get();
+    final payments = await (db.select(
+      db.salePayments,
+    )..where((t) => t.saleId.equals(checkoutId))).get();
+    final committed = _canonicalCheckout(
+      shopId: sale.shopId,
+      cashierId: sale.cashierId,
+      deviceId: sale.deviceId,
+      customerId: sale.customerId,
+      invoiceNumber: sale.invoiceNumber,
+      lines: [
+        for (final item in items)
+          [item.productId, item.quantity, item.discountAmount],
+      ],
+      payments: [
+        for (final payment in payments)
+          [payment.paymentMethod.name, payment.amount, payment.reference],
+      ],
+    );
+    final requested = _canonicalCheckout(
+      shopId: draft.shopId,
+      cashierId: draft.cashierId,
+      deviceId: draft.deviceId,
+      customerId: draft.customerId,
+      invoiceNumber: draft.invoiceNumber,
+      lines: [
+        for (final line in draft.lines)
+          [line.productId, line.quantity, line.discountMinor],
+      ],
+      payments: [
+        for (final payment in draft.payments)
+          [payment.method.name, payment.amountMinor, payment.reference],
+      ],
+    );
+    if (committed != requested) throw CheckoutConflict(checkoutId);
+    final operation =
+        await (db.select(db.syncOperations)..where(
+              (t) =>
+                  t.entityType.equals('sale_aggregate') &
+                  t.entityId.equals(checkoutId),
+            ))
+            .getSingleOrNull();
+    return CreatedSale(
+      saleId: checkoutId,
+      syncOperationId: operation?.id ?? '',
+      grandTotalMinor: sale.grandTotal,
+    );
+  }
+
+  /// Order-independent form of everything a [SaleDraft] carries. Each draft
+  /// line is stored as one sale item and each payment as one payment row, so
+  /// the committed rows reproduce it exactly; prices are not part of it (they
+  /// come from the product at commit time and are snapshotted then).
+  String _canonicalCheckout({
+    required String shopId,
+    required String cashierId,
+    required String deviceId,
+    required String? customerId,
+    required String? invoiceNumber,
+    required List<List<Object?>> lines,
+    required List<List<Object?>> payments,
+  }) {
+    List<String> sorted(List<List<Object?>> rows) =>
+        rows.map(jsonEncode).toList()..sort();
+    return jsonEncode({
+      'shop': shopId,
+      'cashier': cashierId,
+      'device': deviceId,
+      'customer': customerId,
+      'invoice': invoiceNumber,
+      'lines': sorted(lines),
+      'payments': sorted(payments),
     });
   }
 

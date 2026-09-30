@@ -14,6 +14,7 @@ import 'package:dukaan_pro/sync/sync_worker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/direct_db_server.dart';
+import '../support/legacy_zero_payment.dart';
 
 /// Drives the real worker for [attempts] retries, jumping the clock past each
 /// backoff window, and reports what happened to the single queued operation.
@@ -62,19 +63,19 @@ void main() {
       await f.seedServer();
       final db = await f.openDevice();
       addTearDown(db.close);
-      // Exactly what PosWorkspace cash mode builds for a Rs 0 total:
-      // PosPayment(cash, amountMinor: total) with total == 0.
+      // Exactly what PosWorkspace cash mode queued for a Rs 0 total before
+      // R1.1: PosPayment(cash, amountMinor: total) with total == 0. R1.1 no
+      // longer creates that row, so the legacy queued aggregate is crafted.
       final sale = await LocalSaleService(db, const UuidV7Generator()).createSale(
         SaleDraft(
           shopId: f.shopId,
           cashierId: f.ownerId,
           deviceId: f.deviceA,
           lines: [SaleLineDraft(productId: f.freeProductId, quantity: 1000)],
-          payments: const [
-            SalePaymentDraft(method: PaymentMethod.cash, amountMinor: 0),
-          ],
+          payments: const [],
         ),
       );
+      await addLegacyZeroCashPayment(db, sale.saleId);
       final summary = await _retryForever(db, f, 6);
       final onServer = await psql("select count(*) from sales where id='${sale.saleId}'");
       // ignore: avoid_print

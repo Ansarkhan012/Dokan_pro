@@ -3,6 +3,7 @@
 # run covers test/ only; everything under test_r1/ is invoked explicitly.
 tags:
   recovery-red:
+  r1-green:
   r1-http:
   r1-direct-db:
   r1-guard:

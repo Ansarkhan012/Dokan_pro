@@ -8,6 +8,7 @@ invoked explicitly.
 | --- | --- | --- | --- |
 | `guard/` | `r1-guard` | green | nothing |
 | `tz/` | `r1-tz` | green | `TZ` + `EXPECTED_TZ_OFFSET_MINUTES` |
+| `green/` | `r1-green` | green (fixed findings) | nothing |
 | `direct_db/` | `r1-direct-db` | green | Docker + `R1_SERVER=true` |
 | `http/` | `r1-http` | green | local HTTP stack + `R1_HTTP_URL` / `R1_HTTP_ANON_KEY` |
 | `red/` | `recovery-red` | **expected red** | all of the above, `TZ=Asia/Karachi` |
@@ -32,10 +33,23 @@ invoked explicitly.
   `localhost` or a loopback IP literal before a client exists, and blocks any
   non-loopback socket through `HttpOverrides`. `guard/` proves both.
 
+## Green regression suite (fixed findings)
+
+`green/` holds the tests of findings a substage has fixed, kept with their
+original names and assertions, plus that substage's contract tests. R1.1
+(checkout durability + zero total) moved the three F-1 tests here and added
+the checkout contract (commit-then-sync failure/hang, same/different content
+under one checkout id, rapid double tap, restart after commit, zero-total,
+rollback before commit). It runs the production committer and background
+sync runner on local Drift databases only (`support/pos_fixture.dart`).
+`support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
+aggregate that R1.1 no longer creates but the server must keep rejecting.
+
 ## Expected-red suite
 
-`red/` contains reproductions of accepted findings F-1, F-2, O-2 (A and B),
-F-3/O-4, O-6, T-1, T-1b and the HTTP contract skeletons for R1.3–R1.5. Each
+`red/` contains reproductions of accepted findings F-2, O-2 (A and B),
+F-3/O-4, O-6, T-1, T-1b and the HTTP contract skeletons for R1.3–R1.5 (F-1
+was fixed by R1.1 and its tests moved to `green/`). Each
 asserts the correct invariant and therefore fails on the current code.
 `red/EXPECTED_RED.txt` lists every test by exact name.
 `.github/scripts/expect_red.py` passes only if every listed test fails for an

@@ -16,6 +16,7 @@ KEY=$(grep '^R1_HTTP_ANON_KEY=' "$OUT/env.txt" | cut -d= -f2-)
 echo "== guard"; flutter test test_r1/guard
 echo "== tz UTC"; TZ=UTC flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=0
 echo "== tz Asia/Karachi"; TZ=Asia/Karachi flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=300
+echo "== R1.1 checkout durability (green)"; flutter test test_r1/green
 echo "== direct-DB (green)"; flutter test test_r1/direct_db --dart-define=R1_SERVER=true
 echo "== HTTP (green)"; flutter test test_r1/http \
   --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY"

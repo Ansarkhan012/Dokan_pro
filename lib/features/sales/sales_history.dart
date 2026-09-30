@@ -217,6 +217,41 @@ final class DriftSalesHistoryRepository {
     return rows.map(_row).toList();
   }
 
+  /// The newest completed sale this device committed at or after [since],
+  /// read only from local data (POS "last sale saved" after a restart).
+  Future<SaleHistoryRow?> lastSaleOnDevice(
+    String deviceId, {
+    required DateTime since,
+  }) async {
+    final latest =
+        await (db.select(db.sales)
+              ..where(
+                (s) =>
+                    s.shopId.equals(shopId) &
+                    s.deviceId.equals(deviceId) &
+                    s.createdAt.isBiggerOrEqualValue(since),
+              )
+              ..orderBy([
+                (s) => OrderingTerm.desc(s.createdAt),
+                (s) => OrderingTerm.desc(s.id),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
+    if (latest == null) return null;
+    final rows = await page(
+      filter: SaleHistoryFilter(
+        range: ReportRange(
+          latest.createdAt,
+          latest.createdAt.add(const Duration(seconds: 1)),
+          label: 'Last sale',
+        ),
+        query: latest.id,
+      ),
+      limit: 1,
+    );
+    return rows.firstOrNull;
+  }
+
   Future<List<(String, String)>> cashiers() async {
     final rows =
         await (db.select(db.cashiers)

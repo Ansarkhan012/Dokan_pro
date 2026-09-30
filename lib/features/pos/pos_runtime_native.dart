@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/cashier_session_manager.dart';
 import '../../auth/cashier_session_store.dart';
 import '../../auth/supabase_cashier_auth_gateway.dart';
-import '../../core/ids/id_generator.dart';
 import '../../core/domain/enums.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
@@ -13,21 +12,16 @@ import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
 import '../../sync/supabase_sale_upload_gateway.dart';
-import '../../sync/sync_worker.dart';
+import '../../sync/sync_worker_runner.dart';
 import '../../subscription/entitlement_policy.dart';
 import '../../subscription/subscription_runtime.dart';
 import '../../subscription/entitlement_store.dart';
 import '../../subscription/entitlement_verifier.dart';
 import '../../subscription/supabase_entitlement_gateway.dart';
-import '../sales/application/local_sale_service.dart';
 import '../sales/sales_history.dart';
-import '../customers/customer_models.dart';
-import '../customers/drift_customer_repository.dart';
-import '../customers/local_customer_payment_service.dart';
-import '../sales/domain/sale_draft.dart';
 import 'drift_pos_catalog.dart';
+import 'drift_pos_sale_committer.dart';
 import 'pos_catalog.dart';
-import 'pos_state.dart';
 import 'pos_workspace.dart';
 
 class PosRuntime extends StatefulWidget {
@@ -65,9 +59,10 @@ class _PosRuntimeState extends State<PosRuntime> {
     final cached = await catalog.load();
     final hasCachedContext = await _hasCachedContext(database);
     final useCachedStartup = hasCachedContext && cached.products.isNotEmpty;
+    final sync = _syncRunner(database);
     var offline = false;
     if (useCachedStartup) {
-      unawaited(_refreshAndSync(database));
+      unawaited(_refreshAndSync(database, sync));
     } else {
       offline = !await _pullReferences(database);
     }
@@ -96,16 +91,15 @@ class _PosRuntimeState extends State<PosRuntime> {
         );
       }
     }
-    final committer = _NativeSaleCommitter(
+    final committer = DriftPosSaleCommitter(
       database,
-      catalog,
-      client: widget.client,
       shopId: widget.shopId,
       cashierId: widget.cashierId,
       deviceId: widget.deviceId,
+      sync: sync,
       authorizer: authorizer,
     );
-    if (!offline && !useCachedStartup) await committer.syncPending();
+    if (!offline && !useCachedStartup) await sync.run();
     final shopOperations = await (database.select(
       database.syncOperations,
     )..where((row) => row.shopId.equals(widget.shopId))).get();
@@ -117,7 +111,32 @@ class _PosRuntimeState extends State<PosRuntime> {
         (operation) => operation.status != SyncStatus.synced,
       ),
       entitlement: entitlement,
+      lastSavedSale: await _lastSavedSale(database),
     );
+  }
+
+  /// One background upload runner per POS runtime; checkout only wakes it.
+  SyncWorkerRunner _syncRunner(AppDatabase database) => SyncWorkerRunner(
+    queue: SyncQueueRepository(database, shopId: widget.shopId),
+    gateway: SupabaseSaleUploadGateway(widget.client),
+    workerId: 'device-${widget.deviceId}',
+    cashierToken: () async => (await SecureCashierSessionStore().read())?.token,
+  );
+
+  /// The newest sale committed on this device in the last 30 minutes, so a
+  /// cashier whose app closed after checkout can reprint instead of re-ringing.
+  Future<SaleHistoryRow?> _lastSavedSale(AppDatabase database) async {
+    try {
+      return await DriftSalesHistoryRepository(
+        database,
+        shopId: widget.shopId,
+      ).lastSaleOnDevice(
+        widget.deviceId,
+        since: DateTime.now().toUtc().subtract(const Duration(minutes: 30)),
+      );
+    } catch (_) {
+      return null; // A recovery hint must never block opening the POS.
+    }
   }
 
   Future<bool> _refreshEntitlement() async {
@@ -192,16 +211,12 @@ class _PosRuntimeState extends State<PosRuntime> {
     return shop != null && cashier != null && device != null;
   }
 
-  Future<void> _refreshAndSync(AppDatabase database) async {
+  Future<void> _refreshAndSync(
+    AppDatabase database,
+    SyncWorkerRunner sync,
+  ) async {
     await _pullReferences(database);
-    await _NativeSaleCommitter(
-      database,
-      DriftPosCatalog(database, shopId: widget.shopId),
-      client: widget.client,
-      shopId: widget.shopId,
-      cashierId: widget.cashierId,
-      deviceId: widget.deviceId,
-    ).syncPending();
+    await sync.run();
   }
 
   Future<void> _logout() async {
@@ -264,6 +279,7 @@ class _PosRuntimeState extends State<PosRuntime> {
         offline: state.offline,
         initialHasPendingSync: state.hasPendingSync,
         entitlement: state.entitlement,
+        lastSavedSale: state.lastSavedSale,
         onLogout: _logout,
       );
     },
@@ -277,124 +293,12 @@ final class _RuntimeState {
     required this.offline,
     required this.hasPendingSync,
     required this.entitlement,
+    required this.lastSavedSale,
   });
   final PosCatalogSnapshot catalog;
   final PosSaleCommitter committer;
   final bool offline;
   final bool hasPendingSync;
   final EntitlementEvaluation entitlement;
-}
-
-final class _NativeSaleCommitter implements PosSaleCommitter {
-  _NativeSaleCommitter(
-    this.db,
-    this.catalog, {
-    required this.client,
-    required this.shopId,
-    required this.cashierId,
-    required this.deviceId,
-    FinancialMutationAuthorizer? authorizer,
-  }) : authorizer = authorizer ?? productionFinancialMutationAuthorizer();
-
-  final AppDatabase db;
-  final DriftPosCatalog catalog;
-  final SupabaseClient client;
-  final String shopId;
-  final String cashierId;
-  final String deviceId;
-  final FinancialMutationAuthorizer authorizer;
-  bool _lastSyncSucceeded = false;
-
-  @override
-  bool get lastSyncSucceeded => _lastSyncSucceeded;
-
-  @override
-  Stream<bool> watchHasPendingSync() =>
-      (db.select(db.syncOperations)..where(
-            (row) =>
-                row.shopId.equals(shopId) &
-                row.status.equals(SyncStatus.synced.name).not(),
-          ))
-          .watch()
-          .map((operations) => operations.isNotEmpty)
-          .distinct();
-
-  @override
-  Future<CreatedSale> complete(PosCart cart, PosPaymentPlan payment) async {
-    final created =
-        await LocalSaleService(
-          db,
-          const UuidV7Generator(),
-          authorizer: authorizer,
-        ).createSale(
-          SaleDraft(
-            shopId: shopId,
-            cashierId: cashierId,
-            deviceId: deviceId,
-            customerId: payment.customerId,
-            lines: cart.toSaleLines(),
-            payments: payment.payments
-                .map(
-                  (row) => SalePaymentDraft(
-                    method: row.method,
-                    amountMinor: row.amountMinor,
-                  ),
-                )
-                .toList(),
-          ),
-        );
-    _lastSyncSucceeded = await syncPending();
-    return created;
-  }
-
-  Future<bool> syncPending() async {
-    final queue = SyncQueueRepository(db, shopId: shopId);
-    await SyncWorker(
-      queue: queue,
-      gateway: SupabaseSaleUploadGateway(client),
-      workerId: 'device-$deviceId',
-      cashierToken: () async =>
-          (await SecureCashierSessionStore().read())?.token,
-    ).runOnce();
-    return (await queue.pending()).isEmpty;
-  }
-
-  @override
-  Future<bool> triggerSync() => syncPending();
-
-  @override
-  Future<PosCatalogSnapshot> reloadCatalog() => catalog.load();
-
-  @override
-  Future<List<CustomerAccount>> searchCustomers(String query) =>
-      DriftCustomerRepository(db, shopId: shopId).search(query);
-
-  @override
-  Future<List<CustomerLedgerLine>> statement(String customerId) =>
-      DriftCustomerRepository(db, shopId: shopId).statement(customerId);
-
-  @override
-  Future<void> receivePayment({
-    required String customerId,
-    required int amountMinor,
-    required PaymentMethod method,
-    String? reference,
-    String? note,
-  }) async {
-    await LocalCustomerPaymentService(
-      db,
-      const UuidV7Generator(),
-      authorizer: authorizer,
-    ).receive(
-      shopId: shopId,
-      customerId: customerId,
-      actorId: cashierId,
-      deviceId: deviceId,
-      amountMinor: amountMinor,
-      method: method,
-      reference: reference,
-      note: note,
-    );
-    _lastSyncSucceeded = await syncPending();
-  }
+  final SaleHistoryRow? lastSavedSale;
 }

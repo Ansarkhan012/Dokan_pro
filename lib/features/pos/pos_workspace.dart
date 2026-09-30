@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
+import '../../core/ids/id_generator.dart';
 import '../../subscription/entitlement_policy.dart';
 import '../sales/domain/sale_draft.dart';
 import '../sales/sales_history.dart';
@@ -13,10 +14,16 @@ import 'pos_state.dart';
 import 'product_thumbnail.dart';
 
 abstract interface class PosSaleCommitter implements CustomerKhataActions {
-  Future<CreatedSale> complete(PosCart cart, PosPaymentPlan payment);
+  /// Commits checkout [checkoutId] in one local transaction. Completes once it
+  /// has committed (then the sale is final) and throws only if it did not;
+  /// never waits for the network. Replaying the id returns the same sale.
+  Future<CreatedSale> complete(
+    String checkoutId,
+    PosCart cart,
+    PosPaymentPlan payment,
+  );
   Future<PosCatalogSnapshot> reloadCatalog();
   Stream<bool> watchHasPendingSync();
-  bool get lastSyncSucceeded;
   Future<bool> triggerSync();
 }
 
@@ -32,6 +39,8 @@ class PosWorkspace extends StatefulWidget {
     required this.initialHasPendingSync,
     required this.onLogout,
     this.entitlement,
+    this.checkoutIds = const UuidV7Generator(),
+    this.lastSavedSale,
   });
 
   final String shopName;
@@ -43,6 +52,12 @@ class PosWorkspace extends StatefulWidget {
   final bool initialHasPendingSync;
   final Future<void> Function() onLogout;
   final EntitlementEvaluation? entitlement;
+
+  /// Mints one checkout id per payment-confirmation attempt.
+  final IdGenerator checkoutIds;
+
+  /// A sale committed on this device shortly before the app last closed.
+  final SaleHistoryRow? lastSavedSale;
 
   @override
   State<PosWorkspace> createState() => _PosWorkspaceState();
@@ -56,6 +71,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
   String? categoryId;
   int destination = 0;
   bool completing = false;
+  bool paymentOpen = false;
+  ({String id, String cart})? checkoutAttempt;
+  late SaleHistoryRow? lastSavedSale = widget.lastSavedSale;
   late bool hasPendingSync = widget.initialHasPendingSync;
   late bool isOffline = widget.offline;
   StreamSubscription<bool>? syncStatusSubscription;
@@ -82,7 +100,12 @@ class _PosWorkspaceState extends State<PosWorkspace>
 
   Future<void> _retrySync() async {
     if (!hasPendingSync) return;
-    final synced = await widget.committer.triggerSync();
+    final bool synced;
+    try {
+      synced = await widget.committer.triggerSync();
+    } catch (_) {
+      return; // Sync problems stay in the queue; they are never POS errors.
+    }
     if (!mounted) return;
     setState(() {
       hasPendingSync = !synced;
@@ -123,79 +146,138 @@ class _PosWorkspaceState extends State<PosWorkspace>
     );
   }
 
+  /// The checkout id for the current cart: minted once when payment
+  /// confirmation begins and reused until that cart is committed, so a double
+  /// tap or a retry after a failure can never become a second sale.
+  String _checkoutIdFor(PosCart cart) {
+    final content = [
+      for (final line in cart.lines) '${line.product.id}:${line.quantity}',
+    ]..sort();
+    final key = content.join(',');
+    if (checkoutAttempt case final attempt? when attempt.cart == key) {
+      return attempt.id;
+    }
+    final id = widget.checkoutIds.next();
+    checkoutAttempt = (id: id, cart: key);
+    return id;
+  }
+
   Future<void> checkout() async {
     if (cart.isEmpty ||
         completing ||
+        paymentOpen ||
         widget.entitlement?.permitsMutation == false) {
       return;
     }
-    final plan = await showDialog<PosPaymentPlan>(
-      context: context,
-      builder: (_) => PaymentDialog(
-        totalMinor: cart.subtotalMinor,
-        customers: catalog.customers,
-      ),
-    );
-    if (plan == null || !mounted) return;
-    setState(() => completing = true);
+    final checkoutId = _checkoutIdFor(cart);
+    paymentOpen = true;
+    PosPaymentPlan? plan;
     try {
-      final receiptLines = List<PosCartLine>.from(cart.lines);
-      final sale = await const PosCheckoutController().complete(
-        cart: cart,
-        payment: plan,
-        commit: () => widget.committer.complete(cart, plan),
-      );
-      final refreshed = await widget.committer.reloadCatalog();
-      if (!mounted) return;
-      setState(() {
-        catalog = refreshed;
-        completing = false;
-        hasPendingSync = !widget.committer.lastSyncSucceeded;
-      });
-      await showDialog<void>(
+      plan = await showDialog<PosPaymentPlan>(
         context: context,
-        builder: (_) => ReceiptDialog(
-          receipt: ReceiptModel(
-            shopName: widget.shopName,
-            reference: sale.saleId,
-            dateTime: DateTime.now().toUtc(),
-            cashier: widget.cashierName,
-            customer: catalog.customers
-                .where((customer) => customer.id == plan.customerId)
-                .firstOrNull
-                ?.name,
-            lines: [
-              for (final line in receiptLines)
-                ReceiptLine(
-                  name: line.product.name,
-                  quantity: line.quantity,
-                  unitPrice: line.product.salePriceMinor,
-                  total: line.totalMinor,
-                ),
-            ],
-            subtotal: sale.grandTotalMinor,
-            total: sale.grandTotalMinor,
-            payments: {
-              for (final row in plan.payments) row.method.name: row.amountMinor,
-            },
-            received: plan.cashReceivedMinor,
-            change: plan.changeDueFor(sale.grandTotalMinor),
-          ),
-          synced: widget.committer.lastSyncSucceeded,
-          onView: () => setState(() => destination = 2),
+        builder: (_) => PaymentDialog(
+          totalMinor: cart.subtotalMinor,
+          customers: catalog.customers,
         ),
       );
+    } finally {
+      paymentOpen = false;
+    }
+    if (plan == null || !mounted) return;
+    final payment = plan;
+    setState(() => completing = true);
+    final receiptLines = List<PosCartLine>.from(cart.lines);
+    final CreatedSale sale;
+    try {
+      sale = await const PosCheckoutController().complete(
+        cart: cart,
+        payment: payment,
+        commit: () => widget.committer.complete(checkoutId, cart, payment),
+      );
     } catch (error) {
+      // Only reachable when the local transaction did not commit.
       if (!mounted) return;
       setState(() => completing = false);
       final message = switch (error) {
         SaleValidationException(:final message) => message,
         SubscriptionMutationBlocked(:final message) => message,
+        CheckoutConflict() =>
+          'This sale was already saved with different details. Nothing new was recorded.',
         _ => 'Sale could not be completed. Nothing was charged.',
       };
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    // Committed locally: the checkout is complete and nothing below (sync,
+    // catalog refresh) can turn it into a failure.
+    checkoutAttempt = null;
+    if (!mounted) return;
+    setState(() {
+      completing = false;
+      hasPendingSync = true;
+      lastSavedSale = null;
+    });
+    unawaited(_reloadCatalog());
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ReceiptDialog(
+        receipt: ReceiptModel(
+          shopName: widget.shopName,
+          reference: sale.saleId,
+          dateTime: DateTime.now().toUtc(),
+          cashier: widget.cashierName,
+          customer: catalog.customers
+              .where((customer) => customer.id == payment.customerId)
+              .firstOrNull
+              ?.name,
+          lines: [
+            for (final line in receiptLines)
+              ReceiptLine(
+                name: line.product.name,
+                quantity: line.quantity,
+                unitPrice: line.product.salePriceMinor,
+                total: line.totalMinor,
+              ),
+          ],
+          subtotal: sale.grandTotalMinor,
+          total: sale.grandTotalMinor,
+          payments: {
+            for (final row in payment.payments)
+              row.method.name: row.amountMinor,
+          },
+          received: payment.cashReceivedMinor,
+          change: payment.changeDueFor(sale.grandTotalMinor),
+        ),
+        synced: false,
+        onView: () => setState(() => destination = 2),
+      ),
+    );
+  }
+
+  Future<void> _reloadCatalog() async {
+    try {
+      final refreshed = await widget.committer.reloadCatalog();
+      if (mounted) setState(() => catalog = refreshed);
+    } catch (_) {
+      // Stock figures refresh on the next load; the sale is already saved.
+    }
+  }
+
+  Future<void> _reprint(SaleHistoryRow sale) async {
+    try {
+      final history = widget.salesHistory;
+      final receipt = await history.receipt(await history.detail(sale));
+      if (!mounted) return;
+      await showPrintableReceipt(context, receipt);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The receipt could not be opened. Find it in Bills.'),
+        ),
+      );
     }
   }
 
@@ -239,6 +321,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   title: Text(entitlement.message),
                 ),
               ),
+            if (lastSavedSale case final last?) _lastSavedSaleBanner(last),
             Expanded(
               child: Row(
                 children: [
@@ -263,6 +346,35 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _lastSavedSaleBanner(SaleHistoryRow sale) {
+    final at = sale.at.toLocal();
+    final time =
+        '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    return Material(
+      color: const Color(0xffe7f4ee),
+      child: ListTile(
+        dense: true,
+        leading: const Icon(Icons.check_circle, color: Color(0xff176b52)),
+        title: Text(
+          'Last sale saved on this device: ${formatPkr(sale.total)} at $time',
+        ),
+        trailing: Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: () => _reprint(sale),
+              child: const Text('View / Reprint'),
+            ),
+            TextButton(
+              onPressed: () => setState(() => lastSavedSale = null),
+              child: const Text('Dismiss'),
             ),
           ],
         ),
@@ -710,6 +822,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
   final credit = TextEditingController();
   String? customerId;
   String? error;
+  bool confirmed = false;
   PosCustomer? get selectedCustomer => customerId == null
       ? null
       : widget.customers.where((c) => c.id == customerId).firstOrNull;
@@ -726,34 +839,41 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   void confirm() {
+    // A second tap while the dialog is closing must not confirm again.
+    if (confirmed) return;
+    // A Rs 0 sale is paid by nothing: it carries no payment row at all.
+    final due = widget.totalMinor > 0;
     late PosPaymentPlan plan;
     if (mode == PaymentMethod.cash) {
       final received = parseMoneyMinor(cash.text);
       plan = PosPaymentPlan(
         payments: [
-          PosPayment(
-            method: PaymentMethod.cash,
-            amountMinor: widget.totalMinor,
-          ),
+          if (due)
+            PosPayment(
+              method: PaymentMethod.cash,
+              amountMinor: widget.totalMinor,
+            ),
         ],
         cashReceivedMinor: received,
       );
     } else if (mode == PaymentMethod.digital) {
       plan = PosPaymentPlan(
         payments: [
-          PosPayment(
-            method: PaymentMethod.digital,
-            amountMinor: widget.totalMinor,
-          ),
+          if (due)
+            PosPayment(
+              method: PaymentMethod.digital,
+              amountMinor: widget.totalMinor,
+            ),
         ],
       );
     } else if (mode == PaymentMethod.credit) {
       plan = PosPaymentPlan(
         payments: [
-          PosPayment(
-            method: PaymentMethod.credit,
-            amountMinor: widget.totalMinor,
-          ),
+          if (due)
+            PosPayment(
+              method: PaymentMethod.credit,
+              amountMinor: widget.totalMinor,
+            ),
         ],
         customerId: customerId,
       );
@@ -792,6 +912,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
         return;
       }
     }
+    confirmed = true;
     Navigator.pop(context, plan);
   }
 

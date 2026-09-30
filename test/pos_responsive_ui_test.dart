@@ -203,10 +203,11 @@ PosProduct _product({
 
 final class _Committer implements PosSaleCommitter {
   @override
-  bool get lastSyncSucceeded => false;
-  @override
-  Future<CreatedSale> complete(PosCart cart, PosPaymentPlan payment) =>
-      throw UnimplementedError();
+  Future<CreatedSale> complete(
+    String checkoutId,
+    PosCart cart,
+    PosPaymentPlan payment,
+  ) => throw UnimplementedError();
   @override
   Future<PosCatalogSnapshot> reloadCatalog() => throw UnimplementedError();
   @override

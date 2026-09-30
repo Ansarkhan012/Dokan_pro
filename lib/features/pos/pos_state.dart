@@ -89,8 +89,11 @@ final class PosPaymentPlan {
         : received - grandTotalMinor;
   }
 
+  /// Every payment row must be a real tender (> 0); a Rs 0 sale has none.
   String? validate(int grandTotalMinor) {
-    if (payments.isEmpty || payments.any((row) => row.amountMinor < 0)) {
+    if (grandTotalMinor < 0 ||
+        (payments.isEmpty && grandTotalMinor != 0) ||
+        payments.any((row) => row.amountMinor <= 0)) {
       return 'Enter a valid payment.';
     }
     if (totalMinor != grandTotalMinor) {
