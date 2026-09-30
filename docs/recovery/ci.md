@@ -36,6 +36,24 @@ GitHub commits API); both agreed, and all three are lightweight tags.
 Upgrading any row is a deliberate change: re-resolve and re-verify the SHA
 or digest, and update this table in the same commit.
 
+## Baseline floors and public evidence
+
+CI asserts the audited baseline as floors (`BASELINE_MIN_*` in the workflow):
+at least 95 Flutter tests passed with at most 1 skipped and none failed, the
+stress test passed, at least 18 migrations applied (and equal to the file
+count), at least 10 raw SQL files and 40 pgTAP tests passed. Exact counts are
+emitted as `::notice` annotations, which are readable from the public
+check-runs API without signing in to view logs. Raise a floor when tests are
+added; never lower one to make CI pass.
+
+## Known non-blocking notice
+
+GitHub runners report that `actions/checkout` v4.2.2, `actions/cache` (used
+inside flutter-action) and `supabase/setup-cli` v1.5.0 target Node.js 20 and
+are run on Node.js 24. This is a deprecation notice, not a failure. Upgrading
+these actions is a deliberate future change (re-resolve SHAs, update the
+table above).
+
 ## Local equivalents
 
 ```powershell

@@ -30,6 +30,13 @@ env:
   SUPABASE_CLI_VERSION: "2.113.0"
   GITLEAKS_VERSION: "8.21.2"
   GITLEAKS_IMAGE_DIGEST: "sha256:0e99e8821643ea5b235718642b93bb32486af9c8162c8b8731f7cbdc951a7f46"
+  # Baseline floors from the audited state. Raise them when tests are added;
+  # never lower them to make CI pass.
+  BASELINE_MIN_FLUTTER_PASSED: "95"
+  BASELINE_MAX_FLUTTER_SKIPPED: "1"
+  BASELINE_MIN_MIGRATIONS: "18"
+  BASELINE_MIN_RAW_SQL_FILES: "10"
+  BASELINE_MIN_PGTAP_TESTS: "40"
 
 jobs:
   secret-scan:
@@ -54,6 +61,7 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo \
             "ghcr.io/gitleaks/gitleaks:v${GITLEAKS_VERSION}@${GITLEAKS_IMAGE_DIGEST}" \
             git --redact --no-banner --verbose /repo
+          echo "::notice title=gitleaks::gitleaks v${GITLEAKS_VERSION} scanned full history: no leaks found"
 
   flutter:
     name: Flutter analyze and test
@@ -74,6 +82,7 @@ jobs:
           flutter --version
           flutter --version | grep -q "Flutter ${FLUTTER_VERSION} "
           flutter --version | grep -q "Dart 3.12.1"
+          echo "::notice title=Toolchain::$(flutter --version | head -1 | cut -c1-60) / $(dart --version 2>&1 | cut -c1-40)"
       - name: Restore dependencies (lock file must not change)
         run: |
           set -euo pipefail
@@ -82,9 +91,18 @@ jobs:
       - name: flutter analyze
         run: flutter analyze
       - name: flutter test
-        run: flutter test --reporter expanded
+        run: |
+          set -euo pipefail
+          flutter test --reporter expanded --file-reporter json:"${RUNNER_TEMP}/flutter-tests.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/flutter-tests.json" \
+            --label "flutter test" --min-passed "${BASELINE_MIN_FLUTTER_PASSED}" --max-skipped "${BASELINE_MAX_FLUTTER_SKIPPED}"
       - name: Opt-in stress test
-        run: flutter test test/stress_performance_test.dart --dart-define=RUN_STRESS=true --reporter expanded
+        run: |
+          set -euo pipefail
+          flutter test test/stress_performance_test.dart --dart-define=RUN_STRESS=true --reporter expanded \
+            --file-reporter json:"${RUNNER_TEMP}/stress-tests.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/stress-tests.json" \
+            --label "stress test" --min-passed 1 --max-skipped 0
 
   database:
     name: Fresh Supabase schema, raw SQL and pgTAP
@@ -109,6 +127,8 @@ jobs:
             -c "select count(*) from supabase_migrations.schema_migrations")
           echo "migration files=${expected} applied=${applied}"
           test "${expected}" = "${applied}"
+          test "${applied}" -ge "${BASELINE_MIN_MIGRATIONS}"
+          echo "::notice title=Migrations::${applied}/${expected} migrations applied from zero on a fresh stack"
       - name: Raw SQL security suites (ordered list from scripts/run_raw_sql_tests.ps1)
         run: |
           set -euo pipefail
@@ -119,8 +139,18 @@ jobs:
             docker exec -i supabase_db_POS_store psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < "supabase/tests_raw/${t}"
           done
           echo "Raw SQL verification passed: ${#tests[@]} files."
+          test "${#tests[@]}" -ge "${BASELINE_MIN_RAW_SQL_FILES}"
+          echo "::notice title=Raw SQL::${#tests[@]}/${#tests[@]} raw SQL files passed"
       - name: pgTAP suites
-        run: supabase test db
+        run: |
+          set -euo pipefail
+          supabase test db 2>&1 | tee "${RUNNER_TEMP}/pgtap.txt"
+          grep -q "^Result: PASS" "${RUNNER_TEMP}/pgtap.txt"
+          tests=$(grep -oE 'Tests=[0-9]+' "${RUNNER_TEMP}/pgtap.txt" | tail -1 | cut -d= -f2)
+          files=$(grep -oE 'Files=[0-9]+' "${RUNNER_TEMP}/pgtap.txt" | tail -1 | cut -d= -f2)
+          test -n "${tests}"
+          test "${tests}" -ge "${BASELINE_MIN_PGTAP_TESTS}"
+          echo "::notice title=pgTAP::${tests} pgTAP tests passed in ${files} files"
       - name: Stop stack
         if: always()
         run: supabase stop --no-backup
