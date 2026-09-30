@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select has_table('public','sale_returns','sale returns table exists');
+select has_table('public','sale_return_items','sale return items table exists');
+select has_table('public','sale_voids','sale voids table exists');
+select is((select relrowsecurity from pg_class where oid='public.sale_returns'::regclass),true,'sale returns has RLS');
+select is((select relrowsecurity from pg_class where oid='public.sale_return_items'::regclass),true,'sale return items has RLS');
+select is((select relrowsecurity from pg_class where oid='public.sale_voids'::regclass),true,'sale voids has RLS');
+select table_privs_are('public','sale_returns','authenticated',array['SELECT'],'returns are client read-only');
+select table_privs_are('public','sale_return_items','authenticated',array['SELECT'],'return items are client read-only');
+select table_privs_are('public','sale_voids','authenticated',array['SELECT'],'voids are client read-only');
+select function_privs_are('public','sync_sale_return',array['jsonb','text'],'authenticated',array['EXECUTE'],'authenticated can execute return RPC');
+select function_privs_are('public','sync_sale_return',array['jsonb','text'],'anon',array[]::text[],'anon cannot execute return RPC');
+select function_privs_are('public','sync_sale_void',array['jsonb','text'],'anon',array[]::text[],'anon cannot execute void RPC');
+select * from finish();
+rollback;

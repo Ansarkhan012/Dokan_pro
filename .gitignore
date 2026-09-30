@@ -1,0 +1,94 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+Thumbs.db
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / VS Code / local machine
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.tool_state/
+.pub-cache/
+.pub/
+/build/
+**/build/
+/coverage/
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android generated and build artifacts (see also android/.gitignore)
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle/
+/android/.kotlin/
+/android/local.properties
+**/.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Windows generated and build artifacts (see also windows/.gitignore)
+/windows/flutter/ephemeral/
+*.exe
+*.msix
+*.pdb
+
+# Signing material and credentials. Never commit these.
+*.jks
+*.keystore
+key.properties
+*.pem
+*.p12
+*.pfx
+*.jwk
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+secrets/
+*.secret
+*.secrets
+
+# Supabase local runtime state (contains local runtime secrets)
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+supabase/functions/.env
+supabase/functions/**/.env
+
+# Local databases and benchmark/scratch artifacts
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+scratch/
+tmp/
+*.tmp

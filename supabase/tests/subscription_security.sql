@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select has_table('public','subscription_plans','plans table exists');
+select has_table('public','shop_subscriptions','subscriptions table exists');
+select has_table('public','device_entitlements','entitlements table exists');
+select is((select relrowsecurity from pg_class where oid='public.subscription_plans'::regclass),true,'plans RLS enabled');
+select is((select relrowsecurity from pg_class where oid='public.shop_subscriptions'::regclass),true,'subscriptions RLS enabled');
+select is((select relrowsecurity from pg_class where oid='public.device_entitlements'::regclass),true,'entitlements RLS enabled');
+select table_privs_are('public','shop_subscriptions','authenticated',array['SELECT'],'subscriptions are client read-only');
+select table_privs_are('public','device_entitlements','authenticated',array['SELECT'],'entitlements are client read-only');
+select function_privs_are('public','entitlement_claims',array['uuid','uuid'],'authenticated',array['EXECUTE'],'authenticated may request authorized claims');
+select function_privs_are('public','entitlement_claims',array['uuid','uuid'],'anon',array[]::text[],'anon cannot request claims');
+select ok(position('search_path=public, pg_temp' in (select array_to_string(proconfig,',') from pg_proc where oid='public.entitlement_claims(uuid,uuid)'::regprocedure))>0,'claims RPC fixes search_path');
+select is((select count(*)::integer from public.subscription_plans),5,'five configured plan/cycle records');
+select * from finish();
+rollback;

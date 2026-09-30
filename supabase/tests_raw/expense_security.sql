@@ -1,0 +1,16 @@
+begin;
+insert into auth.users(id,email)values('81000000-0000-0000-0000-000000000001','expense-a@test'),('82000000-0000-0000-0000-000000000002','expense-b@test');
+insert into public.shops(id,name)values('8a000000-0000-0000-0000-000000000001','A'),('8b000000-0000-0000-0000-000000000002','B');
+insert into public.shop_users(shop_id,user_id,role)values('8a000000-0000-0000-0000-000000000001','81000000-0000-0000-0000-000000000001','owner'),('8b000000-0000-0000-0000-000000000002','82000000-0000-0000-0000-000000000002','owner');
+insert into public.devices(id,shop_id,device_name,device_type,device_identifier)values('8d000000-0000-0000-0000-000000000001','8a000000-0000-0000-0000-000000000001','PC','windowsDesktop','8e000000-0000-0000-0000-000000000001');
+set local role authenticated;select set_config('request.jwt.claim.sub','81000000-0000-0000-0000-000000000001',true);
+do $$declare p jsonb;r jsonb;c uuid;begin
+perform public.ensure_default_expense_categories('8a000000-0000-0000-0000-000000000001');select id into c from public.expense_categories where shop_id='8a000000-0000-0000-0000-000000000001' and name='Electricity';
+begin perform public.ensure_default_expense_categories('8b000000-0000-0000-0000-000000000002');raise exception 'cross-shop category access succeeded';exception when insufficient_privilege then null;end;
+p:=jsonb_build_object('version',1,'operation','sync_expense','expense',jsonb_build_object('id','8f000000-0000-0000-0000-000000000001','shop_id','8a000000-0000-0000-0000-000000000001','category_id',c,'category','Electricity','amount',1250000,'payment_method','digital','expense_at','2026-09-14T00:00:00Z','description','September electricity bill','created_by','81000000-0000-0000-0000-000000000001','device_id','8d000000-0000-0000-0000-000000000001','created_at','2026-09-14T00:00:00Z'),'audit',jsonb_build_object('id','8f000000-0000-0000-0000-000000000002','new_value',jsonb_build_object('amount',1250000),'created_at','2026-09-14T00:00:00Z'));
+r:=public.sync_expense(p,null);if r->>'status'<>'inserted'then raise exception 'expense sync failed';end if;r:=public.sync_expense(p,null);if r->>'status'<>'already_synced'then raise exception 'expense replay failed';end if;if(select count(*) from public.expenses where id='8f000000-0000-0000-0000-000000000001')<>1 then raise exception 'expense duplicated';end if;
+begin perform public.sync_expense(jsonb_set(p,'{expense,amount}','1'::jsonb),null);raise exception 'changed replay succeeded';exception when others then if sqlerrm='changed replay succeeded'then raise;end if;end;
+begin insert into public.expenses(id,shop_id,category_id,category,amount,payment_method,expense_at,description,created_by,device_id,created_at)values(gen_random_uuid(),'8a000000-0000-0000-0000-000000000001',c,'Electricity',1,'cash',now(),'Direct','81000000-0000-0000-0000-000000000001','8d000000-0000-0000-0000-000000000001',now());raise exception 'direct expense insert succeeded';exception when insufficient_privilege then null;end;
+end$$;
+select set_config('request.jwt.claim.sub','',true);set local role anon;do $$begin begin perform public.sync_expense('{}',null);raise exception 'cashier/anon expense succeeded';exception when insufficient_privilege then null;end;end$$;
+rollback;
