@@ -47,6 +47,11 @@ R1.2 (T-1 timestamps) added `green/t1_timestamp_local_test.dart`,
 `direct_db/t1_timestamp_test.dart` and `http/timestamp_http_test.dart`; these
 three run under `TZ=UTC`, `Asia/Karachi` and `EST5` (UTC−05:00) with fixed
 expected instants, and PostgreSQL renders the stored instant itself.
+R1.3 (F-2 void convergence, void contract v2) added `green/void_local_test.dart`,
+`direct_db/void_convergence_test.dart`, `direct_db/void_upgrade_test.dart`
+(upgrade from the 18-migration R1.2 schema) and
+`http/void_convergence_http_test.dart`; the void-window, restart and F-2 tests
+also run in the three-zone matrix.
 The green suite runs the production committer and background
 sync runner on local Drift databases only (`support/pos_fixture.dart`).
 `support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
@@ -54,9 +59,10 @@ aggregate that R1.1 no longer creates but the server must keep rejecting.
 
 ## Expected-red suite
 
-`red/` contains reproductions of accepted findings F-2, O-2 (A and B),
-F-3/O-4, O-6, T-1b and the HTTP contract skeletons for R1.3–R1.5 (F-1 was
-fixed by R1.1 and T-1 by R1.2; their tests moved to the green layers). Each
+`red/` contains reproductions of accepted findings O-2 (A and B), F-3/O-4,
+O-6, T-1b and the HTTP contract skeletons for R1.4–R1.5 (F-1, T-1 and F-2 plus
+the R1.3 v2 void contract were fixed by R1.1, R1.2 and R1.3; their tests moved
+to the green layers). Each
 asserts the correct invariant and therefore fails on the current code.
 `red/EXPECTED_RED.txt` lists every test by exact name.
 `.github/scripts/expect_red.py` passes only if every listed test fails for an
@@ -77,7 +83,8 @@ bash tool/r1_integration/run_local.sh
 
 The script brings up the disposable HTTP stack (`tool/r1_integration/local_http_stack.sh`:
 GoTrue, PostgREST and Kong from the images of the running local dev stack,
-against scratch database `r1_http`, published on `127.0.0.1:54421`), runs every
+against scratch database `r1_http`, published on `127.0.0.1:54421`, or `R1_HTTP_PORT` when Windows reserves
+that port), runs every
 layer, applies the red gate and always tears the stack down.
 
 CI (`r1-integration` job) runs the same layers against a fresh `supabase start`

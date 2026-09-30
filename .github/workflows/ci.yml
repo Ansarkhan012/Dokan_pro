@@ -35,7 +35,7 @@ env:
   # never lower them to make CI pass.
   BASELINE_MIN_FLUTTER_PASSED: "95"
   BASELINE_MAX_FLUTTER_SKIPPED: "1"
-  BASELINE_MIN_MIGRATIONS: "18"
+  BASELINE_MIN_MIGRATIONS: "19"
   BASELINE_MIN_RAW_SQL_FILES: "10"
   BASELINE_MIN_PGTAP_TESTS: "40"
 
@@ -207,7 +207,7 @@ jobs:
           set -uo pipefail
           flutter test test_r1/green --reporter expanded --file-reporter json:"${RUNNER_TEMP}/green.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/green.json" \
-            --label "R1.1 checkout durability (green)" --min-passed 71 --max-skipped 0
+            --label "R1.1 checkout durability (green)" --min-passed 76 --max-skipped 0
       - name: Start fresh local Supabase stack (all migrations + seed from zero)
         run: |
           set -euo pipefail
@@ -238,7 +238,7 @@ jobs:
           flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded \
             --file-reporter json:"${RUNNER_TEMP}/direct.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/direct.json" \
-            --label "R1 direct-DB (green)" --min-passed 6 --max-skipped 0
+            --label "R1 direct-DB (green)" --min-passed 15 --max-skipped 0
       - name: HTTP layer through Kong/PostgREST/GoTrue (green)
         run: |
           # No `set -e`: step logs need sign-in on this public repository, so
@@ -249,7 +249,7 @@ jobs:
             --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
             --file-reporter json:"${RUNNER_TEMP}/http.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
-            --label "R1 HTTP (green)" --min-passed 14 --max-skipped 0
+            --label "R1 HTTP (green)" --min-passed 18 --max-skipped 0
       - name: R1.2 timestamp suite under UTC, Asia/Karachi and EST5 (local + direct DB + HTTP)
         run: |
           set -uo pipefail
@@ -263,6 +263,13 @@ jobs:
               --file-reporter json:"${report}"
             python3 .github/scripts/flutter_test_counts.py "${report}" \
               --label "R1.2 timestamps TZ=${zone}" --min-passed 20 --max-skipped 0 || status=1
+            # R1.3: local void, and the server void window / restart / F-2 in each zone.
+            void_report="${RUNNER_TEMP}/void-$(echo "${zone}" | tr '/' '-').json"
+            TZ="${zone}" flutter test test_r1/green/void_local_test.dart test_r1/direct_db/void_convergence_test.dart \
+              --name '^(B|C|D|K|L|F-2|a second|a failure)' --dart-define=R1_SERVER=true --reporter expanded \
+              --file-reporter json:"${void_report}"
+            python3 .github/scripts/flutter_test_counts.py "${void_report}" \
+              --label "R1.3 void TZ=${zone}" --min-passed 9 --max-skipped 0 || status=1
           done
           exit "${status}"
       - name: Expected-red recovery suite under TZ=Asia/Karachi (gate)

@@ -20,7 +20,8 @@ PROJECT=POS_store
 DB_CONTAINER="supabase_db_${PROJECT}"
 NETWORK="supabase_network_${PROJECT}"
 SCRATCH_DB=r1_http
-PORT=54421
+# Override with R1_HTTP_PORT when Windows reserves the default (netsh excludedportrange).
+PORT="${R1_HTTP_PORT:-54421}"
 PREFIX=r1http
 WORK="${TMPDIR:-${TEMP:-/tmp}}/${PREFIX}_stack"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

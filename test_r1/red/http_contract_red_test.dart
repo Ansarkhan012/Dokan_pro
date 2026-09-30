@@ -1,4 +1,5 @@
-// Expected-red HTTP contract tests for R1.3-R1.5, through the real Supabase
+// Expected-red HTTP contract tests for R1.4-R1.5 (the R1.3 v2 void test moved to
+// test_r1/http/void_convergence_http_test.dart when R1.3 delivered it), through the real Supabase
 // HTTP path of a disposable local stack. Payloads are built by hand with
 // explicit UTC instants so T-1 cannot mask the contract under test. Missing
 // contracts are converted into `fail()` so each test is red for the intended
@@ -160,44 +161,5 @@ void main() {
       if (e is TestFailure) rethrow;
       fail('server_seq is not available through PostgREST: ${ServerError.of(e) ?? e}');
     }
-  }, skip: skip);
-
-  test('R1.3 v2 void: server uses the client compensation ids', () async {
-    final shop = await ServerShop.create(await stack.signUpOwner());
-    final saleId = _id();
-    final sale = _sale(shop, saleId: saleId);
-    await _rpc(shop, 'sync_sale_transaction', sale);
-    final saleItemId = ((sale['sale_items'] as List).single as Map)['id'] as String;
-    final voidId = _id(), movementId = _id();
-    try {
-      await _rpc(shop, 'sync_sale_void', {
-        'version': 2,
-        'operation': 'sync_sale_void',
-        'void': {
-          'id': voidId,
-          'shop_id': shop.shopId,
-          'original_sale_id': saleId,
-          'device_id': shop.deviceA,
-          'amount': ServerShop.salePrice,
-          'reason': 'wrong item',
-          'payment_breakdown': {'cash': ServerShop.salePrice},
-          'created_by': shop.owner.userId,
-          'created_at': _now(),
-        },
-        'movement_ids': {saleItemId: movementId},
-        'refund_ledger_id': null,
-        'audit_id': _id(),
-      });
-    } catch (e) {
-      fail('v2 void was rejected: ${ServerError.of(e) ?? e}');
-    }
-    final rows = await shop.owner.client
-        .from('inventory_movements')
-        .select('id')
-        .eq('reference_id', voidId) as List;
-    final serverIds = rows.map((r) => (r as Map)['id']).toList();
-    // ignore: avoid_print
-    print('V2VOID_EVIDENCE client movement id=$movementId server ids=$serverIds');
-    expect(serverIds, [movementId]);
   }, skip: skip);
 }

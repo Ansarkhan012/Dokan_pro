@@ -38,10 +38,14 @@ do $$declare p jsonb;r jsonb;begin
 end$$;
 
 do $$declare p jsonb;r jsonb;begin
- p:=jsonb_build_object('version',1,'operation','sync_sale_void','void',jsonb_build_object('id','c9000000-0000-0000-0000-000000000001','shop_id','ba000000-0000-0000-0000-000000000001','original_sale_id','c1000000-0000-0000-0000-000000000002','device_id','bd000000-0000-0000-0000-000000000001','amount',12000,'reason','Wrong bill','payment_breakdown',jsonb_build_object('cash',12000),'created_by','b1000000-0000-0000-0000-000000000001','created_at',now()),'audit_id','ca000000-0000-0000-0000-000000000001');
+ p:=jsonb_build_object('version',2,'operation','sync_sale_void','void',jsonb_build_object('id','c9000000-0000-0000-0000-000000000001','shop_id','ba000000-0000-0000-0000-000000000001','original_sale_id','c1000000-0000-0000-0000-000000000002','device_id','bd000000-0000-0000-0000-000000000001','amount',12000,'reason','Wrong bill','payment_breakdown',jsonb_build_object('cash',12000),'created_by','b1000000-0000-0000-0000-000000000001','created_at',now()),'movement_ids',jsonb_build_object('c2000000-0000-0000-0000-000000000002','cb000000-0000-0000-0000-000000000001'),'refund_ledger_id',null,'audit_id','ca000000-0000-0000-0000-000000000001');
+ -- R1.3: a v1 void (no compensation ids) is refused with DPV01 before any write.
+ begin perform public.sync_sale_void(jsonb_set(p,'{version}','1')-'movement_ids'-'refund_ledger_id',null);raise exception 'v1 void accepted';exception when sqlstate 'DPV01' then null;end;
+ if exists(select 1 from public.sale_voids where original_sale_id='c1000000-0000-0000-0000-000000000002') then raise exception 'v1 void wrote a row';end if;
  r:=public.sync_sale_void(p,null);if r->>'status'<>'inserted'then raise exception 'void insert failed';end if;
  r:=public.sync_sale_void(p,null);if r->>'status'<>'already_synced'then raise exception 'void replay failed';end if;
  if(select count(*) from public.sale_voids where original_sale_id='c1000000-0000-0000-0000-000000000002')<>1 then raise exception 'void duplicated';end if;
+ if(select id from public.inventory_movements where reference_id='c9000000-0000-0000-0000-000000000001')<>'cb000000-0000-0000-0000-000000000001' then raise exception 'void compensation id not the client id';end if;
 end$$;
 
 do $$begin

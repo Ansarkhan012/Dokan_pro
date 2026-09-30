@@ -25,6 +25,8 @@ for zone in UTC Asia/Karachi EST5; do
   echo "== R1.2 timestamps (TZ=$zone)"; TZ="$zone" flutter test test_r1/green/t1_timestamp_local_test.dart \
     test_r1/direct_db/t1_timestamp_test.dart test_r1/http/timestamp_http_test.dart --dart-define=R1_SERVER=true \
     --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY"
+  echo "== R1.3 void (TZ=$zone)"; TZ="$zone" flutter test test_r1/green/void_local_test.dart \
+    test_r1/direct_db/void_convergence_test.dart --name '^(B|C|D|K|L|F-2|a second|a failure)' --dart-define=R1_SERVER=true
 done
 echo "== expected-red (TZ=Asia/Karachi)"
 TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \

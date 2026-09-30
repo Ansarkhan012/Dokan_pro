@@ -88,10 +88,19 @@ final class LocalSaleVoidService {
       final payments = await (db.select(
         db.salePayments,
       )..where((t) => t.shopId.equals(shopId) & t.saleId.equals(saleId))).get();
-      final breakdown = {
-        for (final p in payments) p.paymentMethod.name: p.amount,
-      };
+      final breakdown = <String, int>{};
+      for (final p in payments) {
+        breakdown.update(
+          p.paymentMethod.name,
+          (sum) => sum + p.amount,
+          ifAbsent: () => p.amount,
+        );
+      }
       final voidId = ids.next(), auditId = ids.next(), operationId = ids.next();
+      // Void contract v2 (R1.3, F-2): every compensation row gets its id here,
+      // once, and the same ids travel in the payload, so the server stores
+      // these rows instead of generating copies that a pull would duplicate.
+      final movementIds = <String, String>{};
       await db
           .into(db.saleVoids)
           .insert(
@@ -108,11 +117,12 @@ final class LocalSaleVoidService {
             ),
           );
       for (final item in items) {
+        final movementId = movementIds[item.id] = ids.next();
         await db
             .into(db.inventoryMovements)
             .insert(
               InventoryMovementsCompanion.insert(
-                id: ids.next(),
+                id: movementId,
                 shopId: shopId,
                 productId: item.productId,
                 type: InventoryMovementType.returnIn,
@@ -129,7 +139,8 @@ final class LocalSaleVoidService {
       final credit = payments
           .where((p) => p.paymentMethod == PaymentMethod.credit)
           .fold<int>(0, (sum, p) => sum + p.amount);
-      if (credit > 0) {
+      final refundLedgerId = credit > 0 ? ids.next() : null;
+      if (refundLedgerId != null) {
         if (sale.customerId == null) {
           throw StateError('Credit sale has no customer.');
         }
@@ -137,7 +148,7 @@ final class LocalSaleVoidService {
             .into(db.customerLedgerEntries)
             .insert(
               CustomerLedgerEntriesCompanion.insert(
-                id: ids.next(),
+                id: refundLedgerId,
                 shopId: shopId,
                 customerId: sale.customerId!,
                 type: CustomerLedgerType.refund,
@@ -167,7 +178,7 @@ final class LocalSaleVoidService {
             ),
           );
       final payload = {
-        'version': 1,
+        'version': 2,
         'operation': 'sync_sale_void',
         'void': {
           'id': voidId,
@@ -180,6 +191,8 @@ final class LocalSaleVoidService {
           'created_by': ownerId,
           'created_at': now.toIso8601String(),
         },
+        'movement_ids': movementIds,
+        'refund_ledger_id': refundLedgerId,
         'audit_id': auditId,
       };
       await db

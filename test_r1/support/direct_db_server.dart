@@ -58,8 +58,17 @@ Future<String> psql(String script, {String? db}) async {
   return out.trim();
 }
 
-/// Creates the scratch database from zero with every repository migration.
-Future<void> createScratchServer([String? name]) async {
+/// Repository migrations in application order.
+List<File> migrationFiles() => Directory('supabase/migrations')
+    .listSync()
+    .whereType<File>()
+    .where((f) => f.path.endsWith('.sql'))
+    .toList()
+  ..sort((a, b) => a.path.compareTo(b.path));
+
+/// Creates the scratch database from zero with every repository migration, or
+/// only the first [upTo] of them (to test an upgrade).
+Future<void> createScratchServer([String? name, int? upTo]) async {
   if (name != null) scratchDb = 'r1_direct_$name';
   if (!RegExp(r'^r1_direct(_[a-z0-9_]+)?$').hasMatch(scratchDb)) {
     throw StateError('refusing unexpected scratch database name $scratchDb');
@@ -75,13 +84,8 @@ create function auth.uid() returns uuid language sql stable as $$
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 ''');
-  final migrations = Directory('supabase/migrations')
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.sql'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  for (final file in migrations) {
+  final migrations = migrationFiles();
+  for (final file in upTo == null ? migrations : migrations.take(upTo)) {
     await psql(file.readAsStringSync());
   }
 }
@@ -234,8 +238,9 @@ insert into public.inventory_movements(id,shop_id,product_id,type,quantity,refer
 ''');
 
   /// A device database seeded with the same reference data the pull provides.
-  Future<AppDatabase> openDevice({int? creditLimit}) async {
-    final db = AppDatabase(NativeDatabase.memory());
+  /// [file] makes it file-backed, so a restart is close + reopen.
+  Future<AppDatabase> openDevice({int? creditLimit, File? file}) async {
+    final db = AppDatabase(file == null ? NativeDatabase.memory() : NativeDatabase(file));
     await db.into(db.shops).insert(ShopsCompanion.insert(
       id: shopId, name: 'R1 shop', phone: '', address: '',
       subscriptionPlan: SubscriptionPlan.trial,
