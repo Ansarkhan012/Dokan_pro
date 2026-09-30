@@ -1,7 +1,7 @@
 // R1 Stage A reproduction of audit findings F-3 / O-4: offline-committed
 // facts that the server rejects permanently are retried forever with no
 // terminal state. Asserts the CORRECT invariant, so it FAILS today.
-@Tags(['r1-repro'])
+@Tags(['recovery-red'])
 library;
 
 import 'package:dukaan_pro/core/domain/enums.dart';
@@ -13,7 +13,7 @@ import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/sync/sync_worker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'harness.dart';
+import '../support/direct_db_server.dart';
 
 /// Drives the real worker for [attempts] retries, jumping the clock past each
 /// backoff window, and reports what happened to the single queued operation.
@@ -49,7 +49,7 @@ Future<String> _retryForever(
 
 void main() {
   setUpAll(() async {
-    if (r1ServerEnabled) await createScratchServer();
+    if (r1ServerEnabled) await createScratchServer('f3');
   });
   tearDownAll(() async {
     if (r1ServerEnabled) await dropScratchServer();

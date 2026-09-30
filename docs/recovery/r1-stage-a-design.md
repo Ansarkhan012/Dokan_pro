@@ -1,7 +1,51 @@
 # R1 Stage A — revised design (reproduction, contracts, migration plan)
 
-Status: **design only, awaiting final approval.** No application behaviour,
-schema or migration has changed. Artifacts live on the local branch
+Status: **design APPROVED (2026-09-30) with decisions D1–D6 below.** R1.0 is
+authorised; R1.1+ are not started. No application behaviour, schema or
+migration has changed.
+
+## Approved decisions (supersede conflicting text below)
+
+- **D1 — Checkout fingerprint:** no `sales.checkout_fingerprint` column in R1.1;
+  R1.1 stays migration-free. Idempotency compares the requested checkout with
+  the already-persisted immutable local sale aggregate and/or its durable outbox
+  payload through one canonical representation. The checkout attempt id is
+  generated once when payment confirmation begins and reused for that attempt;
+  a rapid double tap must not mint two ids. If safe canonical comparison proves
+  impossible from existing data, stop and request approval before adding a
+  column. (§B's column is withdrawn.)
+- **D2 — Owner-screen tables:** R1.4 includes the seven procurement/expense
+  tables (`suppliers`, `supplier_ledger_entries`, `purchases`, `purchase_items`,
+  `purchase_payments`, `expense_categories`, `expenses`), limited to sync
+  ordering/cursor correctness, with an explicit inventory before the migration.
+- **D3 — Legacy timestamp payloads:** unsynced legacy sale/purchase payloads
+  with ambiguous offset-less timestamps go to `needs_attention`; never
+  rewritten automatically (none exist today).
+- **D4 — Retry policy (replaces §H thresholds):** connectivity and known
+  transient failures (no network, timeout, HTTP 5xx/408/429, serialization,
+  deadlock, lock timeout) stay retryable with capped exponential backoff and are
+  **never** moved to `needs_attention` for elapsed time or attempts; after 24 h
+  they may additionally show as `stuck` while still retrying. Unknown errors:
+  capped backoff, then `needs_attention` after 5 attempts **or** 1 h. Missing
+  dependency: retry; immediately `needs_attention` if the parent is
+  `needs_attention`; otherwise at most 7 days. Auth: `blocked_auth`, no timer,
+  resume on auth-state change or explicit retry. Permanent codes: immediate
+  `needs_attention`. **Acknowledge never means synced or resolved**; it only
+  records that the owner has seen the issue. Implemented in R1.5.
+- **D5 — v1 void:** new sync rejects v1 void payloads with `DPV01` (inventory
+  §K: nothing to strand). Implemented in R1.3.
+- **D6 — HTTP integration CI:** approved; delivered in R1.0 as the
+  `r1-integration` job.
+
+## R1.0 delivered harness (see `test_r1/README.md`)
+
+`test_r1/` (outside `test/`): `guard/` (fail-closed local-target guard),
+`tz/` (UTC and Asia/Karachi proof), `direct_db/` (per-file scratch database),
+`http/` (real Kong → GoTrue/PostgREST path through the app's gateways),
+`red/` (expected-red reproductions + `EXPECTED_RED.txt`), and support code for
+two-device simulation. Local runs use `tool/r1_integration/run_local.sh`
+(disposable mini-stack from the running dev stack's images, scratch database
+`r1_http`, port 54421); CI uses a fresh `supabase start`. Artifacts live on the local branch
 `r1/stage-a`: failing reproduction tests in `test/r1_stage_a/` and the
 `server_seq` prototype in `test/r1_stage_a/server_seq_prototype/`.
 

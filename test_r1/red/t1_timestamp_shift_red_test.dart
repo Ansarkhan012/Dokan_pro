@@ -1,7 +1,7 @@
 // R1 Stage A: NEW finding T-1 discovered while reproducing F-2.
 // Asserts the CORRECT invariant, so it FAILS on the current code whenever the
 // device time zone is not UTC (e.g. Asia/Karachi, UTC+05:00).
-@Tags(['r1-repro'])
+@Tags(['recovery-red'])
 library;
 
 import 'dart:convert';
@@ -15,11 +15,11 @@ import 'package:dukaan_pro/sync/sale_payload_codec.dart';
 import 'package:dukaan_pro/sync/sync_worker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'harness.dart';
+import '../support/direct_db_server.dart';
 
 void main() {
   setUpAll(() async {
-    if (r1ServerEnabled) await createScratchServer();
+    if (r1ServerEnabled) await createScratchServer('t1');
   });
   tearDownAll(() async {
     if (r1ServerEnabled) await dropScratchServer();

@@ -1,7 +1,7 @@
 // R1 Stage A reproduction of audit finding O-2 (client-clock pull cursors).
 // Asserts the CORRECT invariant, so it FAILS on the current code.
 // T-1 is neutralised with undoZoneShift() so only the cursor defect is tested.
-@Tags(['r1-repro'])
+@Tags(['recovery-red'])
 library;
 
 import 'package:dukaan_pro/core/domain/enums.dart';
@@ -15,7 +15,7 @@ import 'package:dukaan_pro/sync/pull/reference_pull_service.dart';
 import 'package:dukaan_pro/sync/sync_worker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'harness.dart';
+import '../support/direct_db_server.dart';
 
 Future<String> _sell(
   AppDatabase db,
@@ -63,7 +63,7 @@ Future<bool> _has(AppDatabase db, String saleId) async =>
 
 void main() {
   setUpAll(() async {
-    if (r1ServerEnabled) await createScratchServer();
+    if (r1ServerEnabled) await createScratchServer('o2');
   });
   tearDownAll(() async {
     if (r1ServerEnabled) await dropScratchServer();

@@ -167,3 +167,83 @@ jobs:
       - name: Stop stack
         if: always()
         run: supabase stop --no-backup
+
+  r1-integration:
+    name: R1 integration (disposable local stack, HTTP + direct DB, TZ matrix, expected-red gate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@f2c4f6686ca8e8d6e6d0f28410eeef506ed66aff # v2.18.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: supabase/setup-cli@d347ba47d3fb7eeeddbbc793bc8d4779caf773ea # v1.5.0
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Restore dependencies (lock file must not change)
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          git diff --exit-code pubspec.lock
+      - name: Local-target guard (fails closed before any stack exists)
+        run: flutter test test_r1/guard --reporter expanded
+      - name: Time-zone matrix proves TZ actually changed
+        run: |
+          set -euo pipefail
+          TZ=UTC flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=0 --reporter expanded
+          TZ=Asia/Karachi flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=300 --reporter expanded
+          echo "::notice title=TZ matrix::UTC (+0) and Asia/Karachi (+300 min) verified"
+      - name: Start fresh local Supabase stack (all migrations + seed from zero)
+        run: |
+          set -euo pipefail
+          test "$(supabase --version)" = "${SUPABASE_CLI_VERSION}"
+          supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector \
+            > "${RUNNER_TEMP}/supabase-start.txt" 2>&1 || {
+              tail -n 25 "${RUNNER_TEMP}/supabase-start.txt" | sed -E 's/(eyJ|sb_secret_|sb_publishable_)[A-Za-z0-9._-]*/[redacted]/g'
+              exit 1; }
+          applied=$(docker exec supabase_db_POS_store psql -X -U postgres -d postgres -At \
+            -c "select count(*) from supabase_migrations.schema_migrations")
+          test "${applied}" = "$(ls supabase/migrations/*.sql | wc -l)"
+          test "${applied}" -ge "${BASELINE_MIN_MIGRATIONS}"
+          echo "::notice title=R1 stack::${applied} migrations applied from zero"
+      - name: Export local-only HTTP endpoint (loopback URL + local anon key)
+        run: |
+          set -euo pipefail
+          supabase status -o env > "${RUNNER_TEMP}/status.env"
+          url=$(grep '^API_URL=' "${RUNNER_TEMP}/status.env" | cut -d= -f2- | tr -d '"')
+          key=$(grep '^ANON_KEY=' "${RUNNER_TEMP}/status.env" | cut -d= -f2- | tr -d '"')
+          rm -f "${RUNNER_TEMP}/status.env"
+          echo "::add-mask::${key}"
+          case "${url}" in http://127.0.0.1:*|http://localhost:*) ;; *) echo "::error::non-local API_URL"; exit 1 ;; esac
+          echo "R1_HTTP_URL=${url}" >> "${GITHUB_ENV}"
+          echo "R1_HTTP_ANON_KEY=${key}" >> "${GITHUB_ENV}"
+      - name: Direct-DB layer (green)
+        run: flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded
+      - name: HTTP layer through Kong/PostgREST/GoTrue (green)
+        run: |
+          set -euo pipefail
+          flutter test test_r1/http --reporter expanded \
+            --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
+            --file-reporter json:"${RUNNER_TEMP}/http.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
+            --label "R1 HTTP (green)" --min-passed 9 --max-skipped 0
+      - name: Expected-red recovery suite under TZ=Asia/Karachi (gate)
+        run: |
+          set -euo pipefail
+          TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \
+            --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
+            --file-reporter json:"${RUNNER_TEMP}/red.json" > "${RUNNER_TEMP}/red.txt" 2>&1 || true
+          python3 .github/scripts/expect_red.py "${RUNNER_TEMP}/red.json" --manifest test_r1/red/EXPECTED_RED.txt
+      - name: No scratch database left behind
+        if: always()
+        run: |
+          left=$(docker exec supabase_db_POS_store psql -X -U postgres -d postgres -At \
+            -c "select count(*) from pg_database where datname like 'r1_%'" 2>/dev/null || echo 0)
+          test "${left}" = "0"
+      - name: Stop stack
+        if: always()
+        run: supabase stop --no-backup

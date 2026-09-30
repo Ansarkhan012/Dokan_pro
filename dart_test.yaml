@@ -1,0 +1,9 @@
+# Tag declarations for the R1 recovery harness (see test_r1/README.md).
+# Declaring tags does not change which tests `flutter test` runs: the default
+# run covers test/ only; everything under test_r1/ is invoked explicitly.
+tags:
+  recovery-red:
+  r1-http:
+  r1-direct-db:
+  r1-guard:
+  r1-tz:
