@@ -1,0 +1,17 @@
+# gitleaks configuration: default ruleset plus a NARROW allowlist of values
+# reviewed during recovery phase R0 (2026-09-30). Do not add broad path
+# allowlists; every entry must name a specific, non-secret literal.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed non-secret literals"
+regexes = [
+  # Local-only password for disposable users created by tool/development_entitlement_e2e.dart
+  # against the ephemeral local stack. Never a real account.
+  '''Development-only-123!''',
+  # Fake cashier tokens used as fixtures in test/phase_2a_sync_security_test.dart.
+  '''(sensitive|raw-once)-token''',
+  # supabase/config.toml indirections to environment variables (values are not in the repo).
+  '''env\([A-Z0-9_]+\)''',
+]

@@ -4,6 +4,12 @@ Phase 0 architecture and offline-first local data foundation for a multi-tenant 
 
 Run verification with `flutter analyze` and `flutter test`.
 
+**Recovery status:** the code at tag `pre-recovery-audit-baseline` has known
+pilot-blocking defects recorded in the
+[forensic audit and recovery roadmap](docs/recovery/forensic-audit-2026-09-30.md).
+Read it before changing financial, sync, auth or security behaviour. CI is
+described in [docs/recovery/ci.md](docs/recovery/ci.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
