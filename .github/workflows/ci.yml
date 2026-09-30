@@ -223,10 +223,18 @@ jobs:
           echo "R1_HTTP_URL=${url}" >> "${GITHUB_ENV}"
           echo "R1_HTTP_ANON_KEY=${key}" >> "${GITHUB_ENV}"
       - name: Direct-DB layer (green)
-        run: flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded
+        run: |
+          set -uo pipefail
+          flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded \
+            --file-reporter json:"${RUNNER_TEMP}/direct.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/direct.json" \
+            --label "R1 direct-DB (green)" --min-passed 1 --max-skipped 0
       - name: HTTP layer through Kong/PostgREST/GoTrue (green)
         run: |
-          set -euo pipefail
+          # No `set -e`: step logs need sign-in on this public repository, so
+          # the count script always runs and publishes every failing test as an
+          # annotation; its exit status decides the step.
+          set -uo pipefail
           flutter test test_r1/http --reporter expanded \
             --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
             --file-reporter json:"${RUNNER_TEMP}/http.json"
