@@ -191,7 +191,10 @@ jobs:
           flutter pub get --enforce-lockfile
           git diff --exit-code pubspec.lock
       - name: Local-target guard (fails closed before any stack exists)
-        run: flutter test test_r1/guard --reporter expanded
+        run: |
+          set -uo pipefail
+          flutter test test_r1/guard --reporter expanded --file-reporter json:"${RUNNER_TEMP}/guard.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/guard.json"             --label "R1 local-target guard" --min-passed 15 --max-skipped 0
       - name: Time-zone matrix proves TZ actually changed
         run: |
           set -euo pipefail

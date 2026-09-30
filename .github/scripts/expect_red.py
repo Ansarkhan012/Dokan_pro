@@ -51,7 +51,7 @@ def main() -> int:
                 skipped[name] = event.get("skipped", False)
                 results[name] = (event["result"], event["testID"])
 
-    problems = []
+    problems, notices = [], []
     for name in expected:
         if name not in results:
             problems.append(f"missing: {name}")
@@ -63,22 +63,27 @@ def main() -> int:
         elif result == "success":
             problems.append(f"now GREEN (move to green suite with its fix): {name}")
         elif result == "failure":
-            print(f"::notice title=expected red::{name}")
+            notices.append(f"::notice title=expected red::{name}")
         elif (
             result == "error"
             and "The following TestFailure was thrown" in text
             and text.count("EXCEPTION CAUGHT") == text.count("The following TestFailure was thrown")
         ):
-            print(f"::notice title=expected red (widget)::{name}")
+            notices.append(f"::notice title=expected red (widget)::{name}")
         else:
             problems.append(f"red for the WRONG reason ({result}): {name}")
     for name in results:
         if name not in expected:
             problems.append(f"unlisted test in red suite: {name}")
 
+    # GitHub keeps only 10 notices per step: publish the summary first.
+    summary = f"expected red: {len(expected)}, observed: {len(results)}, problems: {len(problems)}"
+    print(f"::notice title=expected-red gate summary::{summary}")
     for problem in problems:
         print(f"::error title=expected-red gate::{problem}")
-    print(f"expected red: {len(expected)}, observed: {len(results)}, problems: {len(problems)}")
+    for notice in notices:
+        print(notice)
+    print(summary)
     return 1 if problems else 0
 
 
