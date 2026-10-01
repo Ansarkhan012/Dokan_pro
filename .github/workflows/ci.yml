@@ -247,9 +247,18 @@ jobs:
           set -uo pipefail
           flutter test test_r1/http --reporter expanded \
             --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
-            --file-reporter json:"${RUNNER_TEMP}/http.json"
-          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
-            --label "R1 HTTP (green)" --min-passed 18 --max-skipped 0
+            --file-reporter json:"${RUNNER_TEMP}/http.json" 2>&1 | tee "${RUNNER_TEMP}/http.txt"
+          flutter_status=${PIPESTATUS[0]}
+          echo "::notice title=R1 HTTP flutter exit::flutter test exited with ${flutter_status}"
+          if ! python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
+              --label "R1 HTTP (green)" --min-passed 18 --max-skipped 0; then
+            # Diagnostics: the last output lines as one annotation (logs need sign-in).
+            tail -n 60 "${RUNNER_TEMP}/http.txt" \
+              | sed -E 's/(eyJ|sb_secret_|sb_publishable_)[A-Za-z0-9._-]*/[redacted]/g; s/%/%25/g' \
+              | awk 'BEGIN{ORS="%0A"} {print}' | sed 's/^/::error title=R1 HTTP output tail::/'
+            echo
+            exit 1
+          fi
       - name: R1.2 timestamp suite under UTC, Asia/Karachi and EST5 (local + direct DB + HTTP)
         run: |
           set -uo pipefail

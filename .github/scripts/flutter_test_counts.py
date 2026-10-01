@@ -23,12 +23,24 @@ def main() -> int:
 
     passed = skipped = failed = 0
     names, errors, failures = {}, {}, []
-    with open(args.path, encoding="utf-8") as handle:
+    unreadable = 0
+    try:
+        handle = open(args.path, encoding="utf-8", errors="replace")
+    except OSError as error:
+        # No results file: the test runner did not get far enough to write one.
+        print(f"::error title={args.label}::results file unreadable: {error}")
+        return 1
+    with handle:
         for line in handle:
             line = line.strip()
             if not line.startswith("{"):
                 continue
-            event = json.loads(line)
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                # A truncated line means the runner stopped mid-write.
+                unreadable += 1
+                continue
             kind = event.get("type")
             if kind == "testStart":
                 names[event["test"]["id"]] = event["test"]["name"]
@@ -60,6 +72,8 @@ def main() -> int:
         detail = _SECRETS.sub("[redacted]", detail)[:600]
         print(f"::error title={args.label} failed::{names.get(test_id, test_id)} :: {detail}")
     problems = []
+    if unreadable:
+        problems.append(f"{unreadable} unreadable result line(s)")
     if failed:
         problems.append(f"{failed} failed")
     if passed < args.min_passed:
