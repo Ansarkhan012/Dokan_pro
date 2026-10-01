@@ -20,7 +20,7 @@ cashier, refresh an owner session, or recover an invalid cached session.
 4. Restart — expect the same device to restore without registration prompt.
 5. Select an active cashier and enter the PIN — expect the POS workspace.
 6. Add an item — expect cart totals and stock from local SQLite.
-7. Choose **End cashier session** — expect return to cashier selection.
+7. Choose **End cashier session** — expect return to cashier selection with owner mode locked: no Owner Dashboard or management buttons until the owner password is entered.
 8. Restart — expect the ended cashier not to resume automatically.
 9. Choose **Sign out** — expect Owner sign in and local cashier token removal.
 10. Restart — expect Owner sign in.
@@ -28,3 +28,8 @@ cashier, refresh an owner session, or recover an invalid cached session.
 12. With a valid cashier session, disconnect the network and restart.
 13. Valid offline session — expect POS only if expiry/shop/device/local-data checks pass.
 14. Expired, wrong-shop, wrong-device, or incomplete-data session — expect denial and a clear internet-required recovery message; never POS access.
+15. As a cashier, close and reopen the app — expect owner mode to stay locked.
+
+## Known UI issues
+
+- Pilot tablet (cloud build): the POS sidebar overflows when the on-screen keyboard is open. Not fixed yet; tracked separately from the owner-mode access fix.

@@ -11,3 +11,9 @@ Flutter stores the opaque token using platform secure storage. It never receives
 ## Offline continuation
 
 After a successful online authentication, a cashier may continue local billing without network requests until local session expiry or explicit logout. Remote revocation becomes effective locally when next learned from the backend; already-created local sales remain immutable and later upload can be rejected. Devices should reconnect regularly.
+
+## Shared-tablet owner mode
+
+The owner's Supabase session stays signed in underneath cashier mode (pulls and uploads use it), so owner screens are gated on the device. Entering cashier mode engages `OwnerModeLock` before any POS UI is shown, and the lock is persisted in secure storage so an app restart does not reopen owner mode. While locked, the device hub shows no owner actions, and every owner screen opens only through `ownerOnlyRoute`, which re-checks the lock and tears the screen down if owner mode locks while it is open. Only the owner's password (re-verified against Supabase Auth for the signed-in owner), a fresh owner sign-in, or a full sign-out releases it. Unlocking needs internet.
+
+Residual risk: owner RPCs and RLS authorize `is_active_owner(auth.uid())`, and the tablet holds the owner JWT, so the backend cannot tell owner mode from cashier mode on a shared device. The boundary is enforced in the app, not the server. Closing it requires a cashier-scoped backend identity on shared devices (auth/RLS change).

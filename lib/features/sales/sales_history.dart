@@ -5,6 +5,7 @@ import '../pos/pos_state.dart';
 import '../reports/report_models.dart';
 import '../receipts/receipt_model.dart';
 import '../receipts/receipt_view.dart';
+import 'domain/bill_reference.dart';
 
 enum SaleHistoryPeriod { today, yesterday, week, custom }
 
@@ -179,7 +180,7 @@ final class DriftSalesHistoryRepository {
       variables.add(Variable(exactSaleId));
     } else if (query.isNotEmpty) {
       where.write(
-        " and (lower(coalesce(s.invoice_number,'')) like ? or lower(coalesce(cu.name,'')) like ? or lower(coalesce(cu.phone,'')) like ?)",
+        " and (lower(coalesce(s.invoice_number,'')) like ? or lower(coalesce(cu.name,'')) like ? or lower(coalesce(cu.phone,'')) like ?",
       );
       final contains = '%$query%';
       variables.addAll([
@@ -187,6 +188,12 @@ final class DriftSalesHistoryRepository {
         Variable(contains),
         Variable(contains),
       ]);
+      // The printed bill code is the UUID tail (see billReference).
+      if (searchedBillCode(query) case final code?) {
+        where.write(' or lower(s.id) like ?');
+        variables.add(Variable('%$code'));
+      }
+      where.write(')');
     }
     if (filter.cashierId != null) {
       where.write(' and s.cashier_id=?');
@@ -201,7 +208,7 @@ final class DriftSalesHistoryRepository {
     };
     variables.addAll([Variable(limit), Variable(offset)]);
     final rows = await db.customSelect(
-      '''select s.id,coalesce(s.invoice_number,s.id) reference,s.created_at,s.grand_total,
+      '''select s.id,s.invoice_number,s.created_at,s.grand_total,
       case when count(distinct p.payment_method)>1 then 'Split' else coalesce(max(p.payment_method),'Unknown') end method,
       coalesce(ca.display_name,s.cashier_id) cashier,cu.name customer,
       case when so.status='failed' then 'Failed' when so.status='synced' or s.synced_at is not null then 'Synced' else 'Pending' end sync,
@@ -273,7 +280,10 @@ final class DriftSalesHistoryRepository {
 
   SaleHistoryRow _row(QueryRow r) => SaleHistoryRow(
     id: r.data['id'] as String,
-    reference: r.data['reference'] as String,
+    reference: billReference(
+      r.data['id'] as String,
+      invoiceNumber: r.data['invoice_number'] as String?,
+    ),
     at: DateTime.fromMillisecondsSinceEpoch(
       (r.data['created_at'] as int) * 1000,
       isUtc: true,

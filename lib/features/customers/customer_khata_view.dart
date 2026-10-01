@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
 import '../pos/pos_state.dart';
+import '../sales/domain/bill_reference.dart';
 import 'customer_models.dart';
 
 abstract interface class CustomerKhataActions {
@@ -374,7 +375,7 @@ String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 String _ledgerLabel(CustomerLedgerLine line) => switch (line.type) {
   CustomerLedgerType.creditSale =>
-    'Sale${line.saleId == null ? '' : ' • ${line.saleId!.substring(0, 8)}'}',
+    'Sale${line.saleId == null ? '' : ' • ${billReference(line.saleId!)}'}',
   CustomerLedgerType.paymentReceived =>
     'Payment${line.paymentMethod == null ? '' : ' • ${line.paymentMethod}'}',
   CustomerLedgerType.openingBalance => 'Opening balance',

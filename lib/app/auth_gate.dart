@@ -6,6 +6,7 @@ import '../auth/auth_session_controller.dart';
 import '../auth/cashier_session.dart';
 import '../auth/cashier_session_manager.dart';
 import '../auth/cashier_session_store.dart';
+import '../auth/owner_mode_lock.dart';
 import '../auth/supabase_cashier_auth_gateway.dart';
 import '../core/device/app_device_id.dart';
 import '../core/device/preferences_device_id_store.dart';
@@ -29,6 +30,7 @@ import '../features/inventory/inventory_management.dart';
 import '../features/settings/owner_settings_screen.dart';
 import 'cashier_login_panel.dart';
 import 'cashier_resume_gate.dart';
+import 'owner_access.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, required this.client});
@@ -40,6 +42,7 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   late final auth = SupabaseAuthRepository(widget.client);
   late final session = AuthSessionController(auth)..start();
+  final ownerLock = OwnerModeLock(SecureOwnerModeLockStore())..load();
   Future<void> signOut() async {
     try {
       await CashierSessionManager(
@@ -51,11 +54,14 @@ class _AuthGateState extends State<AuthGate> {
       // unavailable. Supabase sign-out still needs to run.
     }
     await session.signOut();
+    // Signing back in needs the owner password, so the lock is no longer needed.
+    await ownerLock.release();
   }
 
   @override
   void dispose() {
     session.dispose();
+    ownerLock.dispose();
     super.dispose();
   }
 
@@ -66,10 +72,11 @@ class _AuthGateState extends State<AuthGate> {
       stream: session.states,
       initialData: session.state,
       builder: (context, snapshot) => snapshot.data?.userId == null
-          ? AuthForm(auth: auth, session: session)
+          ? AuthForm(auth: auth, session: session, ownerLock: ownerLock)
           : OwnerBootstrap(
               client: widget.client,
               session: session,
+              ownerLock: ownerLock,
               onSignOut: signOut,
             ),
     ),
@@ -77,9 +84,15 @@ class _AuthGateState extends State<AuthGate> {
 }
 
 class AuthForm extends StatefulWidget {
-  const AuthForm({super.key, required this.auth, required this.session});
+  const AuthForm({
+    super.key,
+    required this.auth,
+    required this.session,
+    required this.ownerLock,
+  });
   final SupabaseAuthRepository auth;
   final AuthSessionController session;
+  final OwnerModeLock ownerLock;
   @override
   State<AuthForm> createState() => _AuthFormState();
 }
@@ -110,6 +123,8 @@ class _AuthFormState extends State<AuthForm> {
           password: password.text,
         );
       }
+      // The owner just entered their password on this device.
+      await widget.ownerLock.release();
     } on AuthException catch (e) {
       if (mounted) setState(() => error = _friendlyAuthError(e));
     } catch (_) {
@@ -172,10 +187,12 @@ class OwnerBootstrap extends StatefulWidget {
     super.key,
     required this.client,
     required this.session,
+    required this.ownerLock,
     required this.onSignOut,
   });
   final SupabaseClient client;
   final AuthSessionController session;
+  final OwnerModeLock ownerLock;
   final Future<void> Function() onSignOut;
   @override
   State<OwnerBootstrap> createState() => _OwnerBootstrapState();
@@ -230,6 +247,7 @@ class _OwnerBootstrapState extends State<OwnerBootstrap> {
           client: widget.client,
           session: widget.session,
           membership: membership,
+          ownerLock: widget.ownerLock,
           onSignOut: widget.onSignOut,
         ),
       };
@@ -317,11 +335,13 @@ class RegisterDevicePage extends StatefulWidget {
     required this.client,
     required this.session,
     required this.membership,
+    required this.ownerLock,
     required this.onSignOut,
   });
   final SupabaseClient client;
   final AuthSessionController session;
   final ShopMembership membership;
+  final OwnerModeLock ownerLock;
   final Future<void> Function() onSignOut;
   @override
   State<RegisterDevicePage> createState() => _RegisterDevicePageState();
@@ -336,6 +356,7 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
   String? cashierName;
   bool registering = false;
   bool restoringDevice = true;
+  late final ownerReauthenticator = SupabaseOwnerReauthenticator(widget.client);
   @override
   void initState() {
     super.initState();
@@ -413,6 +434,29 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
     }
   }
 
+  /// Owner mode is locked before any cashier UI is shown; if the lock cannot
+  /// be saved, cashier mode is not entered.
+  Future<void> enterCashierMode(CashierSession session, String name) async {
+    try {
+      await widget.ownerLock.engage();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () =>
+              error = 'Could not secure owner mode on this device. Try again.',
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      error = null;
+      cashierSession = session;
+      cashierName = name;
+    });
+    widget.session.cashierResolved(offline: false);
+  }
+
   Future<void> exitCashier() async {
     try {
       await CashierSessionManager(
@@ -459,35 +503,32 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
           const Text('Device is revoked.')
         else ...[
           const Text('Device active. Local sales foundation is ready.'),
-          FilledButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+          OwnerModeSection(
+            lock: widget.ownerLock,
+            reauthenticator: ownerReauthenticator,
+            actions: [
+              OwnerAction(
+                label: 'Owner Dashboard',
+                icon: Icons.analytics_outlined,
+                primary: true,
                 builder: (_) => OwnerDashboardScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   shopName: widget.membership.shopName,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.analytics_outlined),
-            label: const Text('Owner Dashboard'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Settings',
+                icon: Icons.settings_outlined,
                 builder: (_) => OwnerSettingsScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.settings_outlined),
-            label: const Text('Settings'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Sales & Returns',
+                icon: Icons.receipt_long_outlined,
                 builder: (_) => SalesManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
@@ -495,87 +536,59 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('Sales & Returns'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Inventory',
+                icon: Icons.warehouse_outlined,
                 builder: (_) => InventoryManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.warehouse_outlined),
-            label: const Text('Inventory'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Manage products',
+                icon: Icons.inventory_2_outlined,
                 builder: (_) => ProductManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.inventory_2_outlined),
-            label: const Text('Manage products'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Manage customers / Khata',
+                icon: Icons.people_outline,
                 builder: (_) => CustomerManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.people_outline),
-            label: const Text('Manage customers / Khata'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Suppliers & Purchases',
+                icon: Icons.local_shipping_outlined,
                 builder: (_) => PurchaseManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.local_shipping_outlined),
-            label: const Text('Suppliers & Purchases'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              OwnerAction(
+                label: 'Expenses',
+                icon: Icons.payments_outlined,
                 builder: (_) => ExpenseManagementScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,
                 ),
               ),
-            ),
-            icon: const Icon(Icons.payments_outlined),
-            label: const Text('Expenses'),
+            ],
           ),
           CashierLoginPanel(
             client: widget.client,
             shopId: widget.membership.shopId,
             shopName: widget.membership.shopName,
             deviceIdentifier: deviceIdentifier!,
-            onAuthenticated: (session, name) {
-              setState(() {
-                cashierSession = session;
-                cashierName = name;
-              });
-              widget.session.cashierResolved(offline: false);
-            },
+            onAuthenticated: enterCashierMode,
           ),
         ],
         if (error != null) Text(error!),
