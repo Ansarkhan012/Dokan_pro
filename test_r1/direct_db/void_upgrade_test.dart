@@ -40,7 +40,8 @@ void main() {
   });
 
   test('upgrade from the R1.2 schema preserves a v1 void and then refuses v1 and accepts v2', () async {
-    expect(migrationFiles(), hasLength(_r12MigrationCount + 1), reason: 'R1.3 adds exactly one migration');
+    // R1.3 added exactly migration 19; later stages may add more after it.
+    expect(migrationFiles()[_r12MigrationCount].path, endsWith('202609300001_r1_void_identity.sql'));
     final f = ShopFixture();
     await f.seedServer();
     final db = await f.openDevice();
@@ -84,7 +85,9 @@ select md5(coalesce((select string_agg(t::text, '|' order by id) from sale_voids
     final before = await history();
     expect(await psql("select count(*) from inventory_movements where reference_id='$oldVoidId'"), '1');
 
-    for (final file in migrationFiles().skip(_r12MigrationCount)) {
+    // Exactly the R1.3 step (migration 19); later stages have their own
+    // upgrade tests.
+    for (final file in migrationFiles().skip(_r12MigrationCount).take(1)) {
       await psql(file.readAsStringSync());
     }
 

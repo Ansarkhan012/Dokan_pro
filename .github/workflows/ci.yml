@@ -35,7 +35,7 @@ env:
   # never lower them to make CI pass.
   BASELINE_MIN_FLUTTER_PASSED: "95"
   BASELINE_MAX_FLUTTER_SKIPPED: "1"
-  BASELINE_MIN_MIGRATIONS: "19"
+  BASELINE_MIN_MIGRATIONS: "20"
   BASELINE_MIN_RAW_SQL_FILES: "10"
   BASELINE_MIN_PGTAP_TESTS: "40"
 
@@ -207,7 +207,7 @@ jobs:
           set -uo pipefail
           flutter test test_r1/green --reporter expanded --file-reporter json:"${RUNNER_TEMP}/green.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/green.json" \
-            --label "R1.1 checkout durability (green)" --min-passed 76 --max-skipped 0
+            --label "R1.1 checkout durability (green)" --min-passed 79 --max-skipped 0
       - name: Start fresh local Supabase stack (all migrations + seed from zero)
         run: |
           set -euo pipefail
@@ -238,7 +238,7 @@ jobs:
           flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded \
             --file-reporter json:"${RUNNER_TEMP}/direct.json"
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/direct.json" \
-            --label "R1 direct-DB (green)" --min-passed 15 --max-skipped 0
+            --label "R1 direct-DB (green)" --min-passed 28 --max-skipped 0
       - name: HTTP layer through Kong/PostgREST/GoTrue (green)
         run: |
           # GitHub runs `run:` steps with `bash -e`; turn it off so the gate and
@@ -252,7 +252,7 @@ jobs:
             --file-reporter json:"${RUNNER_TEMP}/http.json" 2>&1 | tee "${out}"
           flutter_status=${PIPESTATUS[0]}
           python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
-            --label "R1 HTTP (green)" --min-passed 18 --max-skipped 0
+            --label "R1 HTTP (green)" --min-passed 21 --max-skipped 0
           gate_status=$?
           echo "::notice title=R1 HTTP exit codes::flutter test=${flutter_status} gate=${gate_status}"
           if [ "${flutter_status}" -ne 0 ] || [ "${gate_status}" -ne 0 ]; then

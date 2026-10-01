@@ -158,15 +158,31 @@ final class PsqlPullGateway implements ReferencePullGateway {
   };
 
   static String table(PullEntity e) => switch (e) {
-    PullEntity.inventoryMovements => 'inventory_movements',
+    PullEntity.shops => 'shops',
+    PullEntity.devices => 'devices',
+    PullEntity.cashiers => 'cashiers',
+    PullEntity.categories || PullEntity.globalCategories => 'categories',
+    PullEntity.masterProducts => 'master_products',
+    PullEntity.shopProducts => 'shop_products',
+    PullEntity.customers => 'customers',
     PullEntity.customerLedgerEntries => 'customer_ledger_entries',
+    PullEntity.suppliers => 'suppliers',
+    PullEntity.supplierLedgerEntries => 'supplier_ledger_entries',
+    PullEntity.purchases => 'purchases',
+    PullEntity.purchaseItems => 'purchase_items',
+    PullEntity.purchasePayments => 'purchase_payments',
+    PullEntity.expenseCategories => 'expense_categories',
+    PullEntity.expenses => 'expenses',
+    PullEntity.inventoryMovements => 'inventory_movements',
     PullEntity.sales => 'sales',
     PullEntity.saleItems => 'sale_items',
     PullEntity.salePayments => 'sale_payments',
+    PullEntity.saleReturns => 'sale_returns',
+    PullEntity.saleReturnItems => 'sale_return_items',
     PullEntity.saleVoids => 'sale_voids',
-    _ => throw UnsupportedError('not needed for Stage A: $e'),
   };
 
+  /// Same scope, cursor and order as SupabaseReferencePullGateway (R1.4).
   @override
   Future<List<RemoteChange>> fetch({
     required PullEntity entity,
@@ -175,15 +191,25 @@ final class PsqlPullGateway implements ReferencePullGateway {
     int limit = 100,
   }) async {
     final column = _createdAtEntities.contains(entity) ? 'created_at' : 'updated_at';
-    final cursor = after == null
+    final scope = switch (entity) {
+      PullEntity.shops => 'id = ${_q(shopId)}::uuid',
+      PullEntity.globalCategories => 'shop_id is null',
+      PullEntity.masterProducts => 'true',
+      _ => 'shop_id = ${_q(shopId)}::uuid',
+    };
+    final columns = entity == PullEntity.cashiers
+        ? 'id,shop_id,display_name,login_code,credential_version,is_active,created_at,updated_at,server_seq'
+        : '*';
+    final cursor = after == null || after.serverSeq < 0
         ? ''
-        : "and ($column > ${_q(after.updatedAt.toUtc().toIso8601String())}::timestamptz "
-            "or ($column = ${_q(after.updatedAt.toUtc().toIso8601String())}::timestamptz "
-            "and id > ${_q(after.entityId)}::uuid))";
+        : after.entityId.isEmpty
+            ? 'and server_seq > ${after.serverSeq}'
+            : 'and (server_seq > ${after.serverSeq} or '
+                '(server_seq = ${after.serverSeq} and id > ${_q(after.entityId)}::uuid))';
     final raw = await asOwner(
       ownerId,
-      'select coalesce(json_agg(t), \'[]\') from (select * from public.${table(entity)} '
-      'where shop_id = ${_q(shopId)}::uuid $cursor order by $column, id limit $limit) t;',
+      "select coalesce(json_agg(t), '[]') from (select $columns from public.${table(entity)} "
+      'where $scope $cursor order by server_seq, id limit $limit) t;',
     );
     final rows = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
     return [
@@ -193,6 +219,7 @@ final class PsqlPullGateway implements ReferencePullGateway {
           id: row['id'] as String,
           shopId: row['shop_id'] as String?,
           updatedAt: DateTime.parse(row[column] as String).toUtc(),
+          serverSeq: (row['server_seq'] as num).toInt(),
           data: row,
         ),
     ];

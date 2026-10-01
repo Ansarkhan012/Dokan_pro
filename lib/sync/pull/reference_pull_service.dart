@@ -12,7 +12,20 @@ final class ReferencePullService {
   final ReferencePullGateway gateway;
   final String shopId;
 
+  /// Pulls [entity] page by page from the cursor stored for it. Each page and
+  /// the cursor after it commit in one transaction, so a pull interrupted at
+  /// any point resumes from the last applied page, and a repeated page is a
+  /// no-op (rows are upserted by id). [PullEntity.categories] pulls both the
+  /// global and the shop's categories, which have separate cursors.
   Future<int> pull(PullEntity entity, {int pageSize = 100}) async {
+    if (entity == PullEntity.categories) {
+      return await _pull(PullEntity.globalCategories, pageSize) +
+          await _pull(PullEntity.categories, pageSize);
+    }
+    return _pull(entity, pageSize);
+  }
+
+  Future<int> _pull(PullEntity entity, int pageSize) async {
     var applied = 0;
     while (true) {
       final cursor = await _cursor(entity);
@@ -35,6 +48,7 @@ final class ReferencePullService {
                   entityType: entity.name,
                   updatedAt: change.updatedAt,
                   entityId: change.id,
+                  serverSeq: Value(change.serverSeq),
                 ),
               );
           applied++;
@@ -44,19 +58,31 @@ final class ReferencePullService {
     }
   }
 
+  /// A cursor stored before R1.4 has no server position (its timestamp is
+  /// not a safe position, see O-2/T-1b), so that entity is pulled again from
+  /// the start once; applying a row that already exists is a no-op upsert.
   Future<PullCursor?> _cursor(PullEntity entity) async {
     final row =
         await (db.select(db.syncCursors)..where(
               (t) => t.shopId.equals(shopId) & t.entityType.equals(entity.name),
             ))
             .getSingleOrNull();
-    return row == null
+    final seq = row?.serverSeq;
+    return row == null || seq == null
         ? null
-        : PullCursor(updatedAt: row.updatedAt, entityId: row.entityId);
+        : PullCursor(
+            updatedAt: row.updatedAt,
+            entityId: row.entityId,
+            serverSeq: seq,
+          );
   }
 
   void _validateTenant(RemoteChange change) {
     if (change.entity == PullEntity.masterProducts) return;
+    if (change.entity == PullEntity.globalCategories) {
+      if (change.shopId != null) throw StateError('Shop row in global pull');
+      return;
+    }
     if (change.entity == PullEntity.categories && change.shopId == null) return;
     if (change.entity == PullEntity.shops) {
       if (change.id != shopId) throw StateError('Foreign shop pull rejected');
@@ -155,7 +181,7 @@ final class ReferencePullService {
                 updatedAt: c.updatedAt,
               ),
             );
-      case PullEntity.categories:
+      case PullEntity.categories || PullEntity.globalCategories:
         await db
             .into(db.categories)
             .insertOnConflictUpdate(

@@ -52,6 +52,12 @@ R1.3 (F-2 void convergence, void contract v2) added `green/void_local_test.dart`
 (upgrade from the 18-migration R1.2 schema) and
 `http/void_convergence_http_test.dart`; the void-window, restart and F-2 tests
 also run in the three-zone matrix.
+R1.4 (server-owned sync order, Drift v11) added `direct_db/sync_order_test.dart`
+(counter prefix, identical and microsecond timestamps, pagination, restart,
+repeated page, isolation, every pulled entity), `direct_db/ten_shop_sim_test.dart`
+(10 shops x 2 devices), `direct_db/sync_order_upgrade_test.dart` (R1.3 -> R1.4
+schema), `green/drift_v11_upgrade_test.dart` (Drift v10 -> v11 and fresh v11) and
+`http/sync_order_http_test.dart`; O-2 and T-1b moved to green.
 The green suite runs the production committer and background
 sync runner on local Drift databases only (`support/pos_fixture.dart`).
 `support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
@@ -59,10 +65,10 @@ aggregate that R1.1 no longer creates but the server must keep rejecting.
 
 ## Expected-red suite
 
-`red/` contains reproductions of accepted findings O-2 (A and B), F-3/O-4,
-O-6, T-1b and the HTTP contract skeletons for R1.4–R1.5 (F-1, T-1 and F-2 plus
-the R1.3 v2 void contract were fixed by R1.1, R1.2 and R1.3; their tests moved
-to the green layers). Each
+`red/` contains reproductions of accepted findings F-3/O-4 and O-6 and the
+HTTP contract skeletons for R1.5 (F-1, T-1, F-2 with the v2 void contract, and
+O-2, T-1b with server_seq were fixed by R1.1–R1.4; their tests moved to the
+green layers). Each
 asserts the correct invariant and therefore fails on the current code.
 `red/EXPECTED_RED.txt` lists every test by exact name.
 `.github/scripts/expect_red.py` passes only if every listed test fails for an

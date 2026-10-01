@@ -109,6 +109,10 @@ class SyncCursors extends Table {
   TextColumn get entityType => text()();
   DateTimeColumn get updatedAt => dateTime()();
   TextColumn get entityId => text()();
+
+  /// Server-assigned sync position of the last applied row (v11, R1.4).
+  /// Null for a cursor written before v11, which is not a safe position.
+  IntColumn get serverSeq => integer().nullable()();
   @override
   Set<Column<Object>> get primaryKey => {shopId, entityType};
 }

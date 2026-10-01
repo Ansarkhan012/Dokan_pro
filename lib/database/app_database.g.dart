@@ -17332,12 +17332,24 @@ class $SyncCursorsTable extends SyncCursors
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _serverSeqMeta = const VerificationMeta(
+    'serverSeq',
+  );
+  @override
+  late final GeneratedColumn<int> serverSeq = GeneratedColumn<int>(
+    'server_seq',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     shopId,
     entityType,
     updatedAt,
     entityId,
+    serverSeq,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -17383,6 +17395,12 @@ class $SyncCursorsTable extends SyncCursors
     } else if (isInserting) {
       context.missing(_entityIdMeta);
     }
+    if (data.containsKey('server_seq')) {
+      context.handle(
+        _serverSeqMeta,
+        serverSeq.isAcceptableOrUnknown(data['server_seq']!, _serverSeqMeta),
+      );
+    }
     return context;
   }
 
@@ -17408,6 +17426,10 @@ class $SyncCursorsTable extends SyncCursors
         DriftSqlType.string,
         data['${effectivePrefix}entity_id'],
       )!,
+      serverSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_seq'],
+      ),
     );
   }
 
@@ -17422,11 +17444,16 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
   final String entityType;
   final DateTime updatedAt;
   final String entityId;
+
+  /// Server-assigned sync position of the last applied row (v11, R1.4).
+  /// Null for a cursor written before v11, which is not a safe position.
+  final int? serverSeq;
   const SyncCursor({
     required this.shopId,
     required this.entityType,
     required this.updatedAt,
     required this.entityId,
+    this.serverSeq,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -17435,6 +17462,9 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
     map['entity_type'] = Variable<String>(entityType);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['entity_id'] = Variable<String>(entityId);
+    if (!nullToAbsent || serverSeq != null) {
+      map['server_seq'] = Variable<int>(serverSeq);
+    }
     return map;
   }
 
@@ -17444,6 +17474,9 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       entityType: Value(entityType),
       updatedAt: Value(updatedAt),
       entityId: Value(entityId),
+      serverSeq: serverSeq == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverSeq),
     );
   }
 
@@ -17457,6 +17490,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       entityType: serializer.fromJson<String>(json['entityType']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       entityId: serializer.fromJson<String>(json['entityId']),
+      serverSeq: serializer.fromJson<int?>(json['serverSeq']),
     );
   }
   @override
@@ -17467,6 +17501,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       'entityType': serializer.toJson<String>(entityType),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'entityId': serializer.toJson<String>(entityId),
+      'serverSeq': serializer.toJson<int?>(serverSeq),
     };
   }
 
@@ -17475,11 +17510,13 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
     String? entityType,
     DateTime? updatedAt,
     String? entityId,
+    Value<int?> serverSeq = const Value.absent(),
   }) => SyncCursor(
     shopId: shopId ?? this.shopId,
     entityType: entityType ?? this.entityType,
     updatedAt: updatedAt ?? this.updatedAt,
     entityId: entityId ?? this.entityId,
+    serverSeq: serverSeq.present ? serverSeq.value : this.serverSeq,
   );
   SyncCursor copyWithCompanion(SyncCursorsCompanion data) {
     return SyncCursor(
@@ -17489,6 +17526,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           : this.entityType,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      serverSeq: data.serverSeq.present ? data.serverSeq.value : this.serverSeq,
     );
   }
 
@@ -17498,13 +17536,15 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           ..write('shopId: $shopId, ')
           ..write('entityType: $entityType, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('entityId: $entityId')
+          ..write('entityId: $entityId, ')
+          ..write('serverSeq: $serverSeq')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(shopId, entityType, updatedAt, entityId);
+  int get hashCode =>
+      Object.hash(shopId, entityType, updatedAt, entityId, serverSeq);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17512,7 +17552,8 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           other.shopId == this.shopId &&
           other.entityType == this.entityType &&
           other.updatedAt == this.updatedAt &&
-          other.entityId == this.entityId);
+          other.entityId == this.entityId &&
+          other.serverSeq == this.serverSeq);
 }
 
 class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
@@ -17520,12 +17561,14 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
   final Value<String> entityType;
   final Value<DateTime> updatedAt;
   final Value<String> entityId;
+  final Value<int?> serverSeq;
   final Value<int> rowid;
   const SyncCursorsCompanion({
     this.shopId = const Value.absent(),
     this.entityType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.entityId = const Value.absent(),
+    this.serverSeq = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncCursorsCompanion.insert({
@@ -17533,6 +17576,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     required String entityType,
     required DateTime updatedAt,
     required String entityId,
+    this.serverSeq = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : shopId = Value(shopId),
        entityType = Value(entityType),
@@ -17543,6 +17587,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     Expression<String>? entityType,
     Expression<DateTime>? updatedAt,
     Expression<String>? entityId,
+    Expression<int>? serverSeq,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17550,6 +17595,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
       if (entityType != null) 'entity_type': entityType,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (entityId != null) 'entity_id': entityId,
+      if (serverSeq != null) 'server_seq': serverSeq,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17559,6 +17605,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     Value<String>? entityType,
     Value<DateTime>? updatedAt,
     Value<String>? entityId,
+    Value<int?>? serverSeq,
     Value<int>? rowid,
   }) {
     return SyncCursorsCompanion(
@@ -17566,6 +17613,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
       entityType: entityType ?? this.entityType,
       updatedAt: updatedAt ?? this.updatedAt,
       entityId: entityId ?? this.entityId,
+      serverSeq: serverSeq ?? this.serverSeq,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17585,6 +17633,9 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     if (entityId.present) {
       map['entity_id'] = Variable<String>(entityId.value);
     }
+    if (serverSeq.present) {
+      map['server_seq'] = Variable<int>(serverSeq.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17598,6 +17649,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
           ..write('entityType: $entityType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('entityId: $entityId, ')
+          ..write('serverSeq: $serverSeq, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -36865,6 +36917,7 @@ typedef $$SyncCursorsTableCreateCompanionBuilder =
       required String entityType,
       required DateTime updatedAt,
       required String entityId,
+      Value<int?> serverSeq,
       Value<int> rowid,
     });
 typedef $$SyncCursorsTableUpdateCompanionBuilder =
@@ -36873,6 +36926,7 @@ typedef $$SyncCursorsTableUpdateCompanionBuilder =
       Value<String> entityType,
       Value<DateTime> updatedAt,
       Value<String> entityId,
+      Value<int?> serverSeq,
       Value<int> rowid,
     });
 
@@ -36919,6 +36973,11 @@ class $$SyncCursorsTableFilterComposer
 
   ColumnFilters<String> get entityId => $composableBuilder(
     column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverSeq => $composableBuilder(
+    column: $table.serverSeq,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36970,6 +37029,11 @@ class $$SyncCursorsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get serverSeq => $composableBuilder(
+    column: $table.serverSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -37013,6 +37077,9 @@ class $$SyncCursorsTableAnnotationComposer
 
   GeneratedColumn<String> get entityId =>
       $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<int> get serverSeq =>
+      $composableBuilder(column: $table.serverSeq, builder: (column) => column);
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -37070,12 +37137,14 @@ class $$SyncCursorsTableTableManager
                 Value<String> entityType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> entityId = const Value.absent(),
+                Value<int?> serverSeq = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncCursorsCompanion(
                 shopId: shopId,
                 entityType: entityType,
                 updatedAt: updatedAt,
                 entityId: entityId,
+                serverSeq: serverSeq,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -37084,12 +37153,14 @@ class $$SyncCursorsTableTableManager
                 required String entityType,
                 required DateTime updatedAt,
                 required String entityId,
+                Value<int?> serverSeq = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncCursorsCompanion.insert(
                 shopId: shopId,
                 entityType: entityType,
                 updatedAt: updatedAt,
                 entityId: entityId,
+                serverSeq: serverSeq,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

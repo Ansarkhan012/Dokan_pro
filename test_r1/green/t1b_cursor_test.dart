@@ -1,8 +1,14 @@
-// Expected-red reproduction of T-1b (cursor truncation). Pure local: no
-// Docker, no network. T-1 (local payload path), which shared this file, was
-// fixed by R1.2 and moved unchanged to test_r1/green/t1_timestamp_local_test.dart;
-// T-1b stays red until the R1.4 server_seq cursor.
-@Tags(['recovery-red'])
+// T-1b regression (cursor truncation), moved here from
+// red/t1_local_and_t1b_cursor_red_test.dart by R1.4 with its name, rows and
+// assertions unchanged. Pure local: no Docker, no network.
+//
+// The fake gateway models the server's paging contract. Before R1.4 that was
+// (timestamp, id), and the device kept the timestamp with whole seconds, so
+// rows inside one second came back forever. Since R1.4 the server pages by
+// its own (server_seq, id), so the fake does too: rows m1 and m2 were written
+// in one transaction (one position), m3 in the next. The same behaviour is
+// proven against the real migrated server in direct_db/sync_order_test.dart.
+@Tags(['r1-green'])
 library;
 
 import 'package:drift/drift.dart' hide isNull;
@@ -58,8 +64,8 @@ final class _MicrosecondRowsGateway implements ReferencePullGateway {
         .where(
           (r) =>
               after == null ||
-              r.updatedAt.isAfter(after.updatedAt) ||
-              (r.updatedAt.isAtSameMomentAs(after.updatedAt) &&
+              r.serverSeq > after.serverSeq ||
+              (r.serverSeq == after.serverSeq &&
                   r.id.compareTo(after.entityId) > 0),
         )
         .take(limit)
@@ -79,6 +85,7 @@ void main() {
           id: 'm$i',
           shopId: 'shop',
           updatedAt: second.add(Duration(microseconds: i * 100000)),
+          serverSeq: i < 3 ? 7 : 8,
           data: {
             'id': 'm$i',
             'shop_id': 'shop',

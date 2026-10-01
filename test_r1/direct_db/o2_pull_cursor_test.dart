@@ -1,8 +1,8 @@
-// R1 Stage A reproduction of audit finding O-2 (client-clock pull cursors).
-// Asserts the CORRECT invariant, so it FAILS on the current code.
-// Server timestamps are real instants since R1.2 (T-1 fixed), so only the
-// cursor defect is tested.
-@Tags(['recovery-red'])
+// O-2 regression (client-clock pull cursors), moved here from
+// red/o2_pull_cursor_red_test.dart by R1.4 with names and assertions
+// unchanged: pulls now page by the server-assigned (server_seq, id), so a late
+// upload or a fast device clock can no longer hide rows from another device.
+@Tags(['r1-direct-db'])
 library;
 
 import 'package:dukaan_pro/core/domain/enums.dart';

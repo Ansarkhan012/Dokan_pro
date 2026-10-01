@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async => m.createAll(),
@@ -133,6 +133,11 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(shops, shops.receiptShowPhone);
         await m.addColumn(shops, shops.receiptShowAddress);
         await m.addColumn(shops, shops.notificationsEnabled);
+      }
+      if (from < 11) {
+        // R1.4: cursors become server positions. Existing cursors and every
+        // local row are kept; a cursor without a position re-pulls once.
+        await m.addColumn(syncCursors, syncCursors.serverSeq);
       }
     },
     beforeOpen: (details) async {

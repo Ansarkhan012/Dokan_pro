@@ -14,41 +14,31 @@ final class SupabaseReferencePullGateway implements ReferencePullGateway {
   }) async {
     final table = _table(entity);
     final columns = entity == PullEntity.cashiers
-        ? 'id,shop_id,display_name,login_code,credential_version,is_active,created_at,updated_at'
+        ? 'id,shop_id,display_name,login_code,credential_version,is_active,created_at,updated_at,server_seq'
         : '*';
     dynamic query = client.from(table).select(columns);
     if (entity == PullEntity.shops) {
       query = query.eq('id', shopId);
-    } else if (entity == PullEntity.categories) {
-      query = query.or('shop_id.is.null,shop_id.eq.$shopId');
-    } else if (entity != PullEntity.masterProducts &&
-        entity != PullEntity.categories) {
+    } else if (entity == PullEntity.globalCategories) {
+      query = query.isFilter('shop_id', null);
+    } else if (entity != PullEntity.masterProducts) {
       query = query.eq('shop_id', shopId);
     }
-    final timestampColumn =
-        entity == PullEntity.inventoryMovements ||
-            entity == PullEntity.customerLedgerEntries ||
-            entity == PullEntity.supplierLedgerEntries ||
-            entity == PullEntity.purchases ||
-            entity == PullEntity.purchaseItems ||
-            entity == PullEntity.purchasePayments ||
-            entity == PullEntity.expenses ||
-            entity == PullEntity.sales ||
-            entity == PullEntity.saleItems ||
-            entity == PullEntity.salePayments ||
-            entity == PullEntity.saleReturns ||
-            entity == PullEntity.saleReturnItems ||
-            entity == PullEntity.saleVoids
+    final timestampColumn = _createdAtEntities.contains(entity)
         ? 'created_at'
         : 'updated_at';
-    if (after != null) {
-      final stamp = after.updatedAt.toUtc().toIso8601String();
-      query = query.or(
-        '$timestampColumn.gt.$stamp,and($timestampColumn.eq.$stamp,id.gt.${after.entityId})',
-      );
+    // R1.4: the server-assigned (server_seq, id) is the only position; the
+    // client's clock and the timestamp precision play no part in paging.
+    if (after != null && after.serverSeq >= 0) {
+      final seq = after.serverSeq;
+      query = after.entityId.isEmpty
+          ? query.gt('server_seq', seq)
+          : query.or(
+              'server_seq.gt.$seq,and(server_seq.eq.$seq,id.gt.${after.entityId})',
+            );
     }
     final rows =
-        await query.order(timestampColumn).order('id').limit(limit)
+        await query.order('server_seq').order('id').limit(limit)
             as List<dynamic>;
     return rows.map((value) {
       final row = value as Map<String, dynamic>;
@@ -57,16 +47,33 @@ final class SupabaseReferencePullGateway implements ReferencePullGateway {
         id: row['id']! as String,
         shopId: row['shop_id'] as String?,
         updatedAt: DateTime.parse(row[timestampColumn]! as String).toUtc(),
+        serverSeq: (row['server_seq']! as num).toInt(),
         data: row,
       );
     }).toList();
   }
 
+  static const _createdAtEntities = {
+    PullEntity.inventoryMovements,
+    PullEntity.customerLedgerEntries,
+    PullEntity.supplierLedgerEntries,
+    PullEntity.purchases,
+    PullEntity.purchaseItems,
+    PullEntity.purchasePayments,
+    PullEntity.expenses,
+    PullEntity.sales,
+    PullEntity.saleItems,
+    PullEntity.salePayments,
+    PullEntity.saleReturns,
+    PullEntity.saleReturnItems,
+    PullEntity.saleVoids,
+  };
+
   String _table(PullEntity entity) => switch (entity) {
     PullEntity.shops => 'shops',
     PullEntity.devices => 'devices',
     PullEntity.cashiers => 'cashiers',
-    PullEntity.categories => 'categories',
+    PullEntity.categories || PullEntity.globalCategories => 'categories',
     PullEntity.masterProducts => 'master_products',
     PullEntity.shopProducts => 'shop_products',
     PullEntity.customers => 'customers',

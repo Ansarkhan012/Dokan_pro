@@ -1,5 +1,5 @@
-// Expected-red HTTP contract tests for R1.4-R1.5 (the R1.3 v2 void test moved to
-// test_r1/http/void_convergence_http_test.dart when R1.3 delivered it), through the real Supabase
+// Expected-red HTTP contract tests for R1.5 (the R1.3 v2 void and R1.4 server_seq
+// tests moved to the green HTTP layer when their stages delivered them), through the real Supabase
 // HTTP path of a disposable local stack. Payloads are built by hand with
 // explicit UTC instants so T-1 cannot mask the contract under test. Missing
 // contracts are converted into `fail()` so each test is red for the intended
@@ -148,18 +148,5 @@ void main() {
           '${ServerError.of(e) ?? e}');
     }
     expect((result as Map)['status'], 'accepted_flagged');
-  }, skip: skip);
-
-  test('R1.4 server_seq: pulled rows expose a server-assigned order', () async {
-    final shop = await ServerShop.create(await stack.signUpOwner());
-    final saleId = _id();
-    await _rpc(shop, 'sync_sale_transaction', _sale(shop, saleId: saleId));
-    try {
-      final row = await shop.owner.client.from('sales').select('id,server_seq').eq('id', saleId).single();
-      expect(row['server_seq'], isA<int>());
-    } catch (e) {
-      if (e is TestFailure) rethrow;
-      fail('server_seq is not available through PostgREST: ${ServerError.of(e) ?? e}');
-    }
   }, skip: skip);
 }
