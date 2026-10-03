@@ -5,6 +5,7 @@ import '../../core/ids/id_generator.dart';
 import '../../subscription/subscription_runtime.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
+import '../../sync/sync_health.dart';
 import '../../sync/supabase_sale_upload_gateway.dart';
 import '../../sync/sync_worker.dart';
 import '../products/product_management_native.dart'
@@ -227,7 +228,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
       await SyncWorker(
         queue: SyncQueueRepository(db!, shopId: widget.shopId),
         gateway: SupabaseSaleUploadGateway(widget.client),
-        workerId: 'owner-${widget.deviceId}',
+        workerId: uniqueSyncWorkerId('owner-${widget.deviceId}'),
       ).runOnce();
       refresh();
       if (mounted) {

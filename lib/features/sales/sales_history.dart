@@ -211,7 +211,7 @@ final class DriftSalesHistoryRepository {
       '''select s.id,s.invoice_number,s.created_at,s.grand_total,
       case when count(distinct p.payment_method)>1 then 'Split' else coalesce(max(p.payment_method),'Unknown') end method,
       coalesce(ca.display_name,s.cashier_id) cashier,cu.name customer,
-      case when so.status='failed' then 'Failed' when so.status='synced' or s.synced_at is not null then 'Synced' else 'Pending' end sync,
+      case when so.status in ('needsAttention','blockedAuth') or (so.error_class='flagged' and so.acknowledged_at is null) then 'Needs attention' when so.status='synced' or s.synced_at is not null then 'Synced' else 'Pending' end sync,
       case when sv.id is not null then 'Voided' when coalesce((select sum(refund_amount) from sale_returns where shop_id=s.shop_id and original_sale_id=s.id),0)>=s.grand_total then 'Fully Returned' when coalesce((select sum(refund_amount) from sale_returns where shop_id=s.shop_id and original_sale_id=s.id),0)>0 then 'Partially Returned' else 'Completed' end status,
       case when sv.id is not null then s.grand_total else coalesce((select sum(refund_amount) from sale_returns where shop_id=s.shop_id and original_sale_id=s.id),0) end returned_amount
       from sales s left join sale_payments p on p.sale_id=s.id and p.shop_id=s.shop_id

@@ -61,7 +61,7 @@ final class _FaultInjectingGateway implements SaleUploadGateway {
   var uploads = 0;
 
   @override
-  Future<void> uploadSaleAggregate(
+  Future<Object?> uploadSaleAggregate(
     Map<String, dynamic> payload, {
     String? cashierSessionToken,
   }) async {
@@ -73,8 +73,9 @@ final class _FaultInjectingGateway implements SaleUploadGateway {
         uploads++;
         throw TimeoutException('simulated lost response after server commit');
       case SimNetwork.online:
-        await inner.uploadSaleAggregate(payload, cashierSessionToken: cashierSessionToken);
+        final result = await inner.uploadSaleAggregate(payload, cashierSessionToken: cashierSessionToken);
         uploads++;
+        return result;
     }
   }
 }

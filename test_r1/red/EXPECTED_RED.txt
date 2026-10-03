@@ -1,10 +1,4 @@
 # Expected-red R1 recovery tests (run under TZ=Asia/Karachi).
 # Each line is an exact test name. When a substage fixes a defect, move the
 # test to the green suite and delete its line here in the same change.
-F-3 cross-device credit limit: second offline Udhaar sale is recorded or flagged, never retried forever
-F-3 zero-amount payment: locally committed sale reaches a terminal state instead of retrying forever
-O-6: SyncWorker.runOnce must not throw when its lease was lost after a successful upload
-R1.5 DPA01: a sale from a revoked device is rejected with DPA01
-R1.5 DPC01: same sale id with different content is rejected with DPC01
-R1.5 DPV01: a zero-amount payment row is rejected with stable code DPV01
-R1.5 accepted_flagged: offline credit sale over the limit is recorded and flagged
+# Empty since R1.5 + R1.6: every accepted R1 finding has a green test.

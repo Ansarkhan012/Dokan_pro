@@ -1,7 +1,8 @@
-// R1 Stage A reproduction of audit findings F-3 / O-4: offline-committed
-// facts that the server rejects permanently are retried forever with no
-// terminal state. Asserts the CORRECT invariant, so it FAILS today.
-@Tags(['recovery-red'])
+// Audit findings F-3 / O-4, fixed by R1.5 and moved from the expected-red
+// suite unchanged in name and assertion: an offline-committed fact the server
+// rejects permanently reaches needs-attention (DPV01) instead of retrying
+// forever, and an offline credit sale over the limit is recorded and flagged.
+@Tags(['r1-direct-db'])
 library;
 
 import 'package:dukaan_pro/core/domain/enums.dart';

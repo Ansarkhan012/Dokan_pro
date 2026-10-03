@@ -41,6 +41,8 @@ final class DevelopmentDiagnostics {
       'pending': await count(SyncStatus.pending),
       'failed': await count(SyncStatus.failed),
       'syncing': await count(SyncStatus.syncing),
+      'needs_attention': await count(SyncStatus.needsAttention),
+      'blocked_auth': await count(SyncStatus.blockedAuth),
       'active_leases': leases.length,
     };
   }

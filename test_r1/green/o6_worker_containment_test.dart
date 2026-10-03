@@ -1,12 +1,8 @@
-// Expected-red reproduction of O-6 (lease error escaping SyncWorker.runOnce).
-// Pure local: no Docker, no network. Asserts the CORRECT contract and fails
-// on current code.
-//
-// The F-1 tests that shared this file (data layer, UI throw, UI hang) were
-// fixed by R1.1 and moved, unchanged in name and assertions, to
-// test_r1/green/f1_checkout_durability_test.dart. O-6 itself stays red until
-// R1.6: R1.1's background SyncWorkerRunner only contains the escaping error.
-@Tags(['recovery-red'])
+// O-6 (lease error escaping SyncWorker.runOnce), fixed by R1.6 and moved
+// from the expected-red suite unchanged in name and assertion. Pure local: no
+// Docker, no network. R1.6 contract tests live in
+// test_r1/green/sync_failure_handling_test.dart.
+@Tags(['r1-green'])
 library;
 
 import 'package:drift/drift.dart' hide isNull;

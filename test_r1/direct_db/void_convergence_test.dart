@@ -348,7 +348,7 @@ F2_EVIDENCE
     final result = await _upload(db, f);
     expect(result.synced, 0);
     final op = await (db.select(db.syncOperations)..where((t) => t.entityId.equals(voidId))).getSingle();
-    expect(op.status, SyncStatus.failed);
+    expect(op.status, SyncStatus.needsAttention, reason: 'R1.5: DPV01 is permanent');
     expect(op.lastError, contains('DPV01'));
     expect(op.payload, legacyText, reason: 'never rewritten or converted');
     expect(await _voidFootprint(sale.saleId), before);

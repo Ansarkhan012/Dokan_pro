@@ -6,6 +6,7 @@ import '../../subscription/subscription_runtime.dart';
 import '../../core/errors/safe_error_message.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
+import '../../sync/sync_health.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
@@ -307,7 +308,7 @@ class _State extends State<ExpenseManagementScreen> {
       await SyncWorker(
         queue: SyncQueueRepository(db!, shopId: widget.shopId),
         gateway: SupabaseSaleUploadGateway(widget.client),
-        workerId: 'owner-${widget.deviceId}',
+        workerId: uniqueSyncWorkerId('owner-${widget.deviceId}'),
       ).runOnce();
       refresh();
       if (mounted) {

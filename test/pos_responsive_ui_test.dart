@@ -12,6 +12,7 @@ import 'package:dukaan_pro/features/pos/pos_workspace.dart';
 import 'package:dukaan_pro/features/pos/product_thumbnail.dart';
 import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/features/sales/sales_history.dart';
+import 'package:dukaan_pro/sync/sync_health.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -213,7 +214,7 @@ final class _Committer implements PosSaleCommitter {
   @override
   Future<bool> triggerSync() async => false;
   @override
-  Stream<bool> watchHasPendingSync() => const Stream.empty();
+  Stream<SyncHealth> watchSyncHealth() => const Stream.empty();
   @override
   Future<void> receivePayment({
     required String customerId,

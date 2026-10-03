@@ -18,6 +18,7 @@ import 'package:dukaan_pro/features/sales/application/local_sale_service.dart';
 import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/features/sales/sales_history.dart';
 import 'package:dukaan_pro/sync/sync_worker_runner.dart';
+import 'package:dukaan_pro/features/sales/domain/bill_reference.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/pos_fixture.dart';
@@ -360,7 +361,7 @@ void main() {
       expect(last?.id, sale.saleId, reason: 'the app can identify the last committed checkout');
       expect(last!.total, cokePrice);
       final receipt = await history.receipt(await history.detail(last));
-      expect(receipt.reference, sale.saleId);
+      expect(receipt.reference, billReference(sale.saleId));
       expect(receipt.lines.single.name, 'Coke');
       expect(receipt.payments, {'cash': cokePrice});
       expect(receipt.total, cokePrice);

@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/cashier_session_manager.dart';
 import '../../auth/cashier_session_store.dart';
 import '../../auth/supabase_cashier_auth_gateway.dart';
-import '../../core/domain/enums.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
+import '../../sync/sync_health.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
@@ -55,6 +55,16 @@ class _PosRuntimeState extends State<PosRuntime> {
   Future<_RuntimeState> _start() async {
     final database = await AppDatabase.open();
     db = database;
+    try {
+      // A new authorised cashier session is the auth-state change that lets
+      // operations blocked on authorisation try once more (design §H).
+      await SyncQueueRepository(
+        database,
+        shopId: widget.shopId,
+      ).resumeBlockedAuth(DateTime.now().toUtc());
+    } catch (_) {
+      // Sync bookkeeping never blocks opening the POS.
+    }
     final catalog = DriftPosCatalog(database, shopId: widget.shopId);
     final cached = await catalog.load();
     final hasCachedContext = await _hasCachedContext(database);
@@ -107,9 +117,7 @@ class _PosRuntimeState extends State<PosRuntime> {
       catalog: snapshot,
       committer: committer,
       offline: offline,
-      hasPendingSync: shopOperations.any(
-        (operation) => operation.status != SyncStatus.synced,
-      ),
+      hasPendingSync: syncHealthOf(shopOperations) != SyncHealth.synced,
       entitlement: entitlement,
       lastSavedSale: await _lastSavedSale(database),
     );
@@ -119,7 +127,7 @@ class _PosRuntimeState extends State<PosRuntime> {
   SyncWorkerRunner _syncRunner(AppDatabase database) => SyncWorkerRunner(
     queue: SyncQueueRepository(database, shopId: widget.shopId),
     gateway: SupabaseSaleUploadGateway(widget.client),
-    workerId: 'device-${widget.deviceId}',
+    workerId: uniqueSyncWorkerId('device-${widget.deviceId}'),
     cashierToken: () async => (await SecureCashierSessionStore().read())?.token,
   );
 

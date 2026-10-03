@@ -11,7 +11,7 @@ invoked explicitly.
 | `green/` | `r1-green` | green (fixed findings) | nothing |
 | `direct_db/` | `r1-direct-db` | green | Docker + `R1_SERVER=true` |
 | `http/` | `r1-http` | green | local HTTP stack + `R1_HTTP_URL` / `R1_HTTP_ANON_KEY` |
-| `red/` | `recovery-red` | **expected red** | all of the above, `TZ=Asia/Karachi` |
+| `red/` | `recovery-red` | **expected red** (empty since R1.6) | all of the above, `TZ=Asia/Karachi` |
 | `server_seq_prototype/` | — | design validation script | Docker |
 
 ## Layers
@@ -58,6 +58,14 @@ repeated page, isolation, every pulled entity), `direct_db/ten_shop_sim_test.dar
 (10 shops x 2 devices), `direct_db/sync_order_upgrade_test.dart` (R1.3 -> R1.4
 schema), `green/drift_v11_upgrade_test.dart` (Drift v10 -> v11 and fresh v11) and
 `http/sync_order_http_test.dart`; O-2 and T-1b moved to green.
+R1.5 + R1.6 (failure classification, needs-attention, record-and-flag,
+worker containment, Drift v12) added `green/sync_failure_handling_test.dart`,
+`green/sync_attention_ui_test.dart`, `green/drift_v12_upgrade_test.dart` and
+`direct_db/sync_codes_test.dart` (stable codes, flags, policy scope, RLS and an
+upgrade from the 20-migration R1.4 schema); F-3 (both), O-6 and the four R1.5
+HTTP contracts moved to `direct_db/f3_permanent_rejection_test.dart`,
+`green/o6_worker_containment_test.dart` and `http/sync_codes_http_test.dart`.
+The expected-red suite is now empty.
 The green suite runs the production committer and background
 sync runner on local Drift databases only (`support/pos_fixture.dart`).
 `support/legacy_zero_payment.dart` crafts the pre-R1.1 Rs 0 payment-row
@@ -65,12 +73,11 @@ aggregate that R1.1 no longer creates but the server must keep rejecting.
 
 ## Expected-red suite
 
-`red/` contains reproductions of accepted findings F-3/O-4 and O-6 and the
-HTTP contract skeletons for R1.5 (F-1, T-1, F-2 with the v2 void contract, and
-O-2, T-1b with server_seq were fixed by R1.1–R1.4; their tests moved to the
-green layers). Each
-asserts the correct invariant and therefore fails on the current code.
-`red/EXPECTED_RED.txt` lists every test by exact name.
+`red/` held reproductions of the accepted findings, each asserting the
+correct invariant and therefore failing until its substage fixed it. Since
+R1.5 + R1.6 every finding (F-1, T-1, F-2, O-2, T-1b, F-3/O-4, O-6) has moved to
+the green layers, so `red/` holds only the empty `EXPECTED_RED.txt`; a new
+accepted finding adds its reproduction and manifest line here again.
 `.github/scripts/expect_red.py` passes only if every listed test fails for an
 assertion (a widget test's `TestFailure` counts; any other exception, timeout,
 skip, missing or extra test fails the gate), and it fails when a listed test

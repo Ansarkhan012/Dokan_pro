@@ -100,6 +100,22 @@ class SyncOperations extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get syncedAt => dateTime().nullable()();
+
+  // R1.5 failure handling (v12). [errorClass] is a SyncFailureKind name, or
+  // `flagged` for a synced operation the server accepted and flagged.
+  TextColumn get errorClass => text().nullable()();
+
+  /// Stable code (`DPV01`, `credit_limit_exceeded`, ...); never English text.
+  TextColumn get errorCode => text().nullable()();
+
+  /// Safe, owner-facing reason; [lastError] keeps the technical detail.
+  TextColumn get attentionReason => text().nullable()();
+  DateTimeColumn get attentionAt => dateTime().nullable()();
+  DateTimeColumn get firstErrorAt => dateTime().nullable()();
+  IntColumn get unknownErrorCount => integer().withDefault(const Constant(0))();
+
+  /// Owner has seen a server flag. Never means resolved for a failed op.
+  DateTimeColumn get acknowledgedAt => dateTime().nullable()();
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

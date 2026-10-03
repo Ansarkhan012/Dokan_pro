@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async => m.createAll(),
@@ -138,6 +138,21 @@ class AppDatabase extends _$AppDatabase {
         // R1.4: cursors become server positions. Existing cursors and every
         // local row are kept; a cursor without a position re-pulls once.
         await m.addColumn(syncCursors, syncCursors.serverSeq);
+      }
+      if (from < 12) {
+        // R1.5: failure classification. Existing operations keep their
+        // status; a `failed` one is still a retry-wait operation.
+        for (final column in [
+          syncOperations.errorClass,
+          syncOperations.errorCode,
+          syncOperations.attentionReason,
+          syncOperations.attentionAt,
+          syncOperations.firstErrorAt,
+          syncOperations.unknownErrorCount,
+          syncOperations.acknowledgedAt,
+        ]) {
+          await m.addColumn(syncOperations, column);
+        }
       }
     },
     beforeOpen: (details) async {

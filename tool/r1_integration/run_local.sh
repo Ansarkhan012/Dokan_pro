@@ -29,7 +29,11 @@ for zone in UTC Asia/Karachi EST5; do
     test_r1/direct_db/void_convergence_test.dart --name '^(B|C|D|K|L|F-2|a second|a failure)' --dart-define=R1_SERVER=true
 done
 echo "== expected-red (TZ=Asia/Karachi)"
-TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \
-  --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY" \
-  --file-reporter json:"$OUT/red.json" > "$OUT/red.txt" 2>&1 || true
+# With no test files `flutter test test_r1/red` would run test/ instead.
+rm -f "$OUT/red.json"
+if compgen -G "test_r1/red/*_test.dart" > /dev/null; then
+  TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \
+    --dart-define=R1_HTTP_URL="$URL" --dart-define=R1_HTTP_ANON_KEY="$KEY" \
+    --file-reporter json:"$OUT/red.json" > "$OUT/red.txt" 2>&1 || true
+fi
 python .github/scripts/expect_red.py "$OUT/red.json" --manifest test_r1/red/EXPECTED_RED.txt

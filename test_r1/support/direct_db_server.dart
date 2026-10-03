@@ -24,6 +24,7 @@ import 'package:dukaan_pro/sync/pull/pull_models.dart';
 import 'package:dukaan_pro/sync/pull/reference_pull_gateway.dart';
 import 'package:dukaan_pro/sync/sale_payload_codec.dart';
 import 'package:dukaan_pro/sync/sale_upload_gateway.dart';
+import 'package:dukaan_pro/sync/sync_failure.dart';
 import 'package:uuid/uuid.dart';
 
 const r1ServerEnabled = bool.fromEnvironment('R1_SERVER');
@@ -32,11 +33,15 @@ const _container = 'supabase_db_POS_store';
 String scratchDb = 'r1_direct';
 
 /// Thrown when PostgreSQL rejects a statement; mirrors a PostgREST error.
-final class ServerRejected implements Exception {
-  ServerRejected(this.message);
+/// [code] is the SQLSTATE when the caller captured it (PsqlUploadGateway).
+final class ServerRejected implements Exception, SyncCodedError {
+  ServerRejected(this.message, {this.code});
   final String message;
   @override
-  String toString() => 'ServerRejected: $message';
+  final String? code;
+  @override
+  String toString() =>
+      'ServerRejected: ${code == null ? '' : '[$code] '}$message';
 }
 
 Future<String> psql(String script, {String? db}) async {
@@ -110,8 +115,10 @@ final class PsqlUploadGateway implements SaleUploadGateway {
   final String ownerId;
   final calls = <String>[];
 
+  /// Returns the RPC's JSON result; a rejection throws [ServerRejected] with
+  /// the SQLSTATE, as PostgREST reports it in `PostgrestException.code`.
   @override
-  Future<void> uploadSaleAggregate(
+  Future<Object?> uploadSaleAggregate(
     Map<String, dynamic> payload, {
     String? cashierSessionToken,
   }) async {
@@ -128,11 +135,19 @@ final class PsqlUploadGateway implements SaleUploadGateway {
     };
     final body = jsonEncode(payloadForCloud(payload));
     final token = cashierSessionToken == null ? 'null' : _q(cashierSessionToken);
-    final result = await asOwner(
-      ownerId,
-      'select public.$rpc(\$R1\$$body\$R1\$::jsonb, $token);',
-    );
+    final result = await asOwner(ownerId, '''
+create temp table if not exists r1_upload(v text) on commit drop;
+do \$do\$ begin
+  insert into r1_upload select public.$rpc(\$R1\$$body\$R1\$::jsonb, $token)::text;
+exception when others then insert into r1_upload values ('ERR ' || sqlstate || ' ' || sqlerrm);
+end \$do\$;
+select v from r1_upload;
+''');
     calls.add('$rpc -> $result');
+    if (result.startsWith('ERR ')) {
+      throw ServerRejected(result.substring(10), code: result.substring(4, 9));
+    }
+    return jsonDecode(result);
   }
 }
 

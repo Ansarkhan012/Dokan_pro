@@ -28,6 +28,7 @@ import '../features/reports/owner_dashboard.dart';
 import '../features/sales/sales_management.dart';
 import '../features/inventory/inventory_management.dart';
 import '../features/settings/owner_settings_screen.dart';
+import '../features/sync/sync_attention.dart';
 import 'cashier_login_panel.dart';
 import 'cashier_resume_gate.dart';
 import 'owner_access.dart';
@@ -576,6 +577,15 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
                 label: 'Expenses',
                 icon: Icons.payments_outlined,
                 builder: (_) => ExpenseManagementScreen(
+                  client: widget.client,
+                  shopId: widget.membership.shopId,
+                  deviceId: device!.id,
+                ),
+              ),
+              OwnerAction(
+                label: 'Sync issues',
+                icon: Icons.sync_problem_outlined,
+                builder: (_) => SyncAttentionScreen(
                   client: widget.client,
                   shopId: widget.membership.shopId,
                   deviceId: device!.id,

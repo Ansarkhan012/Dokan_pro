@@ -150,7 +150,7 @@ void main() {
         .write(SyncOperationsCompanion(payload: Value(text)));
     expect((await a.sync()).failed, 1);
     final op = (await a.queue()).single;
-    expect(op.status, SyncStatus.failed);
+    expect(op.status, SyncStatus.needsAttention, reason: 'R1.5: permanent, never retried');
     expect(op.lastError, contains('AmbiguousTimestampPayload'));
     expect(op.payload, text);
     expect(await shop.owner.client.from('sales').select('id').eq('id', sale.saleId), isEmpty);

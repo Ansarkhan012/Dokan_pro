@@ -296,7 +296,7 @@ void main() {
       expect(result.synced, 0);
       expect(boundary.sent, isEmpty, reason: 'nothing reaches the server');
       final op = await db.select(db.syncOperations).getSingle();
-      expect(op.status, SyncStatus.failed);
+      expect(op.status, SyncStatus.needsAttention, reason: 'R1.5: permanent, never retried');
       expect(op.lastError, contains('AmbiguousTimestampPayload'));
       expect(op.payload, text, reason: 'no silent rewrite');
       final saleAfter = await (db.select(db.sales)..where((t) => t.id.equals(saleId))).getSingle();

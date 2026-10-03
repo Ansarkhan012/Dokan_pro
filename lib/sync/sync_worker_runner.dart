@@ -9,7 +9,8 @@ import 'sync_worker.dart';
 /// and every failure of a run (RPC error, lost lease, network timeout, closed
 /// database) only leaves the queued operations pending for a later attempt.
 /// Each RPC is cut after [rpcTimeout]; the timeout only affects sync status.
-/// Worker identity and lifecycle ownership are unchanged here (R1.6).
+/// Give each runner its own [workerId] (`uniqueSyncWorkerId`), so runners
+/// never share a lease (R1.6).
 final class SyncWorkerRunner {
   SyncWorkerRunner({
     required this.queue,
@@ -93,7 +94,7 @@ final class TimeBoundSaleUploadGateway implements SaleUploadGateway {
   final Duration _timeout;
 
   @override
-  Future<void> uploadSaleAggregate(
+  Future<Object?> uploadSaleAggregate(
     Map<String, dynamic> payload, {
     String? cashierSessionToken,
   }) => _inner

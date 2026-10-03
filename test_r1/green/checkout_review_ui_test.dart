@@ -16,6 +16,8 @@ import 'package:dukaan_pro/features/sales/application/local_sale_service.dart';
 import 'package:dukaan_pro/features/sales/domain/sale_draft.dart';
 import 'package:dukaan_pro/features/sales/sales_history.dart';
 import 'package:dukaan_pro/subscription/entitlement_policy.dart';
+import 'package:dukaan_pro/sync/sync_health.dart';
+import 'package:dukaan_pro/features/sales/domain/bill_reference.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -95,7 +97,7 @@ final class _ReceiptReadFails implements PosSaleCommitter {
   @override
   Future<PosCatalogSnapshot> reloadCatalog() => h.committer.reloadCatalog();
   @override
-  Stream<bool> watchHasPendingSync() => h.committer.watchHasPendingSync();
+  Stream<SyncHealth> watchSyncHealth() => h.committer.watchSyncHealth();
   @override
   Future<bool> triggerSync() => h.committer.triggerSync();
   @override
@@ -173,7 +175,7 @@ void main() {
     final history = DriftSalesHistoryRepository(h.db, shopId: shopId);
     final reopened = await history.receipt(await history.detail((await history.sale(sale.id))!));
     expect(_authoritative(immediate!), _authoritative(reopened));
-    expect(immediate.reference, sale.id);
+    expect(immediate.reference, billReference(sale.id));
     expect(immediate.total, sale.grandTotal);
     expect(immediate.total, cokePrice);
     expect(immediate.payments, {'cash': 8000, 'digital': 5000, 'credit': 5000});
@@ -238,7 +240,7 @@ void main() {
         await tester.tap(find.text('Yesterday'));
         await _settle(tester);
       }
-      final tile = find.text('${sale.saleId} • Rs 180.00');
+      final tile = find.text('${billReference(sale.saleId)} • Rs 180.00');
       expect(tile, findsOneWidget, reason: 'the committed sale is listed');
       expect(find.text('Pending'), findsWidgets);
       await tester.tap(tile);

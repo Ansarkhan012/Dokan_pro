@@ -40,7 +40,18 @@ enum SupplierLedgerType {
 
 enum ShiftStatus { open, closed }
 
-enum SyncStatus { pending, syncing, synced, failed }
+/// Outbox states (design §H). `failed` is the retry-wait state: the operation
+/// is retried after its backoff. `needsAttention` (permanent rejection or
+/// exhausted unknown errors) and `blockedAuth` (device/cashier no longer
+/// authorised) are never retried automatically; the owner retries them.
+enum SyncStatus {
+  pending,
+  syncing,
+  synced,
+  failed,
+  needsAttention,
+  blockedAuth,
+}
 
 enum SyncOperationType { create, update, delete }
 

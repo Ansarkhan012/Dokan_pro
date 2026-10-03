@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
 import '../../subscription/entitlement_policy.dart';
+import '../../sync/sync_health.dart';
 import '../sales/domain/sale_draft.dart';
 import '../sales/sales_history.dart';
 import '../receipts/receipt_model.dart';
@@ -23,7 +24,10 @@ abstract interface class PosSaleCommitter implements CustomerKhataActions {
     PosPaymentPlan payment,
   );
   Future<PosCatalogSnapshot> reloadCatalog();
-  Stream<bool> watchHasPendingSync();
+
+  /// Sync status of this shop's outbox; never `synced` while an operation
+  /// needs attention.
+  Stream<SyncHealth> watchSyncHealth();
   Future<bool> triggerSync();
 }
 
@@ -74,22 +78,26 @@ class _PosWorkspaceState extends State<PosWorkspace>
   bool paymentOpen = false;
   ({String id, String cart})? checkoutAttempt;
   late SaleHistoryRow? lastSavedSale = widget.lastSavedSale;
-  late bool hasPendingSync = widget.initialHasPendingSync;
+  late SyncHealth syncHealth = widget.initialHasPendingSync
+      ? SyncHealth.pending
+      : SyncHealth.synced;
+  bool get hasPendingSync =>
+      syncHealth == SyncHealth.pending || syncHealth == SyncHealth.syncing;
   late bool isOffline = widget.offline;
-  StreamSubscription<bool>? syncStatusSubscription;
+  StreamSubscription<SyncHealth>? syncStatusSubscription;
   Timer? retryTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    syncStatusSubscription = widget.committer.watchHasPendingSync().listen((
-      pending,
+    syncStatusSubscription = widget.committer.watchSyncHealth().listen((
+      health,
     ) {
       if (!mounted) return;
       setState(() {
-        hasPendingSync = pending;
-        if (!pending) isOffline = false;
+        syncHealth = health;
+        if (health == SyncHealth.synced) isOffline = false;
       });
     });
     retryTimer = Timer.periodic(
@@ -108,7 +116,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
     }
     if (!mounted) return;
     setState(() {
-      hasPendingSync = !synced;
+      if (syncHealth != SyncHealth.needsAttention) {
+        syncHealth = synced ? SyncHealth.synced : SyncHealth.pending;
+      }
       if (synced) isOffline = false;
     });
   }
@@ -215,7 +225,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
     if (!mounted) return;
     setState(() {
       completing = false;
-      hasPendingSync = true;
+      if (syncHealth != SyncHealth.needsAttention) {
+        syncHealth = SyncHealth.pending;
+      }
       lastSavedSale = null;
     });
     unawaited(_reloadCatalog());
@@ -469,22 +481,39 @@ class _PosWorkspaceState extends State<PosWorkspace>
             style: const TextStyle(color: Color(0xff6c7680), fontSize: 15),
           ),
         ),
-        _StatusChip(
-          icon: isOffline
-              ? Icons.cloud_off
-              : hasPendingSync
-              ? Icons.cloud_queue
-              : Icons.cloud_done,
-          label: isOffline
-              ? 'Offline'
-              : hasPendingSync
-              ? 'Pending sync'
-              : 'Synced',
-          color: isOffline
-              ? Colors.orange
-              : hasPendingSync
-              ? Colors.blueGrey
-              : const Color(0xff176b52),
+        // A problem the owner must see wins over Offline and never shows as
+        // Synced; cashiers get no technical detail.
+        Tooltip(
+          message: syncHealth == SyncHealth.needsAttention
+              ? 'Some records could not sync. The owner can review them.'
+              : '',
+          child: _StatusChip(
+            icon: syncHealth == SyncHealth.needsAttention
+                ? Icons.sync_problem
+                : isOffline
+                ? Icons.cloud_off
+                : syncHealth == SyncHealth.syncing
+                ? Icons.cloud_sync
+                : hasPendingSync
+                ? Icons.cloud_queue
+                : Icons.cloud_done,
+            label: syncHealth == SyncHealth.needsAttention
+                ? 'Needs attention'
+                : isOffline
+                ? 'Offline'
+                : syncHealth == SyncHealth.syncing
+                ? 'Syncing'
+                : hasPendingSync
+                ? 'Pending sync'
+                : 'Synced',
+            color: syncHealth == SyncHealth.needsAttention
+                ? const Color(0xffb3261e)
+                : isOffline
+                ? Colors.orange
+                : hasPendingSync
+                ? Colors.blueGrey
+                : const Color(0xff176b52),
+          ),
         ),
         const SizedBox(width: 10),
         SizedBox(

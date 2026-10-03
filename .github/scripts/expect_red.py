@@ -12,10 +12,12 @@ Passes only when every listed test ran and failed for an assertion:
 Fails when a listed test passes (the defect is fixed: move the test to the
 green suite in the same change), errors for any other reason (harness,
 timeout, setup), is skipped, is missing, or when an unlisted test runs.
+An empty manifest with no report (no red test files left) passes.
 """
 
 import argparse
 import json
+import os
 import sys
 
 
@@ -33,6 +35,11 @@ def main() -> int:
                 expected.append(line)
 
     names, results, skipped, logs = {}, {}, {}, {}
+    if not expected and not os.path.exists(args.results):
+        # Every R1 finding has moved to the green suite; flutter test writes
+        # no report when the red directory holds no test files.
+        print("::notice title=expected-red gate summary::expected red: 0 (suite empty)")
+        return 0
     with open(args.results, encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()

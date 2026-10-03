@@ -1,9 +1,9 @@
-import 'package:drift/drift.dart';
 import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
 import '../../database/app_database.dart';
 import '../../subscription/entitlement_policy.dart';
 import '../../subscription/subscription_runtime.dart';
+import '../../sync/sync_health.dart';
 import '../../sync/sync_worker_runner.dart';
 import '../customers/customer_models.dart';
 import '../customers/drift_customer_repository.dart';
@@ -35,15 +35,7 @@ final class DriftPosSaleCommitter implements PosSaleCommitter {
   final FinancialMutationAuthorizer authorizer;
 
   @override
-  Stream<bool> watchHasPendingSync() =>
-      (db.select(db.syncOperations)..where(
-            (row) =>
-                row.shopId.equals(shopId) &
-                row.status.equals(SyncStatus.synced.name).not(),
-          ))
-          .watch()
-          .map((operations) => operations.isNotEmpty)
-          .distinct();
+  Stream<SyncHealth> watchSyncHealth() => watchShopSyncHealth(db, shopId);
 
   /// Completes when the checkout's single local transaction has committed
   /// (sale, items, payments, stock, Udhaar, audit and outbox together) and

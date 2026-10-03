@@ -16432,6 +16432,85 @@ class $SyncOperationsTable extends SyncOperations
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _errorClassMeta = const VerificationMeta(
+    'errorClass',
+  );
+  @override
+  late final GeneratedColumn<String> errorClass = GeneratedColumn<String>(
+    'error_class',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorCodeMeta = const VerificationMeta(
+    'errorCode',
+  );
+  @override
+  late final GeneratedColumn<String> errorCode = GeneratedColumn<String>(
+    'error_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attentionReasonMeta = const VerificationMeta(
+    'attentionReason',
+  );
+  @override
+  late final GeneratedColumn<String> attentionReason = GeneratedColumn<String>(
+    'attention_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attentionAtMeta = const VerificationMeta(
+    'attentionAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> attentionAt = GeneratedColumn<DateTime>(
+    'attention_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _firstErrorAtMeta = const VerificationMeta(
+    'firstErrorAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstErrorAt = GeneratedColumn<DateTime>(
+    'first_error_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _unknownErrorCountMeta = const VerificationMeta(
+    'unknownErrorCount',
+  );
+  @override
+  late final GeneratedColumn<int> unknownErrorCount = GeneratedColumn<int>(
+    'unknown_error_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _acknowledgedAtMeta = const VerificationMeta(
+    'acknowledgedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> acknowledgedAt =
+      GeneratedColumn<DateTime>(
+        'acknowledged_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -16452,6 +16531,13 @@ class $SyncOperationsTable extends SyncOperations
     createdAt,
     updatedAt,
     syncedAt,
+    errorClass,
+    errorCode,
+    attentionReason,
+    attentionAt,
+    firstErrorAt,
+    unknownErrorCount,
+    acknowledgedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -16586,6 +16672,63 @@ class $SyncOperationsTable extends SyncOperations
         syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
       );
     }
+    if (data.containsKey('error_class')) {
+      context.handle(
+        _errorClassMeta,
+        errorClass.isAcceptableOrUnknown(data['error_class']!, _errorClassMeta),
+      );
+    }
+    if (data.containsKey('error_code')) {
+      context.handle(
+        _errorCodeMeta,
+        errorCode.isAcceptableOrUnknown(data['error_code']!, _errorCodeMeta),
+      );
+    }
+    if (data.containsKey('attention_reason')) {
+      context.handle(
+        _attentionReasonMeta,
+        attentionReason.isAcceptableOrUnknown(
+          data['attention_reason']!,
+          _attentionReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attention_at')) {
+      context.handle(
+        _attentionAtMeta,
+        attentionAt.isAcceptableOrUnknown(
+          data['attention_at']!,
+          _attentionAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('first_error_at')) {
+      context.handle(
+        _firstErrorAtMeta,
+        firstErrorAt.isAcceptableOrUnknown(
+          data['first_error_at']!,
+          _firstErrorAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('unknown_error_count')) {
+      context.handle(
+        _unknownErrorCountMeta,
+        unknownErrorCount.isAcceptableOrUnknown(
+          data['unknown_error_count']!,
+          _unknownErrorCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('acknowledged_at')) {
+      context.handle(
+        _acknowledgedAtMeta,
+        acknowledgedAt.isAcceptableOrUnknown(
+          data['acknowledged_at']!,
+          _acknowledgedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -16671,6 +16814,34 @@ class $SyncOperationsTable extends SyncOperations
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
       ),
+      errorClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_class'],
+      ),
+      errorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_code'],
+      ),
+      attentionReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attention_reason'],
+      ),
+      attentionAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}attention_at'],
+      ),
+      firstErrorAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_error_at'],
+      ),
+      unknownErrorCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unknown_error_count'],
+      )!,
+      acknowledgedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}acknowledged_at'],
+      ),
     );
   }
 
@@ -16706,6 +16877,19 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? syncedAt;
+  final String? errorClass;
+
+  /// Stable code (`DPV01`, `credit_limit_exceeded`, ...); never English text.
+  final String? errorCode;
+
+  /// Safe, owner-facing reason; [lastError] keeps the technical detail.
+  final String? attentionReason;
+  final DateTime? attentionAt;
+  final DateTime? firstErrorAt;
+  final int unknownErrorCount;
+
+  /// Owner has seen a server flag. Never means resolved for a failed op.
+  final DateTime? acknowledgedAt;
   const SyncOperation({
     required this.id,
     required this.shopId,
@@ -16725,6 +16909,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     required this.createdAt,
     required this.updatedAt,
     this.syncedAt,
+    this.errorClass,
+    this.errorCode,
+    this.attentionReason,
+    this.attentionAt,
+    this.firstErrorAt,
+    required this.unknownErrorCount,
+    this.acknowledgedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -16769,6 +16960,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     if (!nullToAbsent || syncedAt != null) {
       map['synced_at'] = Variable<DateTime>(syncedAt);
     }
+    if (!nullToAbsent || errorClass != null) {
+      map['error_class'] = Variable<String>(errorClass);
+    }
+    if (!nullToAbsent || errorCode != null) {
+      map['error_code'] = Variable<String>(errorCode);
+    }
+    if (!nullToAbsent || attentionReason != null) {
+      map['attention_reason'] = Variable<String>(attentionReason);
+    }
+    if (!nullToAbsent || attentionAt != null) {
+      map['attention_at'] = Variable<DateTime>(attentionAt);
+    }
+    if (!nullToAbsent || firstErrorAt != null) {
+      map['first_error_at'] = Variable<DateTime>(firstErrorAt);
+    }
+    map['unknown_error_count'] = Variable<int>(unknownErrorCount);
+    if (!nullToAbsent || acknowledgedAt != null) {
+      map['acknowledged_at'] = Variable<DateTime>(acknowledgedAt);
+    }
     return map;
   }
 
@@ -16806,6 +17016,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(syncedAt),
+      errorClass: errorClass == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorClass),
+      errorCode: errorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorCode),
+      attentionReason: attentionReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attentionReason),
+      attentionAt: attentionAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attentionAt),
+      firstErrorAt: firstErrorAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstErrorAt),
+      unknownErrorCount: Value(unknownErrorCount),
+      acknowledgedAt: acknowledgedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(acknowledgedAt),
     );
   }
 
@@ -16839,6 +17068,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      errorClass: serializer.fromJson<String?>(json['errorClass']),
+      errorCode: serializer.fromJson<String?>(json['errorCode']),
+      attentionReason: serializer.fromJson<String?>(json['attentionReason']),
+      attentionAt: serializer.fromJson<DateTime?>(json['attentionAt']),
+      firstErrorAt: serializer.fromJson<DateTime?>(json['firstErrorAt']),
+      unknownErrorCount: serializer.fromJson<int>(json['unknownErrorCount']),
+      acknowledgedAt: serializer.fromJson<DateTime?>(json['acknowledgedAt']),
     );
   }
   @override
@@ -16867,6 +17103,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'errorClass': serializer.toJson<String?>(errorClass),
+      'errorCode': serializer.toJson<String?>(errorCode),
+      'attentionReason': serializer.toJson<String?>(attentionReason),
+      'attentionAt': serializer.toJson<DateTime?>(attentionAt),
+      'firstErrorAt': serializer.toJson<DateTime?>(firstErrorAt),
+      'unknownErrorCount': serializer.toJson<int>(unknownErrorCount),
+      'acknowledgedAt': serializer.toJson<DateTime?>(acknowledgedAt),
     };
   }
 
@@ -16889,6 +17132,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> syncedAt = const Value.absent(),
+    Value<String?> errorClass = const Value.absent(),
+    Value<String?> errorCode = const Value.absent(),
+    Value<String?> attentionReason = const Value.absent(),
+    Value<DateTime?> attentionAt = const Value.absent(),
+    Value<DateTime?> firstErrorAt = const Value.absent(),
+    int? unknownErrorCount,
+    Value<DateTime?> acknowledgedAt = const Value.absent(),
   }) => SyncOperation(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -16916,6 +17166,17 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    errorClass: errorClass.present ? errorClass.value : this.errorClass,
+    errorCode: errorCode.present ? errorCode.value : this.errorCode,
+    attentionReason: attentionReason.present
+        ? attentionReason.value
+        : this.attentionReason,
+    attentionAt: attentionAt.present ? attentionAt.value : this.attentionAt,
+    firstErrorAt: firstErrorAt.present ? firstErrorAt.value : this.firstErrorAt,
+    unknownErrorCount: unknownErrorCount ?? this.unknownErrorCount,
+    acknowledgedAt: acknowledgedAt.present
+        ? acknowledgedAt.value
+        : this.acknowledgedAt,
   );
   SyncOperation copyWithCompanion(SyncOperationsCompanion data) {
     return SyncOperation(
@@ -16953,6 +17214,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      errorClass: data.errorClass.present
+          ? data.errorClass.value
+          : this.errorClass,
+      errorCode: data.errorCode.present ? data.errorCode.value : this.errorCode,
+      attentionReason: data.attentionReason.present
+          ? data.attentionReason.value
+          : this.attentionReason,
+      attentionAt: data.attentionAt.present
+          ? data.attentionAt.value
+          : this.attentionAt,
+      firstErrorAt: data.firstErrorAt.present
+          ? data.firstErrorAt.value
+          : this.firstErrorAt,
+      unknownErrorCount: data.unknownErrorCount.present
+          ? data.unknownErrorCount.value
+          : this.unknownErrorCount,
+      acknowledgedAt: data.acknowledgedAt.present
+          ? data.acknowledgedAt.value
+          : this.acknowledgedAt,
     );
   }
 
@@ -16976,13 +17256,20 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
           ..write('dependsOnOperationId: $dependsOnOperationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('errorClass: $errorClass, ')
+          ..write('errorCode: $errorCode, ')
+          ..write('attentionReason: $attentionReason, ')
+          ..write('attentionAt: $attentionAt, ')
+          ..write('firstErrorAt: $firstErrorAt, ')
+          ..write('unknownErrorCount: $unknownErrorCount, ')
+          ..write('acknowledgedAt: $acknowledgedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     shopId,
     deviceId,
@@ -17001,7 +17288,14 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     createdAt,
     updatedAt,
     syncedAt,
-  );
+    errorClass,
+    errorCode,
+    attentionReason,
+    attentionAt,
+    firstErrorAt,
+    unknownErrorCount,
+    acknowledgedAt,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17023,7 +17317,14 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
           other.dependsOnOperationId == this.dependsOnOperationId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.errorClass == this.errorClass &&
+          other.errorCode == this.errorCode &&
+          other.attentionReason == this.attentionReason &&
+          other.attentionAt == this.attentionAt &&
+          other.firstErrorAt == this.firstErrorAt &&
+          other.unknownErrorCount == this.unknownErrorCount &&
+          other.acknowledgedAt == this.acknowledgedAt);
 }
 
 class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
@@ -17045,6 +17346,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> syncedAt;
+  final Value<String?> errorClass;
+  final Value<String?> errorCode;
+  final Value<String?> attentionReason;
+  final Value<DateTime?> attentionAt;
+  final Value<DateTime?> firstErrorAt;
+  final Value<int> unknownErrorCount;
+  final Value<DateTime?> acknowledgedAt;
   final Value<int> rowid;
   const SyncOperationsCompanion({
     this.id = const Value.absent(),
@@ -17065,6 +17373,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.errorClass = const Value.absent(),
+    this.errorCode = const Value.absent(),
+    this.attentionReason = const Value.absent(),
+    this.attentionAt = const Value.absent(),
+    this.firstErrorAt = const Value.absent(),
+    this.unknownErrorCount = const Value.absent(),
+    this.acknowledgedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncOperationsCompanion.insert({
@@ -17086,6 +17401,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     required DateTime createdAt,
     required DateTime updatedAt,
     this.syncedAt = const Value.absent(),
+    this.errorClass = const Value.absent(),
+    this.errorCode = const Value.absent(),
+    this.attentionReason = const Value.absent(),
+    this.attentionAt = const Value.absent(),
+    this.firstErrorAt = const Value.absent(),
+    this.unknownErrorCount = const Value.absent(),
+    this.acknowledgedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -17115,6 +17437,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? syncedAt,
+    Expression<String>? errorClass,
+    Expression<String>? errorCode,
+    Expression<String>? attentionReason,
+    Expression<DateTime>? attentionAt,
+    Expression<DateTime>? firstErrorAt,
+    Expression<int>? unknownErrorCount,
+    Expression<DateTime>? acknowledgedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17137,6 +17466,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (errorClass != null) 'error_class': errorClass,
+      if (errorCode != null) 'error_code': errorCode,
+      if (attentionReason != null) 'attention_reason': attentionReason,
+      if (attentionAt != null) 'attention_at': attentionAt,
+      if (firstErrorAt != null) 'first_error_at': firstErrorAt,
+      if (unknownErrorCount != null) 'unknown_error_count': unknownErrorCount,
+      if (acknowledgedAt != null) 'acknowledged_at': acknowledgedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17160,6 +17496,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? syncedAt,
+    Value<String?>? errorClass,
+    Value<String?>? errorCode,
+    Value<String?>? attentionReason,
+    Value<DateTime?>? attentionAt,
+    Value<DateTime?>? firstErrorAt,
+    Value<int>? unknownErrorCount,
+    Value<DateTime?>? acknowledgedAt,
     Value<int>? rowid,
   }) {
     return SyncOperationsCompanion(
@@ -17181,6 +17524,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncedAt: syncedAt ?? this.syncedAt,
+      errorClass: errorClass ?? this.errorClass,
+      errorCode: errorCode ?? this.errorCode,
+      attentionReason: attentionReason ?? this.attentionReason,
+      attentionAt: attentionAt ?? this.attentionAt,
+      firstErrorAt: firstErrorAt ?? this.firstErrorAt,
+      unknownErrorCount: unknownErrorCount ?? this.unknownErrorCount,
+      acknowledgedAt: acknowledgedAt ?? this.acknowledgedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17248,6 +17598,27 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
+    if (errorClass.present) {
+      map['error_class'] = Variable<String>(errorClass.value);
+    }
+    if (errorCode.present) {
+      map['error_code'] = Variable<String>(errorCode.value);
+    }
+    if (attentionReason.present) {
+      map['attention_reason'] = Variable<String>(attentionReason.value);
+    }
+    if (attentionAt.present) {
+      map['attention_at'] = Variable<DateTime>(attentionAt.value);
+    }
+    if (firstErrorAt.present) {
+      map['first_error_at'] = Variable<DateTime>(firstErrorAt.value);
+    }
+    if (unknownErrorCount.present) {
+      map['unknown_error_count'] = Variable<int>(unknownErrorCount.value);
+    }
+    if (acknowledgedAt.present) {
+      map['acknowledged_at'] = Variable<DateTime>(acknowledgedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17275,6 +17646,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('errorClass: $errorClass, ')
+          ..write('errorCode: $errorCode, ')
+          ..write('attentionReason: $attentionReason, ')
+          ..write('attentionAt: $attentionAt, ')
+          ..write('firstErrorAt: $firstErrorAt, ')
+          ..write('unknownErrorCount: $unknownErrorCount, ')
+          ..write('acknowledgedAt: $acknowledgedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -36254,6 +36632,13 @@ typedef $$SyncOperationsTableCreateCompanionBuilder =
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> syncedAt,
+      Value<String?> errorClass,
+      Value<String?> errorCode,
+      Value<String?> attentionReason,
+      Value<DateTime?> attentionAt,
+      Value<DateTime?> firstErrorAt,
+      Value<int> unknownErrorCount,
+      Value<DateTime?> acknowledgedAt,
       Value<int> rowid,
     });
 typedef $$SyncOperationsTableUpdateCompanionBuilder =
@@ -36276,6 +36661,13 @@ typedef $$SyncOperationsTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> syncedAt,
+      Value<String?> errorClass,
+      Value<String?> errorCode,
+      Value<String?> attentionReason,
+      Value<DateTime?> attentionAt,
+      Value<DateTime?> firstErrorAt,
+      Value<int> unknownErrorCount,
+      Value<DateTime?> acknowledgedAt,
       Value<int> rowid,
     });
 
@@ -36410,6 +36802,41 @@ class $$SyncOperationsTableFilterComposer
 
   ColumnFilters<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorCode => $composableBuilder(
+    column: $table.errorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36549,6 +36976,41 @@ class $$SyncOperationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorCode => $composableBuilder(
+    column: $table.errorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -36670,6 +37132,39 @@ class $$SyncOperationsTableAnnotationComposer
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 
+  GeneratedColumn<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get errorCode =>
+      $composableBuilder(column: $table.errorCode, builder: (column) => column);
+
+  GeneratedColumn<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
+    builder: (column) => column,
+  );
+
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -36765,6 +37260,13 @@ class $$SyncOperationsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> errorClass = const Value.absent(),
+                Value<String?> errorCode = const Value.absent(),
+                Value<String?> attentionReason = const Value.absent(),
+                Value<DateTime?> attentionAt = const Value.absent(),
+                Value<DateTime?> firstErrorAt = const Value.absent(),
+                Value<int> unknownErrorCount = const Value.absent(),
+                Value<DateTime?> acknowledgedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncOperationsCompanion(
                 id: id,
@@ -36785,6 +37287,13 @@ class $$SyncOperationsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncedAt: syncedAt,
+                errorClass: errorClass,
+                errorCode: errorCode,
+                attentionReason: attentionReason,
+                attentionAt: attentionAt,
+                firstErrorAt: firstErrorAt,
+                unknownErrorCount: unknownErrorCount,
+                acknowledgedAt: acknowledgedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -36807,6 +37316,13 @@ class $$SyncOperationsTableTableManager
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> errorClass = const Value.absent(),
+                Value<String?> errorCode = const Value.absent(),
+                Value<String?> attentionReason = const Value.absent(),
+                Value<DateTime?> attentionAt = const Value.absent(),
+                Value<DateTime?> firstErrorAt = const Value.absent(),
+                Value<int> unknownErrorCount = const Value.absent(),
+                Value<DateTime?> acknowledgedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncOperationsCompanion.insert(
                 id: id,
@@ -36827,6 +37343,13 @@ class $$SyncOperationsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncedAt: syncedAt,
+                errorClass: errorClass,
+                errorCode: errorCode,
+                attentionReason: attentionReason,
+                attentionAt: attentionAt,
+                firstErrorAt: firstErrorAt,
+                unknownErrorCount: unknownErrorCount,
+                acknowledgedAt: acknowledgedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
