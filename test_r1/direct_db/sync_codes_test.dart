@@ -438,7 +438,7 @@ select v from r1_raw;
       expect(await _call(f.ownerId, before), 'OK inserted');
       final hash = await psql("select encode(aggregate_hash,'hex') from sales where id='${before['sale']['id']}'");
 
-      final migration = migrationFiles().last;
+      final migration = migrationFiles()[20];
       expect(migration.path, endsWith('202610020001_r1_sync_codes_and_flags.sql'));
       await psql(migration.readAsStringSync());
 

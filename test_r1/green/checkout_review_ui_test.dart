@@ -19,6 +19,7 @@ import 'package:dukaan_pro/subscription/entitlement_policy.dart';
 import 'package:dukaan_pro/sync/sync_health.dart';
 import 'package:dukaan_pro/features/sales/domain/bill_reference.dart';
 import 'package:flutter/material.dart';
+import 'package:dukaan_pro/core/ui/pos_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/pos_fixture.dart';
@@ -240,9 +241,15 @@ void main() {
         await tester.tap(find.text('Yesterday'));
         await _settle(tester);
       }
-      final tile = find.text('${billReference(sale.saleId)} • Rs 180.00');
+      // Bills lists each sale as one card: reference, total and sync state
+      // (tablet UX polish; "Pending" is shown as "Waiting to sync").
+      final tile = find.ancestor(
+        of: find.text(billReference(sale.saleId)),
+        matching: find.byType(PosCard),
+      );
       expect(tile, findsOneWidget, reason: 'the committed sale is listed');
-      expect(find.text('Pending'), findsWidgets);
+      expect(find.descendant(of: tile, matching: find.text('Rs 180.00')), findsOneWidget);
+      expect(find.descendant(of: tile, matching: find.text('Waiting to sync')), findsOneWidget);
       await tester.tap(tile);
       await _settle(tester);
       // The sale dialog's button (the banner may show one too).

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +7,8 @@ import '../auth/auth_session_controller.dart';
 import '../auth/cashier_session.dart';
 import '../auth/cashier_session_manager.dart';
 import '../auth/cashier_session_store.dart';
+import '../auth/device_credential.dart';
+import '../auth/device_mode.dart';
 import '../auth/owner_mode_lock.dart';
 import '../auth/supabase_cashier_auth_gateway.dart';
 import '../core/device/app_device_id.dart';
@@ -13,6 +16,9 @@ import '../core/device/preferences_device_id_store.dart';
 import '../core/errors/safe_error_message.dart';
 import '../core/domain/enums.dart';
 import '../core/ids/id_generator.dart';
+import '../subscription/entitlement_store.dart';
+import '../subscription/entitlement_verifier.dart';
+import '../subscription/supabase_entitlement_gateway.dart';
 import '../features/shop/device_registration_gateway.dart';
 import '../features/shop/domain/shop_membership.dart';
 import '../features/shop/shop_bootstrap_gateway.dart';
@@ -31,11 +37,18 @@ import '../features/settings/owner_settings_screen.dart';
 import '../features/sync/sync_attention.dart';
 import 'cashier_login_panel.dart';
 import 'cashier_resume_gate.dart';
+import 'device_mode_scope.dart';
+import 'owner_sync_resume.dart';
 import 'owner_access.dart';
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key, required this.client});
+  const AuthGate({
+    super.key,
+    required this.client,
+    required this.ownerSessionStorage,
+  });
   final SupabaseClient client;
+  final LocalStorage ownerSessionStorage;
   @override
   State<AuthGate> createState() => _AuthGateState();
 }
@@ -44,6 +57,7 @@ class _AuthGateState extends State<AuthGate> {
   late final auth = SupabaseAuthRepository(widget.client);
   late final session = AuthSessionController(auth)..start();
   final ownerLock = OwnerModeLock(SecureOwnerModeLockStore())..load();
+  final deviceReload = ValueNotifier(0);
   Future<void> signOut() async {
     try {
       await CashierSessionManager(
@@ -57,18 +71,23 @@ class _AuthGateState extends State<AuthGate> {
     await session.signOut();
     // Signing back in needs the owner password, so the lock is no longer needed.
     await ownerLock.release();
+    // A provisioned device returns to its cashier lobby.
+    deviceReload.value++;
   }
 
   @override
   void dispose() {
     session.dispose();
     ownerLock.dispose();
+    deviceReload.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => CashierResumeGate(
     client: widget.client,
+    ownerSessionStorage: widget.ownerSessionStorage,
+    reloadSignal: deviceReload,
     child: StreamBuilder<AuthSessionState>(
       stream: session.states,
       initialData: session.state,
@@ -383,6 +402,15 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
         registered: restored != null,
         active: restored?.isActive ?? false,
       );
+      if (restored != null && restored.isActive) {
+        unawaited(
+          resumeOwnerSync(
+            ownerClient: widget.client,
+            shopId: widget.membership.shopId,
+            deviceId: restored.id,
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -435,27 +463,91 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
     }
   }
 
-  /// Owner mode is locked before any cashier UI is shown; if the lock cannot
-  /// be saved, cashier mode is not entered.
+  /// Hands the device to cashier mode. In order, and nothing cashier-facing
+  /// opens unless every step succeeds:
+  /// 1. the device credential exists (provisioning it needs a verified owner),
+  /// 2. the subscription entitlement is refreshed while the owner can,
+  /// 3. owner mode is locked (persisted),
+  /// 4. the device gate removes the owner session, verifies no owner token
+  ///    remains and opens the cashier session on the session-less client.
   Future<void> enterCashierMode(CashierSession session, String name) async {
+    final scope = DeviceModeScope.maybeOf(context);
+    if (scope == null) {
+      // Web preview: no cashier runtime or sync, only the preview screen.
+      setState(() {
+        error = null;
+        cashierSession = session;
+        cashierName = name;
+      });
+      return;
+    }
+    try {
+      await DeviceModeService(
+        owner: SupabaseOwnerAuthority(widget.client, const EmptyLocalStorage()),
+        credentials: SecureDeviceCredentialStore(),
+        cashierSessions: SecureCashierSessionStore(),
+        lockStore: SecureOwnerModeLockStore(),
+      ).ensureCredential(
+        shopId: widget.membership.shopId,
+        shopName: widget.membership.shopName,
+        deviceId: device!.id,
+        deviceIdentifier: deviceIdentifier!,
+        ownerVerified: widget.ownerLock.ownerAccessAllowed,
+        issuer: SupabaseDeviceCredentialIssuer(widget.client),
+      );
+    } on DeviceNotProvisioned {
+      await _abandonCashierSession();
+      _fail('Unlock owner mode once to set up cashier mode on this device.');
+      return;
+    } catch (_) {
+      await _abandonCashierSession();
+      _fail(
+        'Could not set up cashier mode on this device. Check your connection.',
+      );
+      return;
+    }
+    await _refreshEntitlement(session.deviceId);
     try {
       await widget.ownerLock.engage();
     } catch (_) {
-      if (mounted) {
-        setState(
-          () =>
-              error = 'Could not secure owner mode on this device. Try again.',
-        );
-      }
+      await _abandonCashierSession();
+      _fail('Could not secure owner mode on this device. Try again.');
       return;
     }
     if (!mounted) return;
-    setState(() {
-      error = null;
-      cashierSession = session;
-      cashierName = name;
-    });
     widget.session.cashierResolved(offline: false);
+    scope.startCashierMode(name);
+  }
+
+  Future<void> _refreshEntitlement(String deviceId) async {
+    try {
+      await SupabaseEntitlementGateway(
+        widget.client,
+        EntitlementVerifier(rsaPublicKeyFromEnvironment()),
+        SecureEntitlementStore(),
+      )
+          .refresh(
+            shopId: widget.membership.shopId,
+            deviceId: deviceId,
+            localNow: DateTime.now(),
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // A cached entitlement stays authoritative; cashier mode re-checks it.
+    }
+  }
+
+  Future<void> _abandonCashierSession() async {
+    try {
+      await CashierSessionManager(
+        SupabaseCashierAuthGateway(widget.client),
+        SecureCashierSessionStore(),
+      ).logout();
+    } catch (_) {}
+  }
+
+  void _fail(String message) {
+    if (mounted) setState(() => error = message);
   }
 
   Future<void> exitCashier() async {
@@ -593,12 +685,16 @@ class _RegisterDevicePageState extends State<RegisterDevicePage> {
               ),
             ],
           ),
-          CashierLoginPanel(
-            client: widget.client,
-            shopId: widget.membership.shopId,
-            shopName: widget.membership.shopName,
-            deviceIdentifier: deviceIdentifier!,
-            onAuthenticated: enterCashierMode,
+          ListenableBuilder(
+            listenable: widget.ownerLock,
+            builder: (context, _) => CashierLoginPanel(
+              client: widget.client,
+              shopId: widget.membership.shopId,
+              shopName: widget.membership.shopName,
+              deviceIdentifier: deviceIdentifier!,
+              allowManagement: widget.ownerLock.ownerAccessAllowed,
+              onAuthenticated: enterCashierMode,
+            ),
           ),
         ],
         if (error != null) Text(error!),

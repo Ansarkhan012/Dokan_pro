@@ -3,8 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_gate.dart';
 
 class DukaanProApp extends StatelessWidget {
-  const DukaanProApp({super.key, this.supabase});
+  const DukaanProApp({super.key, this.supabase, this.ownerSessionStorage});
   final SupabaseClient? supabase;
+
+  /// Where the owner's session is persisted, so cashier mode can verify that
+  /// no owner token remains on the device.
+  final LocalStorage? ownerSessionStorage;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Dukaan Pro',
@@ -21,6 +25,9 @@ class DukaanProApp extends StatelessWidget {
               ),
             ),
           )
-        : AuthGate(client: supabase!),
+        : AuthGate(
+            client: supabase!,
+            ownerSessionStorage: ownerSessionStorage ?? const EmptyLocalStorage(),
+          ),
   );
 }

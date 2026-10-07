@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower. SharedPreferences hold the owner's Supabase session,
+     secure storage (device credential, cashier session) and the device
+     identifier: none of it may leave the device in a backup. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

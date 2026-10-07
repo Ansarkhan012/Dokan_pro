@@ -109,3 +109,33 @@ are shop-scoped and derive values from immutable sales, purchase, expense,
 inventory, and ledger rows. See [reporting.md](reporting.md) for definitions and
 time-boundary rules. A guarded Supabase summary RPC provides a future remote
 reconciliation path without changing the offline-first dependency direction.
+
+## Cashier/owner device boundary
+
+Migration `202610070001_cashier_device_boundary.sql`. Cashier mode never holds
+an owner Supabase session: entering it provisions (owner-only) a 256-bit device
+credential, locks owner mode, then removes the owner session and verifies no
+owner token remains. Cashier mode runs on a session-less client that sends the
+credential as `x-dukaan-device`; the server stores only its SHA-256 hash.
+
+- **Device credential** proves one active device of one shop. It can only read
+  the shop's POS data (`device_pull`) and upload sales and customer payments.
+  It cannot invoke any owner-only operation (reports, cashier and device
+  administration, products, credit limits, inventory, purchases, expenses,
+  voids, returns, settings, subscription) or write any table directly.
+- **Live cashier operations** require the cashier session: a valid cashier
+  token for the same shop, device and cashier.
+- **Delayed offline operations** (billed during a session, uploaded after the
+  cashier logged out or the 12-hour session expired) may use the historical
+  session window: a `cashier_sessions` row of that cashier on that device whose
+  `[created_at, least(expires_at, revoked_at)]` contains the operation's
+  `created_at`, ±5 minutes for clock skew. It only reads the session; it never
+  reopens or extends it, and grants nothing beyond that upload.
+- **Known limitation (P2):** the operation's `created_at` is supplied by the
+  device. A holder of the device credential could backdate an operation into a
+  real session window of a cashier on that same device. Binding operations to
+  a session cryptographically is deferred; for the pilot the exposure is
+  limited to billing attribution on one device, never owner authority.
+- Calls without a device credential (APKs before this change) take the
+  previous paths unchanged; the token-only path can be removed once every
+  tablet runs the new APK.

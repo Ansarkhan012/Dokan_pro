@@ -20,13 +20,15 @@ final class SecureOwnerModeLockStore implements OwnerModeLockStore {
       : _storage.delete(key: _key);
 }
 
-/// Shared-tablet boundary between cashier mode and owner mode.
+/// Shared-tablet boundary between cashier mode and owner mode, on the device.
 ///
-/// The owner's Supabase session stays signed in underneath cashier mode, so
-/// owner screens are gated here instead: entering cashier mode locks owner
-/// mode on this device (persisted, so an app restart does not reopen it), and
-/// only the owner's password or a full sign-out releases it. Until the stored
-/// state has loaded, owner access is denied.
+/// Entering cashier mode locks owner mode on this device (persisted, so an
+/// app restart does not reopen it) and then removes the owner's Supabase
+/// session (DeviceModeService); an owner session found while locked is
+/// removed at startup. The server boundary is that removal: cashier mode has
+/// only the device credential. Only a fresh owner sign-in, the owner's
+/// password or a full sign-out releases the lock. Until the stored state has
+/// loaded, owner access is denied.
 final class OwnerModeLock extends ChangeNotifier {
   OwnerModeLock(this._store);
   final OwnerModeLockStore _store;

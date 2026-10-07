@@ -17,6 +17,8 @@ class CashierLoginPanel extends StatefulWidget {
     required this.shopName,
     required this.deviceIdentifier,
     required this.onAuthenticated,
+    this.allowManagement = false,
+    this.directory,
   });
 
   final SupabaseClient client;
@@ -25,6 +27,13 @@ class CashierLoginPanel extends StatefulWidget {
   final String deviceIdentifier;
   final void Function(CashierSession session, String cashierName)
   onAuthenticated;
+
+  /// Cashier setup needs a verified owner; never shown from the device lobby
+  /// or while owner mode is locked.
+  final bool allowManagement;
+
+  /// Where the cashier list comes from; defaults to the owner's view.
+  final CashierAdminGateway? directory;
 
   @override
   State<CashierLoginPanel> createState() => _CashierLoginPanelState();
@@ -35,9 +44,8 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
     SupabaseCashierAuthGateway(widget.client),
     SecureCashierSessionStore(),
   );
-  late final CashierAdminGateway admin = SupabaseCashierAdminGateway(
-    widget.client,
-  );
+  late final CashierAdminGateway admin =
+      widget.directory ?? SupabaseCashierAdminGateway(widget.client);
   late Future<List<CashierMetadata>> cashiers = _load();
   final pin = TextEditingController();
   String? selected;
@@ -140,7 +148,9 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
                   ? 'No cashier has been created yet.'
                   : 'No active cashier is available.',
             ),
-            FilledButton.icon(
+            if (!widget.allowManagement)
+              const Text('Ask the owner to sign in and add a cashier.'),
+            if (widget.allowManagement) FilledButton.icon(
               onPressed: () => setState(() => showManagement = true),
               icon: Icon(
                 allCashiers.isEmpty ? Icons.person_add : Icons.manage_accounts,
@@ -180,13 +190,15 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
               child: Text(isLoggingIn ? 'Signing in…' : 'Start Shift / Login'),
             ),
           ],
-          TextButton(
-            onPressed: () => setState(() => showManagement = !showManagement),
-            child: Text(
-              showManagement ? 'Hide cashier setup' : 'Manage cashiers',
+          if (widget.allowManagement)
+            TextButton(
+              onPressed: () =>
+                  setState(() => showManagement = !showManagement),
+              child: Text(
+                showManagement ? 'Hide cashier setup' : 'Manage cashiers',
+              ),
             ),
-          ),
-          if (showManagement)
+          if (widget.allowManagement && showManagement)
             OwnerCashierSetupPanel(
               gateway: admin,
               shopId: widget.shopId,

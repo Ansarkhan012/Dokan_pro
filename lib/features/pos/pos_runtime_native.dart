@@ -36,6 +36,8 @@ class PosRuntime extends StatefulWidget {
     required this.onExit,
   });
 
+  /// The session-less device client (anon key plus device credential); never
+  /// a client holding the owner's session.
   final SupabaseClient client;
   final String shopId;
   final String shopName;
@@ -167,7 +169,9 @@ class _PosRuntimeState extends State<PosRuntime> {
     var succeeded = true;
     final pull = ReferencePullService(
       database,
-      SupabaseReferencePullGateway(widget.client),
+      // Cashier mode has no owner session: the device credential reads its
+      // own shop through device_pull.
+      DeviceReferencePullGateway(widget.client),
       shopId: widget.shopId,
     );
     for (final entity in const [

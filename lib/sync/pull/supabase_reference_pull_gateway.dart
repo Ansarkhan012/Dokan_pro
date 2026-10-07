@@ -24,9 +24,6 @@ final class SupabaseReferencePullGateway implements ReferencePullGateway {
     } else if (entity != PullEntity.masterProducts) {
       query = query.eq('shop_id', shopId);
     }
-    final timestampColumn = _createdAtEntities.contains(entity)
-        ? 'created_at'
-        : 'updated_at';
     // R1.4: the server-assigned (server_seq, id) is the only position; the
     // client's clock and the timestamp precision play no part in paging.
     if (after != null && after.serverSeq >= 0) {
@@ -40,34 +37,10 @@ final class SupabaseReferencePullGateway implements ReferencePullGateway {
     final rows =
         await query.order('server_seq').order('id').limit(limit)
             as List<dynamic>;
-    return rows.map((value) {
-      final row = value as Map<String, dynamic>;
-      return RemoteChange(
-        entity: entity,
-        id: row['id']! as String,
-        shopId: row['shop_id'] as String?,
-        updatedAt: DateTime.parse(row[timestampColumn]! as String).toUtc(),
-        serverSeq: (row['server_seq']! as num).toInt(),
-        data: row,
-      );
-    }).toList();
+    return rows
+        .map((value) => remoteChangeFrom(entity, value as Map<String, dynamic>))
+        .toList();
   }
-
-  static const _createdAtEntities = {
-    PullEntity.inventoryMovements,
-    PullEntity.customerLedgerEntries,
-    PullEntity.supplierLedgerEntries,
-    PullEntity.purchases,
-    PullEntity.purchaseItems,
-    PullEntity.purchasePayments,
-    PullEntity.expenses,
-    PullEntity.sales,
-    PullEntity.saleItems,
-    PullEntity.salePayments,
-    PullEntity.saleReturns,
-    PullEntity.saleReturnItems,
-    PullEntity.saleVoids,
-  };
 
   String _table(PullEntity entity) => switch (entity) {
     PullEntity.shops => 'shops',
@@ -94,3 +67,90 @@ final class SupabaseReferencePullGateway implements ReferencePullGateway {
     PullEntity.saleVoids => 'sale_voids',
   };
 }
+
+/// Cashier-mode pull through the session-less device client: the server's
+/// `device_pull` returns the credential's own shop only, with the same R1.4
+/// (server_seq, id) order and strictly-after cursor as the owner pull.
+final class DeviceReferencePullGateway implements ReferencePullGateway {
+  DeviceReferencePullGateway(this.deviceClient);
+  final SupabaseClient deviceClient;
+
+  /// The entities cashier mode pulls; device_pull refuses every other one.
+  static const supported = {
+    PullEntity.shops,
+    PullEntity.devices,
+    PullEntity.cashiers,
+    PullEntity.categories,
+    PullEntity.globalCategories,
+    PullEntity.masterProducts,
+    PullEntity.shopProducts,
+    PullEntity.customers,
+    PullEntity.customerLedgerEntries,
+    PullEntity.inventoryMovements,
+    PullEntity.sales,
+    PullEntity.saleItems,
+    PullEntity.salePayments,
+    PullEntity.saleReturns,
+    PullEntity.saleReturnItems,
+    PullEntity.saleVoids,
+  };
+
+  @override
+  Future<List<RemoteChange>> fetch({
+    required PullEntity entity,
+    required String shopId,
+    PullCursor? after,
+    int limit = 100,
+  }) async {
+    if (!supported.contains(entity)) {
+      throw UnsupportedError('Cashier mode does not pull ${entity.name}.');
+    }
+    final positioned = after != null && after.serverSeq >= 0;
+    final rows =
+        await deviceClient.rpc(
+              'device_pull',
+              params: {
+                'p_entity': entity.name,
+                'p_after_seq': positioned ? after.serverSeq : null,
+                'p_after_id': positioned && after.entityId.isNotEmpty
+                    ? after.entityId
+                    : null,
+                'p_limit': limit,
+              },
+            )
+            as List<dynamic>;
+    return rows
+        .map((value) => remoteChangeFrom(entity, value as Map<String, dynamic>))
+        .toList();
+  }
+}
+
+/// One pulled row as a change; immutable history is timed by created_at.
+RemoteChange remoteChangeFrom(PullEntity entity, Map<String, dynamic> row) =>
+    RemoteChange(
+      entity: entity,
+      id: row['id']! as String,
+      shopId: row['shop_id'] as String?,
+      updatedAt: DateTime.parse(
+        row[_createdAtEntities.contains(entity) ? 'created_at' : 'updated_at']!
+            as String,
+      ).toUtc(),
+      serverSeq: (row['server_seq']! as num).toInt(),
+      data: row,
+    );
+
+const _createdAtEntities = {
+  PullEntity.inventoryMovements,
+  PullEntity.customerLedgerEntries,
+  PullEntity.supplierLedgerEntries,
+  PullEntity.purchases,
+  PullEntity.purchaseItems,
+  PullEntity.purchasePayments,
+  PullEntity.expenses,
+  PullEntity.sales,
+  PullEntity.saleItems,
+  PullEntity.salePayments,
+  PullEntity.saleReturns,
+  PullEntity.saleReturnItems,
+  PullEntity.saleVoids,
+};
