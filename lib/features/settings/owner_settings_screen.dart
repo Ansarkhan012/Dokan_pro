@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/owner_cashier_setup_panel.dart';
 import '../../core/domain/enums.dart';
+import '../../core/format/display_format.dart';
+import '../../core/ui/pos_ui.dart';
 import '../../database/app_database.dart';
 import '../shop/cashier_admin_gateway.dart';
 import '../shop/supabase_cashier_admin_gateway.dart';
@@ -296,159 +298,339 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
     appBar: AppBar(title: const Text('Settings')),
     body: loading
         ? const Center(child: CircularProgressIndicator())
-        : ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (error != null)
-                Text(error!, style: const TextStyle(color: Colors.red)),
-              Text(
-                'Subscription',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              if (entitlement == null)
-                const ListTile(title: Text('Checking subscription…'))
-              else ...[
-                ListTile(
-                  title: Text(_stateLabel(entitlement!.state)),
-                  subtitle: Text(entitlement!.message),
-                ),
-                ListTile(
-                  title: const Text('Plan'),
-                  subtitle: Text(entitlement!.claims?.planId ?? 'Unavailable'),
-                ),
-                if (entitlement!.claims case final claims?) ...[
-                  ListTile(
-                    title: const Text('Period ends'),
-                    subtitle: Text(claims.validUntil.toLocal().toString()),
-                  ),
-                  ListTile(
-                    title: const Text('Offline grace ends'),
-                    subtitle: Text(
-                      claims.offlineGraceUntil.toLocal().toString(),
-                    ),
-                  ),
-                ],
-                ListTile(
-                  title: const Text('Last successful verification'),
-                  subtitle: Text(
-                    entitlement!.lastVerified?.toLocal().toString() ?? 'Never',
-                  ),
-                ),
-                ListTile(
-                  title: const Text('Device entitlement'),
-                  subtitle: Text(
-                    entitlement!.permitsMutation
-                        ? 'Ready'
-                        : 'Verification or renewal required',
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Renewal/payment integration is not yet available.',
+        : Theme(
+            data: posFormTheme(Theme.of(context)),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final side = constraints.maxWidth > 872
+                    ? (constraints.maxWidth - 840) / 2
+                    : 16.0;
+                return ListView(
+                  padding: EdgeInsets.fromLTRB(side, 16, side, 32),
+                  children: [
+                    if (error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    _section(context, 'Subscription', _subscription()),
+                    _section(
+                      context,
+                      'Shop details',
+                      Column(
+                        children: [
+                          TextField(
+                            controller: name,
+                            decoration: const InputDecoration(
+                              labelText: 'Shop name',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FieldPair(
+                            TextField(
+                              controller: phone,
+                              keyboardType: TextInputType.phone,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone',
+                              ),
+                            ),
+                            TextField(
+                              controller: address,
+                              decoration: const InputDecoration(
+                                labelText: 'Address',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const _InfoRow('Currency', 'PKR'),
+                          const _InfoRow(
+                            'Time zone',
+                            'Pakistan (Asia/Karachi)',
+                          ),
+                        ],
                       ),
                     ),
+                    _section(
+                      context,
+                      'Stock',
+                      Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: allowNegative,
+                            onChanged: (v) => setState(() => allowNegative = v),
+                            title: const Text('Allow selling below zero stock'),
+                          ),
+                          TextField(
+                            controller: threshold,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Default low-stock alert level',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _section(
+                      context,
+                      'Receipt',
+                      Column(
+                        children: [
+                          FieldPair(
+                            TextField(
+                              controller: footer,
+                              decoration: const InputDecoration(
+                                labelText: 'Receipt footer',
+                              ),
+                            ),
+                            DropdownButtonFormField(
+                              initialValue: paper,
+                              decoration: const InputDecoration(
+                                labelText: 'Paper width',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: '58mm',
+                                  child: Text('58 mm'),
+                                ),
+                                DropdownMenuItem(
+                                  value: '80mm',
+                                  child: Text('80 mm'),
+                                ),
+                              ],
+                              onChanged: (v) => setState(() => paper = v!),
+                            ),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: showPhone,
+                            onChanged: (v) => setState(() => showPhone = v),
+                            title: const Text('Show phone on receipt'),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: showAddress,
+                            onChanged: (v) => setState(() => showAddress = v),
+                            title: const Text('Show address on receipt'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _section(
+                      context,
+                      'Notifications',
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: notifications,
+                        onChanged: (v) => setState(() => notifications = v),
+                        title: const Text('Owner alerts'),
+                        // Honest: the preference is stored, alerts are not
+                        // delivered yet.
+                        subtitle: const Text(
+                          'Alerts are not available yet. Your choice is saved '
+                          'for when they are.',
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                        onPressed: saving ? null : _save,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(160, 48),
+                        ),
+                        child: Text(saving ? 'Saving…' : 'Save settings'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _section(context, 'Registered devices', _devices()),
+                    _section(
+                      context,
+                      'Cashiers',
+                      OwnerCashierSetupPanel(
+                        gateway: SupabaseCashierAdminGateway(widget.client),
+                        shopId: widget.shopId,
+                        cashiers: cashiers,
+                        onChanged: () async {
+                          cashiers = await SupabaseCashierAdminGateway(
+                            widget.client,
+                          ).cashiers(shopId: widget.shopId);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+  );
+
+  Widget _section(BuildContext context, String title, Widget child) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: PosCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [FormSectionLabel(title), child],
+      ),
+    ),
+  );
+
+  Widget _subscription() {
+    final value = entitlement;
+    if (value == null) return const Text('Checking subscription…');
+    final claims = value.claims;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _stateLabel(value.state),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            value.permitsMutation
+                ? const StatusPill(
+                    'This tablet can record sales',
+                    tone: StatusTone.success,
+                    icon: Icons.check_circle_outline,
+                  )
+                : const StatusPill(
+                    'Verification or renewal needed',
+                    tone: StatusTone.danger,
+                    icon: Icons.lock_outline,
                   ),
-                  child: const Text('Renew subscription'),
-                ),
-                const Divider(height: 40),
-              ],
-              TextField(
-                controller: name,
-                decoration: const InputDecoration(labelText: 'Shop name'),
-              ),
-              TextField(
-                controller: phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
-              ),
-              TextField(
-                controller: address,
-                decoration: const InputDecoration(labelText: 'Address'),
-              ),
-              const ListTile(
-                title: Text('Currency'),
-                subtitle: Text('PKR (fixed)'),
-              ),
-              const ListTile(
-                title: Text('Timezone'),
-                subtitle: Text('Asia/Karachi'),
-              ),
-              SwitchListTile(
-                value: allowNegative,
-                onChanged: (v) => setState(() => allowNegative = v),
-                title: const Text('Allow negative stock'),
-              ),
-              TextField(
-                controller: threshold,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Default low-stock threshold',
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(value.message, style: const TextStyle(color: posMuted)),
+        const SizedBox(height: 8),
+        _InfoRow(
+          'Plan',
+          claims == null ? 'Unavailable' : humanizeIdentifier(claims.planId),
+        ),
+        if (claims != null) ...[
+          _InfoRow('Current period ends', formatDisplayDate(claims.validUntil)),
+          _InfoRow(
+            'Works offline until',
+            formatRelativeDateTime(claims.offlineGraceUntil),
+          ),
+        ],
+        _InfoRow(
+          'Last checked online',
+          value.lastVerified == null
+              ? 'Not yet'
+              : formatRelativeDateTime(value.lastVerified!),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Online renewal is not available in the app yet.',
                 ),
               ),
-              TextField(
-                controller: footer,
-                decoration: const InputDecoration(labelText: 'Receipt footer'),
+            ),
+            child: const Text('Renew subscription'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Registered devices. `devices.last_synced_at` is never written by the
+  /// server or app, so it is not shown: it read "Never" even for a device
+  /// whose sales had synced. The status chip on the POS reflects this
+  /// tablet's own upload queue instead.
+  Widget _devices() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final d in devices)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                d.deviceType == DeviceType.windowsDesktop
+                    ? Icons.desktop_windows_outlined
+                    : d.deviceType == DeviceType.androidTablet
+                    ? Icons.tablet_android_outlined
+                    : Icons.smartphone_outlined,
+                color: posMuted,
               ),
-              DropdownButtonFormField(
-                initialValue: paper,
-                decoration: const InputDecoration(labelText: 'Paper width'),
-                items: const [
-                  DropdownMenuItem(value: '58mm', child: Text('58mm')),
-                  DropdownMenuItem(value: '80mm', child: Text('80mm')),
-                ],
-                onChanged: (v) => setState(() => paper = v!),
-              ),
-              SwitchListTile(
-                value: showPhone,
-                onChanged: (v) => setState(() => showPhone = v),
-                title: const Text('Show phone on receipt'),
-              ),
-              SwitchListTile(
-                value: showAddress,
-                onChanged: (v) => setState(() => showAddress = v),
-                title: const Text('Show address on receipt'),
-              ),
-              SwitchListTile(
-                value: notifications,
-                onChanged: (v) => setState(() => notifications = v),
-                title: const Text('Notifications preference'),
-                subtitle: const Text(
-                  'Preference only; push delivery is not configured.',
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d.id == widget.deviceId
+                          ? '${d.deviceName} (this device)'
+                          : d.deviceName,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '${_deviceTypeLabel(d.deviceType)} • Registered '
+                      '${formatDisplayDate(d.createdAt)}',
+                      style: const TextStyle(color: posMuted, fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: saving ? null : _save,
-                child: Text(saving ? 'Saving…' : 'Save settings'),
-              ),
-              const Divider(height: 40),
-              Text(
-                'Registered devices',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              for (final d in devices)
-                ListTile(
-                  title: Text(d.deviceName),
-                  subtitle: Text(
-                    '${d.deviceType.name} • Last sync ${d.lastSyncedAt?.toLocal() ?? 'Never'}',
-                  ),
-                  trailing: Text(d.isActive ? 'Active' : 'Inactive'),
-                ),
-              const Divider(height: 40),
-              Text('Cashiers', style: Theme.of(context).textTheme.titleLarge),
-              OwnerCashierSetupPanel(
-                gateway: SupabaseCashierAdminGateway(widget.client),
-                shopId: widget.shopId,
-                cashiers: cashiers,
-                onChanged: () async {
-                  cashiers = await SupabaseCashierAdminGateway(
-                    widget.client,
-                  ).cashiers(shopId: widget.shopId);
-                  if (mounted) setState(() {});
-                },
-              ),
+              d.isActive
+                  ? const StatusPill('Active', tone: StatusTone.success)
+                  : const StatusPill('Inactive', tone: StatusTone.neutral),
             ],
           ),
+        ),
+      const SizedBox(height: 4),
+      const Text(
+        'Sync status for this tablet is shown at the top of the sales screen.',
+        style: TextStyle(color: posMuted, fontSize: 12),
+      ),
+    ],
+  );
+
+  static String _deviceTypeLabel(DeviceType type) => switch (type) {
+    DeviceType.androidTablet => 'Android tablet',
+    DeviceType.windowsDesktop => 'Windows computer',
+    DeviceType.mobile => 'Mobile',
+    _ => humanizeIdentifier(type.name),
+  };
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(color: posMuted)),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
   );
 }

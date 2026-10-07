@@ -9,12 +9,14 @@ final class InventoryProductRow {
     required this.lowStockLevel,
     required this.isActive,
     this.barcode,
+    this.imagePath,
   });
 
   final String id;
   final String name;
   final String unit;
   final String? barcode;
+  final String? imagePath;
   final int stockQuantity;
   final int? lowStockLevel;
   final bool isActive;
@@ -32,6 +34,8 @@ final class InventoryMovementRow {
     required this.quantity,
     required this.createdAt,
     this.note,
+    this.referenceType,
+    this.reference,
   });
 
   final String id;
@@ -40,6 +44,14 @@ final class InventoryMovementRow {
   final int quantity;
   final String? note;
   final DateTime createdAt;
+
+  /// Stored origin (`sale`, `sale_return`, `sale_void`, `purchase`,
+  /// `manual_inventory`), or null for movements without one.
+  final String? referenceType;
+
+  /// Human-readable document reference when one exists locally, such as
+  /// `Bill #0509F516` or a supplier invoice number. Never invented.
+  final String? reference;
 }
 
 enum InventoryFilter { all, lowStock, outOfStock }

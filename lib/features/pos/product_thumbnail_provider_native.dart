@@ -1,5 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../core/images/product_image_store.dart';
+
+String? localProductImagePath(String productId) =>
+    ProductImageStore.instance?.existing(productId)?.path;
 
 Widget buildProductImage({
   required String path,

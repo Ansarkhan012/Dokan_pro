@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
+import '../../core/format/display_format.dart';
 import '../../core/ids/id_generator.dart';
+import '../../core/ui/pos_ui.dart';
 import '../../subscription/entitlement_policy.dart';
 import '../../sync/sync_health.dart';
 import '../sales/domain/sale_draft.dart';
@@ -322,9 +324,14 @@ class _PosWorkspaceState extends State<PosWorkspace>
       ('Khata', Icons.people_outline),
       ('Inventory', Icons.warehouse_outlined),
     ];
+    // The soft keyboard overlays the shell instead of resizing it: the header,
+    // sidebar, product grid and Current Bill keep their geometry, and the
+    // bottom safe-area padding is held so nothing jumps as the keyboard opens.
     return Scaffold(
       backgroundColor: const Color(0xfff4f6f7),
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
+        maintainBottomViewPadding: true,
         child: Column(
           children: [
             _topBar(),
@@ -377,9 +384,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
   }
 
   Widget _lastSavedSaleBanner(SaleHistoryRow sale) {
-    final at = sale.at.toLocal();
-    final time =
-        '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    final time = formatDisplayTime(sale.at);
     return Material(
       color: const Color(0xffe7f4ee),
       child: ListTile(
@@ -463,6 +468,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
   );
 
   Widget _topBar() => Container(
+    key: const ValueKey('pos-top-bar'),
     height: 58,
     color: Colors.white,
     padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -533,108 +539,131 @@ class _PosWorkspaceState extends State<PosWorkspace>
     ),
   );
 
-  Widget _catalogPane() => Padding(
-    padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'New Sale',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-        ),
-        StreamBuilder<SalesTodaySummary>(
-          stream: widget.salesHistory.watchToday(),
-          builder: (context, snapshot) {
-            final value = snapshot.data;
-            return Text(
-              'Today: ${formatPkr(value?.total ?? 0)}  •  ${value?.bills ?? 0} bills',
-              style: const TextStyle(color: Color(0xff6c7680), fontSize: 13),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: search,
-          autofocus: true,
-          onChanged: (_) => setState(() {}),
-          onSubmitted: submitBarcode,
-          decoration: InputDecoration(
-            hintText: 'Search product or scan barcode',
-            filled: true,
-            fillColor: const Color(0xffffffff),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(7),
-              borderSide: const BorderSide(color: Color(0xffdce2e6)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(7),
-              borderSide: const BorderSide(color: Color(0xff176b52), width: 2),
-            ),
-            constraints: const BoxConstraints(minHeight: 48, maxHeight: 52),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 46,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: const Text('All'),
-                  selectedColor: const Color(0xff0d1b26),
-                  labelStyle: TextStyle(
-                    color: categoryId == null ? Colors.white : null,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  selected: categoryId == null,
-                  onSelected: (_) => setState(() => categoryId = null),
-                ),
+  Widget _catalogPane() => LayoutBuilder(
+    builder: (context, constraints) {
+      // In a short window the heading and today line give their height to
+      // the product grid; category chips go only when space is tiny.
+      final showHeading = constraints.maxHeight >= 330;
+      final showChips = constraints.maxHeight >= 220;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(18, showHeading ? 14 : 8, 18, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showHeading) ...[
+              const Text(
+                'New Sale',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
               ),
-              for (final category in catalog.categories)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(category.name),
-                    selectedColor: const Color(0xff0d1b26),
-                    labelStyle: TextStyle(
-                      color: categoryId == category.id ? Colors.white : null,
+              StreamBuilder<SalesTodaySummary>(
+                stream: widget.salesHistory.watchToday(),
+                builder: (context, snapshot) {
+                  final value = snapshot.data;
+                  return Text(
+                    'Today: ${formatPkr(value?.total ?? 0)}  •  ${value?.bills ?? 0} bills',
+                    style: const TextStyle(
+                      color: Color(0xff6c7680),
+                      fontSize: 13,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    selected: categoryId == category.id,
-                    onSelected: (_) => setState(() => categoryId = category.id),
-                  ),
-                ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
             ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (filteredProducts.isEmpty)
-          const Expanded(child: Center(child: Text('No local products found.')))
-        else
-          Expanded(
-            child: GridView.builder(
-              padding: EdgeInsets.zero,
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 270,
-                mainAxisExtent: 150,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: filteredProducts.length,
-              itemBuilder: (_, index) => PosProductCard(
-                product: filteredProducts[index],
-                onTap: () => addProduct(filteredProducts[index]),
+            TextField(
+              controller: search,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              onSubmitted: submitBarcode,
+              decoration: InputDecoration(
+                hintText: 'Search product or scan barcode',
+                filled: true,
+                fillColor: const Color(0xffffffff),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(7),
+                  borderSide: const BorderSide(color: Color(0xffdce2e6)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(7),
+                  borderSide: const BorderSide(
+                    color: Color(0xff176b52),
+                    width: 2,
+                  ),
+                ),
+                constraints: const BoxConstraints(minHeight: 48, maxHeight: 52),
               ),
             ),
-          ),
-      ],
-    ),
+            if (showChips) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 46,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: const Text('All'),
+                        selectedColor: const Color(0xff0d1b26),
+                        labelStyle: TextStyle(
+                          color: categoryId == null ? Colors.white : null,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        selected: categoryId == null,
+                        onSelected: (_) => setState(() => categoryId = null),
+                      ),
+                    ),
+                    for (final category in catalog.categories)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(category.name),
+                          selectedColor: const Color(0xff0d1b26),
+                          labelStyle: TextStyle(
+                            color: categoryId == category.id
+                                ? Colors.white
+                                : null,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          selected: categoryId == category.id,
+                          onSelected: (_) =>
+                              setState(() => categoryId = category.id),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            if (filteredProducts.isEmpty)
+              const Expanded(
+                child: Center(child: Text('No local products found.')),
+              )
+            else
+              Expanded(
+                child: GridView.builder(
+                  padding: EdgeInsets.zero,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 270,
+                    mainAxisExtent: 150,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (_, index) => PosProductCard(
+                    product: filteredProducts[index],
+                    onTap: () => addProduct(filteredProducts[index]),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
   );
 
   void _updateCart(VoidCallback action, [StateSetter? updateParent]) {
@@ -643,6 +672,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
   }
 
   Widget _cartPane({StateSetter? updateParent}) => Container(
+    key: const ValueKey('current-bill-panel'),
     margin: const EdgeInsets.fromLTRB(0, 18, 12, 18),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -650,18 +680,14 @@ class _PosWorkspaceState extends State<PosWorkspace>
       border: Border.all(color: const Color(0xffdce2e6)),
       borderRadius: BorderRadius.circular(10),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final header = Row(
           children: [
-            Expanded(
+            const Expanded(
               child: Text(
                 'Current Bill',
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
               ),
             ),
             Text(
@@ -669,78 +695,128 @@ class _PosWorkspaceState extends State<PosWorkspace>
               style: const TextStyle(color: Color(0xff6c7680)),
             ),
           ],
-        ),
-        Expanded(
-          child: cart.isEmpty
-              ? const Center(child: Text('Tap a product to begin a sale.'))
-              : ListView(
-                  children: [
-                    for (final line in cart.lines)
-                      _cartLine(line, updateParent),
-                  ],
-                ),
-        ),
-        const Divider(),
-        _totalRow('Subtotal', cart.subtotalMinor),
-        _totalRow('Discount', 0),
-        _totalRow('Total', cart.subtotalMinor, prominent: true),
-        const SizedBox(height: 12),
-        FilledButton(
-          key: const ValueKey('pay-button'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            backgroundColor: const Color(0xff07966d),
-            foregroundColor: Colors.white,
-          ),
-          onPressed:
-              cart.isEmpty ||
-                  completing ||
-                  widget.entitlement?.permitsMutation == false
-              ? null
-              : checkout,
-          child: Text(
-            completing ? 'Completing…' : 'Pay ${formatPkr(cart.subtotalMinor)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
+        );
+        const empty = Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: Text('Tap a product to begin a sale.')),
+        );
+        final lines = [
+          for (final line in cart.lines) _cartLine(line, updateParent),
+        ];
+        final totals = [
+          const Divider(),
+          _totalRow('Subtotal', cart.subtotalMinor),
+          _totalRow('Discount', 0),
+          _totalRow('Total', cart.subtotalMinor, prominent: true),
+        ];
+        final pay = _payButton();
+        final secondary = _secondaryCartActions(updateParent);
+        if (constraints.maxHeight >= 380) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              Expanded(child: cart.isEmpty ? empty : ListView(children: lines)),
+              ...totals,
+              const SizedBox(height: 12),
+              pay,
+              const SizedBox(height: 8),
+              secondary,
+            ],
+          );
+        }
+        // Short window: the bill scrolls as one list while Pay stays pinned,
+        // so totals and lines never push anything off the pane.
+        final scrolling = ListView(
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: null,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-                child: const Text('Hold Bill'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: cart.isEmpty
-                    ? null
-                    : () => _updateCart(cart.clear, updateParent),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-                child: const Text('Clear'),
-              ),
-            ),
+            header,
+            if (cart.isEmpty) empty else ...lines,
+            ...totals,
+            const SizedBox(height: 8),
+            secondary,
           ],
-        ),
-      ],
+        );
+        if (constraints.maxHeight < 150) {
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                if (cart.isEmpty) empty else ...lines,
+                ...totals,
+                const SizedBox(height: 8),
+                pay,
+                const SizedBox(height: 8),
+                secondary,
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: scrolling),
+            const SizedBox(height: 8),
+            pay,
+          ],
+        );
+      },
     ),
+  );
+
+  Widget _payButton() => FilledButton(
+    key: const ValueKey('pay-button'),
+    style: FilledButton.styleFrom(
+      minimumSize: const Size.fromHeight(54),
+      backgroundColor: const Color(0xff07966d),
+      foregroundColor: Colors.white,
+    ),
+    onPressed:
+        cart.isEmpty ||
+            completing ||
+            widget.entitlement?.permitsMutation == false
+        ? null
+        : checkout,
+    child: Text(
+      completing ? 'Completing…' : 'Pay ${formatPkr(cart.subtotalMinor)}',
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+
+  Widget _secondaryCartActions(StateSetter? updateParent) => Row(
+    children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: null,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(7),
+            ),
+          ),
+          child: const Text('Hold Bill'),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: OutlinedButton(
+          onPressed: cart.isEmpty
+              ? null
+              : () => _updateCart(cart.clear, updateParent),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(7),
+            ),
+          ),
+          child: const Text('Clear'),
+        ),
+      ),
+    ],
   );
 
   Widget _cartLine(PosCartLine line, [StateSetter? updateParent]) => Padding(
@@ -964,75 +1040,90 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Payment • ${formatPkr(widget.totalMinor)}'),
-    content: SizedBox(
-      width: 440,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SegmentedButton<PaymentMethod>(
-              segments: const [
-                ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
-                ButtonSegment(
-                  value: PaymentMethod.digital,
-                  label: Text('Digital'),
-                ),
-                ButtonSegment(
-                  value: PaymentMethod.credit,
-                  label: Text('Udhaar'),
-                ),
-                ButtonSegment(value: PaymentMethod.other, label: Text('Split')),
+  Widget build(BuildContext context) => Theme(
+    data: posFormTheme(Theme.of(context)),
+    child: AlertDialog(
+      title: Text('Payment • ${formatPkr(widget.totalMinor)}'),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<PaymentMethod>(
+                segments: const [
+                  ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
+                  ButtonSegment(
+                    value: PaymentMethod.digital,
+                    label: Text('Digital'),
+                  ),
+                  ButtonSegment(
+                    value: PaymentMethod.credit,
+                    label: Text('Udhaar'),
+                  ),
+                  ButtonSegment(
+                    value: PaymentMethod.other,
+                    label: Text('Split'),
+                  ),
+                ],
+                selected: {mode},
+                onSelectionChanged: (value) => setState(() {
+                  mode = value.single;
+                  error = null;
+                  if (mode == PaymentMethod.cash) {
+                    cash.text = minorToInput(widget.totalMinor);
+                  }
+                }),
+              ),
+              const SizedBox(height: 18),
+              if (mode == PaymentMethod.cash)
+                _moneyField(cash, 'Cash received')
+              else if (mode == PaymentMethod.digital)
+                const Text(
+                  'Digital payment will be recorded without a gateway.',
+                )
+              else if (mode == PaymentMethod.credit) ...[
+                _customerField(),
+                _creditProjection(),
+              ] else ...[
+                _moneyField(cash, 'Cash amount'),
+                _moneyField(digital, 'Digital amount'),
+                _moneyField(credit, 'Udhaar amount'),
+                _customerField(),
+                _creditProjection(),
               ],
-              selected: {mode},
-              onSelectionChanged: (value) => setState(() {
-                mode = value.single;
-                error = null;
-                if (mode == PaymentMethod.cash) {
-                  cash.text = minorToInput(widget.totalMinor);
-                }
-              }),
-            ),
-            const SizedBox(height: 18),
-            if (mode == PaymentMethod.cash)
-              _moneyField(cash, 'Cash received')
-            else if (mode == PaymentMethod.digital)
-              const Text('Digital payment will be recorded without a gateway.')
-            else if (mode == PaymentMethod.credit) ...[
-              _customerField(),
-              _creditProjection(),
-            ] else ...[
-              _moneyField(cash, 'Cash amount'),
-              _moneyField(digital, 'Digital amount'),
-              _moneyField(credit, 'Udhaar amount'),
-              _customerField(),
-              _creditProjection(),
-            ],
-            if (mode == PaymentMethod.cash &&
-                parseMoneyMinor(cash.text) != null)
-              Text(
-                'Change: ${formatPkr(((parseMoneyMinor(cash.text) ?? 0) - widget.totalMinor).clamp(0, 1 << 62))}',
-              ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+              if (mode == PaymentMethod.cash &&
+                  parseMoneyMinor(cash.text) != null)
+                Text(
+                  'Change: ${formatPkr(((parseMoneyMinor(cash.text) ?? 0) - widget.totalMinor).clamp(0, 1 << 62))}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: posAccent,
+                  ),
                 ),
-              ),
-          ],
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: confirm, child: const Text('Complete Sale')),
+      ],
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(onPressed: confirm, child: const Text('Complete Sale')),
-    ],
   );
 
   Widget _moneyField(TextEditingController controller, String label) => Padding(
@@ -1107,19 +1198,32 @@ class ReceiptDialog extends StatelessWidget {
     ),
     content: SizedBox(
       width: 420,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (receipt case final receipt?)
-            ReceiptView(receipt: receipt)
-          else
-            const Text('The sale is saved. Open its receipt from Bills.'),
-          const SizedBox(height: 8),
-          Text(
-            synced ? 'Saved locally • Synced' : 'Saved locally • Pending sync',
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (receipt case final receipt?)
+              ReceiptView(receipt: receipt)
+            else
+              const Text('The sale is saved. Open its receipt from Bills.'),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: synced
+                  ? const StatusPill(
+                      'Saved on this tablet • Synced',
+                      tone: StatusTone.success,
+                      icon: Icons.cloud_done_outlined,
+                    )
+                  : const StatusPill(
+                      'Saved on this tablet • Waiting to sync',
+                      tone: StatusTone.info,
+                      icon: Icons.cloud_queue,
+                    ),
+            ),
+          ],
+        ),
       ),
     ),
     actions: [
@@ -1160,8 +1264,14 @@ class PosProductCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                ProductThumbnail(imagePath: product.imagePath),
-                const SizedBox(width: 9),
+                // Square image area: real photos and placeholders line up.
+                ProductThumbnail(
+                  imagePath: product.imagePath,
+                  productId: product.id,
+                  width: 64,
+                  height: 64,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     product.name,
@@ -1183,16 +1293,23 @@ class PosProductCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        formatPkr(product.salePriceMinor),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                      // Price never wraps on narrow cards; it scales down.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formatPkr(product.salePriceMinor),
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       Text(
                         'Stock ${formatQuantity(product.stockQuantity)}${product.isLowStock ? ' • Low' : ''}',
                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: product.isLowStock
                               ? const Color(0xffb42318)
@@ -1203,6 +1320,7 @@ class PosProductCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
                 SizedBox(
                   height: 44,
                   child: FilledButton(
@@ -1284,51 +1402,110 @@ class _PosSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('cashier-sidebar'),
-    width: 76,
+    width: 84,
     color: const Color(0xff0d1b26),
-    child: Column(
-      children: [
-        const SizedBox(height: 18),
-        const Text(
-          'DP',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 24),
-        for (var index = 0; index < items.length; index++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onSelected(index),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 54),
-                decoration: BoxDecoration(
-                  color: index == selected ? const Color(0xff07966d) : null,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-                child: Text(
-                  items[index].$1,
-                  textAlign: TextAlign.center,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        // A short window can leave very little height: tighten the spacing,
+        // and scroll as a last resort rather than overflow.
+        final compact = constraints.maxHeight < 420;
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(vertical: compact ? 6 : 16),
+          child: Column(
+            children: [
+              if (!compact) ...[
+                const Text(
+                  'DP',
                   style: TextStyle(
-                    color: index == selected
-                        ? Colors.white
-                        : const Color(0xffc8d4dd),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
+                ),
+                const SizedBox(height: 18),
+              ],
+              for (var index = 0; index < items.length; index++)
+                _SidebarItem(
+                  icon: items[index].$2,
+                  label: items[index].$1,
+                  selected: index == selected,
+                  compact: compact,
+                  onTap: () => onSelected(index),
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool selected, compact;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? Colors.white : const Color(0xffc8d4dd);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: compact ? 2 : 3),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? const Color(0xff07966d) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: compact ? 48 : 58,
+                minWidth: double.infinity,
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: compact ? 5 : 8,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: compact ? 20 : 22, color: color),
+                    const SizedBox(height: 3),
+                    // One line always: long labels scale down, never wrap.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-      ],
-    ),
-  );
+        ),
+      ),
+    );
+  }
 }
 
 class _StatusChip extends StatelessWidget {

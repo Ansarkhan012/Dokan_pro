@@ -6,11 +6,16 @@ class ProductThumbnail extends StatelessWidget {
   const ProductThumbnail({
     super.key,
     this.imagePath,
+    this.productId,
     this.width = 68,
     this.height = 56,
   });
 
   final String? imagePath;
+
+  /// Shop product id used to find a shopkeeper-chosen local image, which
+  /// takes precedence over [imagePath].
+  final String? productId;
   final double width;
   final double height;
 
@@ -27,7 +32,8 @@ class ProductThumbnail extends StatelessWidget {
       ),
       child: const Icon(Icons.inventory_2_outlined, color: Color(0xff7c9189)),
     );
-    final path = imagePath?.trim();
+    final local = productId == null ? null : localProductImagePath(productId!);
+    final path = local ?? imagePath?.trim();
     if (path == null || path.isEmpty) return placeholder;
     return ClipRRect(
       borderRadius: BorderRadius.circular(7),

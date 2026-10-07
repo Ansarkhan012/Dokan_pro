@@ -44,6 +44,8 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^11.1.0
   pointycastle: ^4.0.0
+  image_picker: ^1.2.3
+  image: ^4.10.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+String? localProductImagePath(String productId) => null;
+
 Widget buildProductImage({
   required String path,
   required double width,

@@ -43,7 +43,15 @@ erDiagram
   SHOP ||--o{ SYNC_OPERATION : queues
 ```
 
-Image resolution is `Supabase Storage path -> compressed local thumbnail/cache -> placeholder`. Missing media never blocks product lookup or billing. Configuration uses compile-time `--dart-define=SUPABASE_URL=...` and `SUPABASE_ANON_KEY`; a service-role key must never ship in the app.
+Image resolution is `Supabase Storage path -> compressed local thumbnail/cache -> placeholder`. Missing media never blocks product lookup or billing.
+
+Shopkeeper-chosen custom-product photos are device-local for now: the picked
+JPG/PNG/WebP is decoded, downsized to a 512 px JPEG, and written atomically to
+`<app support>/product_images/<shop_product_id>.jpg` after the product is
+created. Thumbnails prefer that file over the synced `image_path`. The synced
+`image_path` column is not written, so images never enter SQLite, sync payloads
+or checkout. Cloud upload needs a Storage bucket and policies that do not exist
+yet. Configuration uses compile-time `--dart-define=SUPABASE_URL=...` and `SUPABASE_ANON_KEY`; a service-role key must never ship in the app.
 
 ## Phase 1 identity and bootstrap
 

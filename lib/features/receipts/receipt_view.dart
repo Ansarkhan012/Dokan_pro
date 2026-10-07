@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/format/display_format.dart';
 import '../pos/pos_state.dart';
 import 'receipt_model.dart';
 import 'receipt_printer.dart';
@@ -21,7 +22,7 @@ class ReceiptView extends StatelessWidget {
       if (receipt.address != null)
         Text(receipt.address!, textAlign: TextAlign.center),
       Text(receipt.reference),
-      Text('${receipt.dateTime.toLocal()} • ${receipt.cashier}'),
+      Text('${formatDisplayDateTime(receipt.dateTime)} • ${receipt.cashier}'),
       if (receipt.customer != null) Text('Customer: ${receipt.customer}'),
       if (receipt.status != 'Completed')
         Text(
@@ -39,7 +40,7 @@ class ReceiptView extends StatelessWidget {
       if (receipt.returned > 0) Text('Returned ${formatPkr(receipt.returned)}'),
       if (receipt.returned > 0) Text('Net ${formatPkr(receipt.netTotal)}'),
       for (final row in receipt.payments.entries)
-        Text('${row.key}: ${formatPkr(row.value)}'),
+        Text('${paymentMethodLabel(row.key)}: ${formatPkr(row.value)}'),
       if (receipt.received != null)
         Text('Received ${formatPkr(receipt.received!)}'),
       if (receipt.change > 0) Text('Change ${formatPkr(receipt.change)}'),

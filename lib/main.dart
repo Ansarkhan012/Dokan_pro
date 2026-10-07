@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/dukaan_pro_app.dart';
 import 'core/config/app_environment.dart';
+import 'core/images/product_image_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AppEnvironment.validate();
+  await initializeProductImages();
   if (AppEnvironment.hasSupabaseConfiguration) {
     await Supabase.initialize(
       url: AppEnvironment.supabaseUrl,

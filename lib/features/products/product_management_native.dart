@@ -1,12 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/errors/safe_error_message.dart';
+import '../../core/images/product_image_store.dart';
 import '../../database/app_database.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
 import '../pos/pos_state.dart';
+import '../pos/product_thumbnail.dart';
+import 'custom_product_dialog.dart';
+import 'edit_product_dialog.dart';
+import 'product_duplicates.dart';
 import 'drift_product_management_repository.dart';
 import 'product_management_models.dart';
 import 'product_management_service.dart';
@@ -164,6 +170,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 deviceId: widget.deviceId,
                 categories: snapshot.data!.categories,
                 onChanged: afterMutation,
+                existingProducts: () => DriftProductManagementRepository(
+                  db!,
+                  shopId: widget.shopId,
+                ).products(limit: 100000),
               ),
             ],
           );
@@ -271,29 +281,41 @@ class _MyProductsState extends State<_MyProducts> {
                         : constraints.maxWidth >= 650
                         ? 2
                         : 1;
-                    return GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        childAspectRatio: 2.35,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      itemCount: products.length + (hasMore ? 1 : 0),
-                      itemBuilder: (_, index) {
-                        if (index == products.length) {
-                          return Center(
-                            child: OutlinedButton(
-                              onPressed: loading ? null : _loadMore,
-                              child: Text(loading ? 'Loading…' : 'Load more'),
+                    return CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          sliver: SliverGrid.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  childAspectRatio: 2.35,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                ),
+                            itemCount: products.length,
+                            itemBuilder: (_, index) => _ManagedProductCard(
+                              product: products[index],
+                              onEdit: () => _edit(context, products[index]),
                             ),
-                          );
-                        }
-                        return _ManagedProductCard(
-                          product: products[index],
-                          onEdit: () => _edit(context, products[index]),
-                        );
-                      },
+                          ),
+                        ),
+                        if (hasMore)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                              child: Center(
+                                child: OutlinedButton(
+                                  key: const ValueKey('products-load-more'),
+                                  onPressed: loading ? null : _loadMore,
+                                  child: Text(
+                                    loading ? 'Loading…' : 'Load more',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),
@@ -342,115 +364,41 @@ class _MyProductsState extends State<_MyProducts> {
   }
 
   Future<void> _edit(BuildContext context, ManagedProduct product) async {
-    final purchase = TextEditingController(
-      text: minorToInput(product.purchasePriceMinor),
-    );
-    final sale = TextEditingController(
-      text: minorToInput(product.salePriceMinor),
-    );
-    final low = TextEditingController(
-      text: quantityToInput(product.lowStockLevel ?? 0),
-    );
-    var active = product.isActive;
-    var saving = false;
-    String? error;
-    await showDialog<void>(
+    var imageSaved = true;
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Edit ${product.name}'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: purchase,
-                  decoration: const InputDecoration(
-                    labelText: 'Purchase price',
-                  ),
-                ),
-                TextField(
-                  controller: sale,
-                  decoration: const InputDecoration(labelText: 'Sale price'),
-                ),
-                TextField(
-                  controller: low,
-                  decoration: const InputDecoration(
-                    labelText: 'Low-stock threshold',
-                  ),
-                ),
-                SwitchListTile(
-                  value: active,
-                  onChanged: saving
-                      ? null
-                      : (value) => setDialogState(() => active = value),
-                  title: const Text('Active'),
-                ),
-                if (error != null)
-                  Text(
-                    error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      final purchaseMinor = parseMoneyMinor(purchase.text);
-                      final saleMinor = parseMoneyMinor(sale.text);
-                      final lowQuantity = parseQuantity(low.text);
-                      if (purchaseMinor == null ||
-                          saleMinor == null ||
-                          lowQuantity == null) {
-                        setDialogState(
-                          () => error = 'Enter valid non-negative values.',
-                        );
-                        return;
-                      }
-                      setDialogState(() {
-                        saving = true;
-                        error = null;
-                      });
-                      try {
-                        await widget.gateway.updateProduct(
-                          shopId: widget.shopId,
-                          productId: product.id,
-                          purchasePriceMinor: purchaseMinor,
-                          salePriceMinor: saleMinor,
-                          lowStockLevel: lowQuantity,
-                          isActive: active,
-                        );
-                        if (!dialogContext.mounted) return;
-                        Navigator.pop(dialogContext);
-                        await widget.onChanged();
-                      } catch (_) {
-                        if (dialogContext.mounted) {
-                          setDialogState(() {
-                            saving = false;
-                            error = 'Could not update product.';
-                          });
-                        }
-                      }
-                    },
-              child: Text(saving ? 'Saving…' : 'Save'),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (dialogContext) => EditProductDialog(
+        product: product,
+        existingImage: ProductImageStore.instance?.existing(product.id),
+        onSubmit: (edit) async {
+          await widget.gateway.updateProduct(
+            shopId: widget.shopId,
+            productId: product.id,
+            purchasePriceMinor: edit.purchasePriceMinor,
+            salePriceMinor: edit.salePriceMinor,
+            lowStockLevel: edit.lowStockLevel,
+            isActive: edit.isActive,
+          );
+          imageSaved = await applyProductImageEdit(
+            product.id,
+            newImage: edit.newImage,
+            remove: edit.removeImage,
+          );
+        },
       ),
     );
-    purchase.dispose();
-    sale.dispose();
-    low.dispose();
+    if (saved != true) return;
+    await widget.onChanged();
+    if (!imageSaved && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product saved. The image could not be updated on this tablet.',
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -467,7 +415,12 @@ class _ManagedProductCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
-          ProductThumbnail(path: product.imagePath),
+          ProductThumbnail(
+            imagePath: product.imagePath,
+            productId: product.id,
+            width: 56,
+            height: 56,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -516,12 +469,16 @@ class _AddProduct extends StatefulWidget {
     required this.deviceId,
     required this.categories,
     required this.onChanged,
+    required this.existingProducts,
   });
   final ProductManagementService service;
   final String shopId;
   final String deviceId;
   final List<ProductCategory> categories;
   final Future<void> Function() onChanged;
+
+  /// This shop's local products, for the likely-duplicate warning.
+  final Future<List<ManagedProduct>> Function() existingProducts;
   @override
   State<_AddProduct> createState() => _AddProductState();
 }
@@ -605,7 +562,12 @@ class _AddProductState extends State<_AddProduct> {
       for (final product in results)
         Card(
           child: ListTile(
-            leading: ProductThumbnail(path: product.imagePath),
+            leading: ProductThumbnail(
+              imagePath: product.imagePath,
+              productId: product.shopProductId,
+              width: 56,
+              height: 56,
+            ),
             title: Text(product.name),
             subtitle: Text(
               '${product.brand.isEmpty ? product.categoryName : product.brand} • ${product.barcode}\n${product.unit}${product.packLabel == null ? '' : ' • ${product.packLabel}'}',
@@ -679,30 +641,93 @@ class _AddProductState extends State<_AddProduct> {
     }
   }
 
-  Future<void> _createCustom() async {
-    final input = await showDialog<CustomProductInput>(
-      context: context,
-      builder: (_) => _CustomProductDialog(categories: widget.categories),
-    );
-    if (input == null) return;
+  /// Warns when the shop already has a product with the same normalized
+  /// name or barcode. The owner may continue; a failed lookup never blocks
+  /// creation.
+  Future<bool> _confirmNotDuplicate(CustomProductInput input) async {
+    final List<ProductDuplicate> matches;
     try {
-      await widget.service.createCustom(
-        shopId: widget.shopId,
-        deviceId: widget.deviceId,
-        input: input,
+      matches = findLikelyDuplicates(
+        await widget.existingProducts(),
+        name: input.name,
+        barcode: input.barcode,
       );
-      await widget.onChanged();
-      if (mounted) DefaultTabController.of(context).animateTo(0);
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => error = safeUserMessage(
-            e,
-            fallback: 'Could not update the product. Please try again.',
-          ),
-        );
-      }
+    } catch (_) {
+      return true;
     }
+    if (matches.isEmpty || !mounted) return true;
+    return confirmPossibleDuplicate(context, [
+      for (final match in matches)
+        (name: match.product.name, sameBarcode: match.sameBarcode),
+    ]);
+  }
+
+  Future<void> _createCustom() async {
+    String? productId;
+    final draft = await showDialog<CustomProductDraft>(
+      context: context,
+      // A stray tap while dismissing the keyboard must not discard the form.
+      barrierDismissible: false,
+      builder: (_) => CustomProductDialog(
+        categories: widget.categories,
+        // Runs inside the dialog so a failure keeps the entered data open.
+        onSubmit: (submitted) async {
+          if (!await _confirmNotDuplicate(submitted.input)) {
+            throw const CustomProductSubmitCancelled();
+          }
+          productId = await widget.service.createCustom(
+            shopId: widget.shopId,
+            deviceId: widget.deviceId,
+            input: submitted.input,
+          );
+        },
+      ),
+    );
+    final createdId = productId;
+    if (draft == null || createdId == null) return;
+    final imageSaved = await saveProductImage(createdId, draft.image);
+    await widget.onChanged();
+    if (!mounted) return;
+    if (!imageSaved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product created. The image could not be saved on this tablet.',
+          ),
+        ),
+      );
+    }
+    DefaultTabController.of(context).animateTo(0);
+  }
+}
+
+/// Stores a chosen thumbnail locally after the product exists. Returns false
+/// only when an image was chosen but could not be written; never throws, so
+/// image storage can never undo or block product creation.
+Future<bool> applyProductImageEdit(
+  String productId, {
+  Uint8List? newImage,
+  bool remove = false,
+}) async {
+  if (newImage != null) return saveProductImage(productId, newImage);
+  if (!remove) return true;
+  try {
+    final store = await ProductImageStore.ensureInitialized();
+    await store.remove(productId);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> saveProductImage(String productId, Uint8List? image) async {
+  if (image == null) return true;
+  try {
+    final store = await ProductImageStore.ensureInitialized();
+    await store.save(productId, image);
+    return true;
+  } catch (_) {
+    return false;
   }
 }
 
@@ -788,195 +813,6 @@ class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
         child: const Text('Add to My Shop'),
       ),
     ],
-  );
-}
-
-class _CustomProductDialog extends StatefulWidget {
-  const _CustomProductDialog({required this.categories});
-  final List<ProductCategory> categories;
-  @override
-  State<_CustomProductDialog> createState() => _CustomProductDialogState();
-}
-
-class _CustomProductDialogState extends State<_CustomProductDialog> {
-  final name = TextEditingController(),
-      barcode = TextEditingController(),
-      pack = TextEditingController(),
-      image = TextEditingController(),
-      purchase = TextEditingController(),
-      sale = TextEditingController(),
-      opening = TextEditingController(text: '0'),
-      low = TextEditingController(text: '0');
-  String? categoryId;
-  ProductUnit unit = ProductUnit.piece;
-  String? error;
-  @override
-  void dispose() {
-    for (final c in [
-      name,
-      barcode,
-      pack,
-      image,
-      purchase,
-      sale,
-      opening,
-      low,
-    ]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Create Custom Product'),
-    content: SizedBox(
-      width: 460,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: 'Product name *'),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: categoryId,
-              decoration: const InputDecoration(labelText: 'Category *'),
-              items: widget.categories
-                  .map(
-                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => categoryId = v),
-            ),
-            TextField(
-              controller: barcode,
-              decoration: const InputDecoration(
-                labelText: 'Barcode (optional)',
-              ),
-            ),
-            DropdownButtonFormField<ProductUnit>(
-              initialValue: unit,
-              decoration: const InputDecoration(labelText: 'Unit *'),
-              items: ProductUnit.values
-                  .map((u) => DropdownMenuItem(value: u, child: Text(u.label)))
-                  .toList(),
-              onChanged: (v) => setState(() => unit = v!),
-            ),
-            TextField(
-              controller: pack,
-              decoration: const InputDecoration(
-                labelText: 'Pack size / label (optional)',
-              ),
-            ),
-            TextField(
-              controller: image,
-              decoration: const InputDecoration(
-                labelText: 'Image reference (optional)',
-              ),
-            ),
-            TextField(
-              controller: purchase,
-              decoration: const InputDecoration(labelText: 'Purchase price'),
-            ),
-            TextField(
-              controller: sale,
-              decoration: const InputDecoration(labelText: 'Sale price'),
-            ),
-            TextField(
-              controller: opening,
-              decoration: const InputDecoration(labelText: 'Opening stock'),
-            ),
-            TextField(
-              controller: low,
-              decoration: const InputDecoration(
-                labelText: 'Low-stock threshold',
-              ),
-            ),
-            if (error != null)
-              Text(
-                error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          final p = parseMoneyMinor(purchase.text),
-              s = parseMoneyMinor(sale.text),
-              o = parseQuantity(opening.text),
-              l = parseQuantity(low.text);
-          if (name.text.trim().isEmpty ||
-              categoryId == null ||
-              p == null ||
-              s == null ||
-              o == null ||
-              l == null) {
-            setState(
-              () => error = 'Complete all required fields with valid values.',
-            );
-            return;
-          }
-          Navigator.pop(
-            context,
-            CustomProductInput(
-              name: name.text.trim(),
-              categoryId: categoryId!,
-              unit: unit,
-              barcode: barcode.text.trim().isEmpty ? null : barcode.text.trim(),
-              packLabel: pack.text.trim().isEmpty ? null : pack.text.trim(),
-              imagePath: image.text.trim().isEmpty ? null : image.text.trim(),
-              purchasePriceMinor: p,
-              salePriceMinor: s,
-              openingQuantity: o,
-              lowStockLevel: l,
-            ),
-          );
-        },
-        child: const Text('Create Product'),
-      ),
-    ],
-  );
-}
-
-class ProductThumbnail extends StatelessWidget {
-  const ProductThumbnail({super.key, this.path});
-  final String? path;
-  @override
-  Widget build(BuildContext context) {
-    final value = path;
-    if (value == null || !value.startsWith('http')) {
-      return const _ImagePlaceholder();
-    }
-    return Image.network(
-      value,
-      width: 56,
-      height: 56,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => const _ImagePlaceholder(),
-    );
-  }
-}
-
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder();
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 56,
-    height: 56,
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: const Icon(Icons.inventory_2_outlined),
   );
 }
 
