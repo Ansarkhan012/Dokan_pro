@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import '../../core/domain/enums.dart';
 import 'organization_tables.dart';
 
 @TableIndex(name: 'categories_shop_id', columns: {#shopId})
@@ -51,6 +52,20 @@ class ShopProducts extends Table {
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  // U1 (v13). `piece` (every pre-v13 product) or `measured` (unit kg/liter).
+  // Fixed at creation; quantities stay thousandths of [unit] either way.
+  TextColumn get sellMode =>
+      text().withDefault(Constant(SellMode.piece.name))();
+
+  /// Pack variants of one product share it. Grouping only, never sellable.
+  TextColumn get familyId => text().nullable()();
+
+  /// Measured quick quantities in thousandths, as a JSON array; null means
+  /// the defaults.
+  TextColumn get measurePresets => text().nullable()();
+  BoolColumn get allowCustomQuantity =>
+      boolean().withDefault(const Constant(true))();
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

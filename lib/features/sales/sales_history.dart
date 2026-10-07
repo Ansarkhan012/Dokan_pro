@@ -5,7 +5,9 @@ import '../pos/pos_state.dart';
 import '../reports/report_models.dart';
 import '../receipts/receipt_model.dart';
 import '../receipts/receipt_view.dart';
+import '../../core/domain/enums.dart';
 import '../../core/format/display_format.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/ui/pos_ui.dart';
 import 'domain/bill_reference.dart';
 
@@ -60,9 +62,18 @@ final class SaleHistoryRow {
 }
 
 final class SaleDetailLine {
-  const SaleDetailLine(this.name, this.quantity, this.unitPrice, this.total);
+  const SaleDetailLine(
+    this.name,
+    this.quantity,
+    this.unitPrice,
+    this.total, {
+    this.measureUnit,
+  });
   final String name;
   final int quantity, unitPrice, total;
+
+  /// From `measure_unit_snapshot`; null for a count line.
+  final MeasureUnit? measureUnit;
 }
 
 final class SaleHistoryDetail {
@@ -103,6 +114,7 @@ final class SaleHistoryDetail {
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           total: line.total,
+          measureUnit: line.measureUnit,
         ),
     ],
     subtotal: subtotal,
@@ -302,7 +314,7 @@ final class DriftSalesHistoryRepository {
   Future<SaleHistoryDetail> detail(SaleHistoryRow sale) async {
     final lines = await db
         .customSelect(
-          'select product_name_snapshot,quantity,sale_price_snapshot,line_total from sale_items where shop_id=? and sale_id=? order by created_at',
+          'select product_name_snapshot,quantity,sale_price_snapshot,line_total,measure_unit_snapshot from sale_items where shop_id=? and sale_id=? order by created_at',
           variables: [Variable(shopId), Variable(sale.id)],
         )
         .get();
@@ -338,6 +350,9 @@ final class DriftSalesHistoryRepository {
               r.data['quantity'] as int,
               r.data['sale_price_snapshot'] as int,
               r.data['line_total'] as int,
+              measureUnit: MeasureUnit.tryParse(
+                r.data['measure_unit_snapshot'] as String?,
+              ),
             ),
           )
           .toList(),
@@ -881,7 +896,7 @@ class _SaleDetailDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '${l.name}\n${formatDisplayQuantity(l.quantity)} × ${formatPkr(l.unitPrice)}',
+                      '${l.name}\n${formatLineQuantity(l.quantity, l.measureUnit)} × ${formatPkr(l.unitPrice)}',
                     ),
                   ),
                   Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/format/display_format.dart';
+import '../../core/format/measure_format.dart';
 import '../pos/pos_state.dart';
 import 'receipt_model.dart';
 import 'receipt_printer.dart';
@@ -32,7 +33,7 @@ class ReceiptView extends StatelessWidget {
       const Divider(),
       for (final line in receipt.lines)
         Text(
-          '${line.quantity / quantityScale} × ${line.name}  ${formatPkr(line.total)}',
+          '${formatLineQuantity(line.quantity, line.measureUnit)} × ${line.name}  ${formatPkr(line.total)}',
         ),
       const Divider(),
       Text('Subtotal ${formatPkr(receipt.subtotal)}'),

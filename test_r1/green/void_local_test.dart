@@ -35,10 +35,14 @@ Future<AppDatabase> _shopDb() async {
     id: 'device', shopId: 'shop', deviceName: 'd',
     deviceType: DeviceType.androidTablet, deviceIdentifier: 'd', createdAt: t,
   ));
-  for (final (id, price) in [('coke', 18000), ('rice', 12000)]) {
+  // Rice is loose (U1 measured, Rs 120/kg) so its 1.5 kg line is a valid
+  // fractional quantity; coke is a piece product sold in whole units.
+  for (final (id, price, measured) in [('coke', 18000, false), ('rice', 12000, true)]) {
     await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
       id: id, shopId: 'shop', customName: Value(id),
       purchasePrice: 10000, salePrice: price, createdAt: t, updatedAt: t,
+      unit: Value(measured ? 'kg' : 'piece'),
+      sellMode: Value(measured ? SellMode.measured.name : SellMode.piece.name),
     ));
     await db.into(db.inventoryMovements).insert(InventoryMovementsCompanion.insert(
       id: 'opening-$id', shopId: 'shop', productId: id,

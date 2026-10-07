@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+import '../../core/domain/enums.dart';
+import '../../core/format/measure_format.dart';
 import '../../database/app_database.dart';
 import 'pos_catalog.dart';
 import 'pos_state.dart';
@@ -22,7 +24,8 @@ final class DriftPosCatalog implements PosCatalog {
           '''select sp.id,coalesce(sp.custom_name,mp.name,'Unnamed product') name,
       coalesce(sp.barcode,mp.barcode) barcode,coalesce(sp.category_id,mp.category_id) category_id,
       coalesce(sp.image_path,mp.default_image_path) image_path,sp.sale_price,
-      sp.stock_tracking_enabled,sp.low_stock_level,coalesce(sum(im.quantity),0) stock
+      sp.stock_tracking_enabled,sp.low_stock_level,coalesce(sum(im.quantity),0) stock,
+      sp.sell_mode,sp.unit,sp.family_id,coalesce(sp.pack_label,mp.pack_label) pack_label
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
       where sp.shop_id=? and sp.is_active=1 group by sp.id order by name limit 5000''',
@@ -48,7 +51,11 @@ final class DriftPosCatalog implements PosCatalog {
         final row = result.data;
         return PosProduct(
           id: row['id'] as String,
-          name: row['name'] as String,
+          name: sellableName(
+            row['name'] as String,
+            row['pack_label'] as String?,
+            familyId: row['family_id'] as String?,
+          ),
           barcode: row['barcode'] as String?,
           categoryId: row['category_id'] as String?,
           imagePath: row['image_path'] as String?,
@@ -56,6 +63,9 @@ final class DriftPosCatalog implements PosCatalog {
           stockQuantity: row['stock'] as int,
           stockTrackingEnabled: (row['stock_tracking_enabled'] as int) != 0,
           lowStockLevel: row['low_stock_level'] as int?,
+          measureUnit: row['sell_mode'] == SellMode.measured.name
+              ? MeasureUnit.tryParse(row['unit'] as String?)
+              : null,
         );
       }).toList(),
       customers: customers

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../../../core/domain/enums.dart';
+import '../../../core/format/measure_format.dart';
 import '../../../core/ids/id_generator.dart';
 import '../../../database/app_database.dart';
 import '../../../subscription/entitlement_policy.dart';
@@ -95,6 +96,21 @@ final class LocalSaleService {
             'Product prices cannot be negative',
           );
         }
+        // U1: a count sells in whole units; a measured line keeps its unit
+        // (the server enforces the same rules at sync).
+        final measureUnit = product.sellMode == SellMode.measured.name
+            ? MeasureUnit.tryParse(product.unit)
+            : null;
+        if (product.sellMode == SellMode.measured.name && measureUnit == null) {
+          throw const SaleValidationException(
+            'Measured product requires kg or liter',
+          );
+        }
+        if (measureUnit == null && line.quantity % 1000 != 0) {
+          throw const SaleValidationException(
+            'Piece products are sold in whole units',
+          );
+        }
         final gross = _scaledPrice(product.salePrice, line.quantity);
         if (line.discountMinor > gross) {
           throw const SaleValidationException('Discount exceeds line value');
@@ -113,6 +129,7 @@ final class LocalSaleService {
           'sale_price_snapshot': product.salePrice,
           'discount_amount': line.discountMinor,
           'line_total': lineTotal,
+          'measure_unit_snapshot': measureUnit?.name,
         });
         if (!shop.allowNegativeStock && product.stockTrackingEnabled) {
           final stock = await _stock(draft.shopId, product.id);
@@ -209,6 +226,9 @@ final class LocalSaleService {
                 discountAmount: row['discount_amount']! as int,
                 lineTotal: row['line_total']! as int,
                 createdAt: now,
+                measureUnitSnapshot: Value(
+                  row['measure_unit_snapshot'] as String?,
+                ),
               ),
             );
         await db
@@ -411,14 +431,17 @@ final class LocalSaleService {
   }
 
   Future<String> _productName(ShopProduct product) async {
-    if (product.customName case final name?) return name;
-    if (product.masterProductId case final id?) {
+    String? name = product.customName;
+    if (name == null && product.masterProductId != null) {
       final master = await (db.select(
         db.masterProducts,
-      )..where((t) => t.id.equals(id))).getSingleOrNull();
-      if (master != null) return master.name;
+      )..where((t) => t.id.equals(product.masterProductId!))).getSingleOrNull();
+      name = master?.name;
     }
-    throw const SaleValidationException('Product requires a display name');
+    if (name == null) {
+      throw const SaleValidationException('Product requires a display name');
+    }
+    return sellableName(name, product.packLabel, familyId: product.familyId);
   }
 
   Future<int> _stock(String shopId, String productId) async {

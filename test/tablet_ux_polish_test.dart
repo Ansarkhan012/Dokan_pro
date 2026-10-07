@@ -37,7 +37,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('cashier-sidebar')), findsOneWidget);
       // Every destination stays reachable.
-      for (final label in ['Sale', 'Products', 'Bills', 'Khata', 'Inventory']) {
+      for (final label in ['Sale', 'Products', 'Bills', 'Khata']) {
         expect(
           find.descendant(
             of: find.byKey(const ValueKey('cashier-sidebar')),
@@ -47,6 +47,15 @@ void main() {
           reason: label,
         );
       }
+      // U1: the non-functional Inventory placeholder is gone for cashiers;
+      // owner Inventory stays in the owner actions.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('cashier-sidebar')),
+          matching: find.text('Inventory'),
+        ),
+        findsNothing,
+      );
       if (find.byKey(const ValueKey('open-cart-button')).evaluate().isEmpty) {
         // Wide layout: Current Bill and Pay stay usable beside the catalog.
         await tester.tap(find.text('Add').first);
@@ -81,7 +90,7 @@ void main() {
 
   testWidgets('sidebar labels stay on one line', (tester) async {
     final db = await _pumpPos(tester, const Size(1280, 800));
-    for (final label in ['Products', 'Inventory']) {
+    for (final label in ['Products', 'Khata']) {
       final paragraph = tester.renderObject<RenderParagraph>(
         find.descendant(
           of: find.byKey(const ValueKey('cashier-sidebar')),

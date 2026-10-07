@@ -3855,6 +3855,54 @@ class $ShopProductsTable extends ShopProducts
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sellModeMeta = const VerificationMeta(
+    'sellMode',
+  );
+  @override
+  late final GeneratedColumn<String> sellMode = GeneratedColumn<String>(
+    'sell_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: Constant(SellMode.piece.name),
+  );
+  static const VerificationMeta _familyIdMeta = const VerificationMeta(
+    'familyId',
+  );
+  @override
+  late final GeneratedColumn<String> familyId = GeneratedColumn<String>(
+    'family_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _measurePresetsMeta = const VerificationMeta(
+    'measurePresets',
+  );
+  @override
+  late final GeneratedColumn<String> measurePresets = GeneratedColumn<String>(
+    'measure_presets',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _allowCustomQuantityMeta =
+      const VerificationMeta('allowCustomQuantity');
+  @override
+  late final GeneratedColumn<bool> allowCustomQuantity = GeneratedColumn<bool>(
+    'allow_custom_quantity',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_custom_quantity" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3873,6 +3921,10 @@ class $ShopProductsTable extends ShopProducts
     isActive,
     createdAt,
     updatedAt,
+    sellMode,
+    familyId,
+    measurePresets,
+    allowCustomQuantity,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4003,6 +4055,36 @@ class $ShopProductsTable extends ShopProducts
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('sell_mode')) {
+      context.handle(
+        _sellModeMeta,
+        sellMode.isAcceptableOrUnknown(data['sell_mode']!, _sellModeMeta),
+      );
+    }
+    if (data.containsKey('family_id')) {
+      context.handle(
+        _familyIdMeta,
+        familyId.isAcceptableOrUnknown(data['family_id']!, _familyIdMeta),
+      );
+    }
+    if (data.containsKey('measure_presets')) {
+      context.handle(
+        _measurePresetsMeta,
+        measurePresets.isAcceptableOrUnknown(
+          data['measure_presets']!,
+          _measurePresetsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('allow_custom_quantity')) {
+      context.handle(
+        _allowCustomQuantityMeta,
+        allowCustomQuantity.isAcceptableOrUnknown(
+          data['allow_custom_quantity']!,
+          _allowCustomQuantityMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4076,6 +4158,22 @@ class $ShopProductsTable extends ShopProducts
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      sellMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sell_mode'],
+      )!,
+      familyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}family_id'],
+      ),
+      measurePresets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measure_presets'],
+      ),
+      allowCustomQuantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_custom_quantity'],
+      )!,
     );
   }
 
@@ -4102,6 +4200,15 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String sellMode;
+
+  /// Pack variants of one product share it. Grouping only, never sellable.
+  final String? familyId;
+
+  /// Measured quick quantities in thousandths, as a JSON array; null means
+  /// the defaults.
+  final String? measurePresets;
+  final bool allowCustomQuantity;
   const ShopProduct({
     required this.id,
     required this.shopId,
@@ -4119,6 +4226,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    required this.sellMode,
+    this.familyId,
+    this.measurePresets,
+    required this.allowCustomQuantity,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4155,6 +4266,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['sell_mode'] = Variable<String>(sellMode);
+    if (!nullToAbsent || familyId != null) {
+      map['family_id'] = Variable<String>(familyId);
+    }
+    if (!nullToAbsent || measurePresets != null) {
+      map['measure_presets'] = Variable<String>(measurePresets);
+    }
+    map['allow_custom_quantity'] = Variable<bool>(allowCustomQuantity);
     return map;
   }
 
@@ -4190,6 +4309,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: Value(isActive),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      sellMode: Value(sellMode),
+      familyId: familyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(familyId),
+      measurePresets: measurePresets == null && nullToAbsent
+          ? const Value.absent()
+          : Value(measurePresets),
+      allowCustomQuantity: Value(allowCustomQuantity),
     );
   }
 
@@ -4217,6 +4344,12 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      sellMode: serializer.fromJson<String>(json['sellMode']),
+      familyId: serializer.fromJson<String?>(json['familyId']),
+      measurePresets: serializer.fromJson<String?>(json['measurePresets']),
+      allowCustomQuantity: serializer.fromJson<bool>(
+        json['allowCustomQuantity'],
+      ),
     );
   }
   @override
@@ -4239,6 +4372,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'sellMode': serializer.toJson<String>(sellMode),
+      'familyId': serializer.toJson<String?>(familyId),
+      'measurePresets': serializer.toJson<String?>(measurePresets),
+      'allowCustomQuantity': serializer.toJson<bool>(allowCustomQuantity),
     };
   }
 
@@ -4259,6 +4396,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? sellMode,
+    Value<String?> familyId = const Value.absent(),
+    Value<String?> measurePresets = const Value.absent(),
+    bool? allowCustomQuantity,
   }) => ShopProduct(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -4280,6 +4421,12 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    sellMode: sellMode ?? this.sellMode,
+    familyId: familyId.present ? familyId.value : this.familyId,
+    measurePresets: measurePresets.present
+        ? measurePresets.value
+        : this.measurePresets,
+    allowCustomQuantity: allowCustomQuantity ?? this.allowCustomQuantity,
   );
   ShopProduct copyWithCompanion(ShopProductsCompanion data) {
     return ShopProduct(
@@ -4311,6 +4458,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      sellMode: data.sellMode.present ? data.sellMode.value : this.sellMode,
+      familyId: data.familyId.present ? data.familyId.value : this.familyId,
+      measurePresets: data.measurePresets.present
+          ? data.measurePresets.value
+          : this.measurePresets,
+      allowCustomQuantity: data.allowCustomQuantity.present
+          ? data.allowCustomQuantity.value
+          : this.allowCustomQuantity,
     );
   }
 
@@ -4332,7 +4487,11 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
           ..write('lowStockLevel: $lowStockLevel, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('sellMode: $sellMode, ')
+          ..write('familyId: $familyId, ')
+          ..write('measurePresets: $measurePresets, ')
+          ..write('allowCustomQuantity: $allowCustomQuantity')
           ..write(')'))
         .toString();
   }
@@ -4355,6 +4514,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     isActive,
     createdAt,
     updatedAt,
+    sellMode,
+    familyId,
+    measurePresets,
+    allowCustomQuantity,
   );
   @override
   bool operator ==(Object other) =>
@@ -4375,7 +4538,11 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
           other.lowStockLevel == this.lowStockLevel &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.sellMode == this.sellMode &&
+          other.familyId == this.familyId &&
+          other.measurePresets == this.measurePresets &&
+          other.allowCustomQuantity == this.allowCustomQuantity);
 }
 
 class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
@@ -4395,6 +4562,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String> sellMode;
+  final Value<String?> familyId;
+  final Value<String?> measurePresets;
+  final Value<bool> allowCustomQuantity;
   final Value<int> rowid;
   const ShopProductsCompanion({
     this.id = const Value.absent(),
@@ -4413,6 +4584,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.sellMode = const Value.absent(),
+    this.familyId = const Value.absent(),
+    this.measurePresets = const Value.absent(),
+    this.allowCustomQuantity = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ShopProductsCompanion.insert({
@@ -4432,6 +4607,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     this.isActive = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.sellMode = const Value.absent(),
+    this.familyId = const Value.absent(),
+    this.measurePresets = const Value.absent(),
+    this.allowCustomQuantity = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -4456,6 +4635,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? sellMode,
+    Expression<String>? familyId,
+    Expression<String>? measurePresets,
+    Expression<bool>? allowCustomQuantity,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4476,6 +4659,11 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (sellMode != null) 'sell_mode': sellMode,
+      if (familyId != null) 'family_id': familyId,
+      if (measurePresets != null) 'measure_presets': measurePresets,
+      if (allowCustomQuantity != null)
+        'allow_custom_quantity': allowCustomQuantity,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4497,6 +4685,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String>? sellMode,
+    Value<String?>? familyId,
+    Value<String?>? measurePresets,
+    Value<bool>? allowCustomQuantity,
     Value<int>? rowid,
   }) {
     return ShopProductsCompanion(
@@ -4516,6 +4708,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      sellMode: sellMode ?? this.sellMode,
+      familyId: familyId ?? this.familyId,
+      measurePresets: measurePresets ?? this.measurePresets,
+      allowCustomQuantity: allowCustomQuantity ?? this.allowCustomQuantity,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4573,6 +4769,18 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (sellMode.present) {
+      map['sell_mode'] = Variable<String>(sellMode.value);
+    }
+    if (familyId.present) {
+      map['family_id'] = Variable<String>(familyId.value);
+    }
+    if (measurePresets.present) {
+      map['measure_presets'] = Variable<String>(measurePresets.value);
+    }
+    if (allowCustomQuantity.present) {
+      map['allow_custom_quantity'] = Variable<bool>(allowCustomQuantity.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4598,6 +4806,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('sellMode: $sellMode, ')
+          ..write('familyId: $familyId, ')
+          ..write('measurePresets: $measurePresets, ')
+          ..write('allowCustomQuantity: $allowCustomQuantity, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8179,6 +8391,17 @@ class $SaleItemsTable extends SaleItems
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _measureUnitSnapshotMeta =
+      const VerificationMeta('measureUnitSnapshot');
+  @override
+  late final GeneratedColumn<String> measureUnitSnapshot =
+      GeneratedColumn<String>(
+        'measure_unit_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -8193,6 +8416,7 @@ class $SaleItemsTable extends SaleItems
     discountAmount,
     lineTotal,
     createdAt,
+    measureUnitSnapshot,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -8312,6 +8536,15 @@ class $SaleItemsTable extends SaleItems
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('measure_unit_snapshot')) {
+      context.handle(
+        _measureUnitSnapshotMeta,
+        measureUnitSnapshot.isAcceptableOrUnknown(
+          data['measure_unit_snapshot']!,
+          _measureUnitSnapshotMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -8369,6 +8602,10 @@ class $SaleItemsTable extends SaleItems
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      measureUnitSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measure_unit_snapshot'],
+      ),
     );
   }
 
@@ -8391,6 +8628,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
   final int discountAmount;
   final int lineTotal;
   final DateTime createdAt;
+
+  /// U1 (v13): `kg` / `liter` for a measured line, null for a count.
+  final String? measureUnitSnapshot;
   const SaleItem({
     required this.id,
     required this.shopId,
@@ -8404,6 +8644,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     required this.discountAmount,
     required this.lineTotal,
     required this.createdAt,
+    this.measureUnitSnapshot,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -8422,6 +8663,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     map['discount_amount'] = Variable<int>(discountAmount);
     map['line_total'] = Variable<int>(lineTotal);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || measureUnitSnapshot != null) {
+      map['measure_unit_snapshot'] = Variable<String>(measureUnitSnapshot);
+    }
     return map;
   }
 
@@ -8441,6 +8685,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       discountAmount: Value(discountAmount),
       lineTotal: Value(lineTotal),
       createdAt: Value(createdAt),
+      measureUnitSnapshot: measureUnitSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(measureUnitSnapshot),
     );
   }
 
@@ -8464,6 +8711,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       discountAmount: serializer.fromJson<int>(json['discountAmount']),
       lineTotal: serializer.fromJson<int>(json['lineTotal']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      measureUnitSnapshot: serializer.fromJson<String?>(
+        json['measureUnitSnapshot'],
+      ),
     );
   }
   @override
@@ -8482,6 +8732,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       'discountAmount': serializer.toJson<int>(discountAmount),
       'lineTotal': serializer.toJson<int>(lineTotal),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'measureUnitSnapshot': serializer.toJson<String?>(measureUnitSnapshot),
     };
   }
 
@@ -8498,6 +8749,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     int? discountAmount,
     int? lineTotal,
     DateTime? createdAt,
+    Value<String?> measureUnitSnapshot = const Value.absent(),
   }) => SaleItem(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -8513,6 +8765,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     discountAmount: discountAmount ?? this.discountAmount,
     lineTotal: lineTotal ?? this.lineTotal,
     createdAt: createdAt ?? this.createdAt,
+    measureUnitSnapshot: measureUnitSnapshot.present
+        ? measureUnitSnapshot.value
+        : this.measureUnitSnapshot,
   );
   SaleItem copyWithCompanion(SaleItemsCompanion data) {
     return SaleItem(
@@ -8538,6 +8793,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           : this.discountAmount,
       lineTotal: data.lineTotal.present ? data.lineTotal.value : this.lineTotal,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      measureUnitSnapshot: data.measureUnitSnapshot.present
+          ? data.measureUnitSnapshot.value
+          : this.measureUnitSnapshot,
     );
   }
 
@@ -8555,7 +8813,8 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           ..write('salePriceSnapshot: $salePriceSnapshot, ')
           ..write('discountAmount: $discountAmount, ')
           ..write('lineTotal: $lineTotal, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('measureUnitSnapshot: $measureUnitSnapshot')
           ..write(')'))
         .toString();
   }
@@ -8574,6 +8833,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     discountAmount,
     lineTotal,
     createdAt,
+    measureUnitSnapshot,
   );
   @override
   bool operator ==(Object other) =>
@@ -8590,7 +8850,8 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           other.salePriceSnapshot == this.salePriceSnapshot &&
           other.discountAmount == this.discountAmount &&
           other.lineTotal == this.lineTotal &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.measureUnitSnapshot == this.measureUnitSnapshot);
 }
 
 class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
@@ -8606,6 +8867,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
   final Value<int> discountAmount;
   final Value<int> lineTotal;
   final Value<DateTime> createdAt;
+  final Value<String?> measureUnitSnapshot;
   final Value<int> rowid;
   const SaleItemsCompanion({
     this.id = const Value.absent(),
@@ -8620,6 +8882,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     this.discountAmount = const Value.absent(),
     this.lineTotal = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.measureUnitSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SaleItemsCompanion.insert({
@@ -8635,6 +8898,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     required int discountAmount,
     required int lineTotal,
     required DateTime createdAt,
+    this.measureUnitSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -8660,6 +8924,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     Expression<int>? discountAmount,
     Expression<int>? lineTotal,
     Expression<DateTime>? createdAt,
+    Expression<String>? measureUnitSnapshot,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -8676,6 +8941,8 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
       if (discountAmount != null) 'discount_amount': discountAmount,
       if (lineTotal != null) 'line_total': lineTotal,
       if (createdAt != null) 'created_at': createdAt,
+      if (measureUnitSnapshot != null)
+        'measure_unit_snapshot': measureUnitSnapshot,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -8693,6 +8960,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     Value<int>? discountAmount,
     Value<int>? lineTotal,
     Value<DateTime>? createdAt,
+    Value<String?>? measureUnitSnapshot,
     Value<int>? rowid,
   }) {
     return SaleItemsCompanion(
@@ -8708,6 +8976,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
       discountAmount: discountAmount ?? this.discountAmount,
       lineTotal: lineTotal ?? this.lineTotal,
       createdAt: createdAt ?? this.createdAt,
+      measureUnitSnapshot: measureUnitSnapshot ?? this.measureUnitSnapshot,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -8753,6 +9022,11 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (measureUnitSnapshot.present) {
+      map['measure_unit_snapshot'] = Variable<String>(
+        measureUnitSnapshot.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -8774,6 +9048,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
           ..write('discountAmount: $discountAmount, ')
           ..write('lineTotal: $lineTotal, ')
           ..write('createdAt: $createdAt, ')
+          ..write('measureUnitSnapshot: $measureUnitSnapshot, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -24098,6 +24373,10 @@ typedef $$ShopProductsTableCreateCompanionBuilder =
       Value<bool> isActive,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<String> sellMode,
+      Value<String?> familyId,
+      Value<String?> measurePresets,
+      Value<bool> allowCustomQuantity,
       Value<int> rowid,
     });
 typedef $$ShopProductsTableUpdateCompanionBuilder =
@@ -24118,6 +24397,10 @@ typedef $$ShopProductsTableUpdateCompanionBuilder =
       Value<bool> isActive,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String> sellMode,
+      Value<String?> familyId,
+      Value<String?> measurePresets,
+      Value<bool> allowCustomQuantity,
       Value<int> rowid,
     });
 
@@ -24326,6 +24609,26 @@ class $$ShopProductsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sellMode => $composableBuilder(
+    column: $table.sellMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24573,6 +24876,26 @@ class $$ShopProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sellMode => $composableBuilder(
+    column: $table.sellMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -24698,6 +25021,22 @@ class $$ShopProductsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sellMode =>
+      $composableBuilder(column: $table.sellMode, builder: (column) => column);
+
+  GeneratedColumn<String> get familyId =>
+      $composableBuilder(column: $table.familyId, builder: (column) => column);
+
+  GeneratedColumn<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
+    builder: (column) => column,
+  );
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -24922,6 +25261,10 @@ class $$ShopProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> sellMode = const Value.absent(),
+                Value<String?> familyId = const Value.absent(),
+                Value<String?> measurePresets = const Value.absent(),
+                Value<bool> allowCustomQuantity = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ShopProductsCompanion(
                 id: id,
@@ -24940,6 +25283,10 @@ class $$ShopProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sellMode: sellMode,
+                familyId: familyId,
+                measurePresets: measurePresets,
+                allowCustomQuantity: allowCustomQuantity,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -24960,6 +25307,10 @@ class $$ShopProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<String> sellMode = const Value.absent(),
+                Value<String?> familyId = const Value.absent(),
+                Value<String?> measurePresets = const Value.absent(),
+                Value<bool> allowCustomQuantity = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ShopProductsCompanion.insert(
                 id: id,
@@ -24978,6 +25329,10 @@ class $$ShopProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sellMode: sellMode,
+                familyId: familyId,
+                measurePresets: measurePresets,
+                allowCustomQuantity: allowCustomQuantity,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -28680,6 +29035,7 @@ typedef $$SaleItemsTableCreateCompanionBuilder =
       required int discountAmount,
       required int lineTotal,
       required DateTime createdAt,
+      Value<String?> measureUnitSnapshot,
       Value<int> rowid,
     });
 typedef $$SaleItemsTableUpdateCompanionBuilder =
@@ -28696,6 +29052,7 @@ typedef $$SaleItemsTableUpdateCompanionBuilder =
       Value<int> discountAmount,
       Value<int> lineTotal,
       Value<DateTime> createdAt,
+      Value<String?> measureUnitSnapshot,
       Value<int> rowid,
     });
 
@@ -28826,6 +29183,11 @@ class $$SaleItemsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -28978,6 +29340,11 @@ class $$SaleItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -29093,6 +29460,11 @@ class $$SaleItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
+    builder: (column) => column,
+  );
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -29234,6 +29606,7 @@ class $$SaleItemsTableTableManager
                 Value<int> discountAmount = const Value.absent(),
                 Value<int> lineTotal = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> measureUnitSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SaleItemsCompanion(
                 id: id,
@@ -29248,6 +29621,7 @@ class $$SaleItemsTableTableManager
                 discountAmount: discountAmount,
                 lineTotal: lineTotal,
                 createdAt: createdAt,
+                measureUnitSnapshot: measureUnitSnapshot,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -29264,6 +29638,7 @@ class $$SaleItemsTableTableManager
                 required int discountAmount,
                 required int lineTotal,
                 required DateTime createdAt,
+                Value<String?> measureUnitSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SaleItemsCompanion.insert(
                 id: id,
@@ -29278,6 +29653,7 @@ class $$SaleItemsTableTableManager
                 discountAmount: discountAmount,
                 lineTotal: lineTotal,
                 createdAt: createdAt,
+                measureUnitSnapshot: measureUnitSnapshot,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

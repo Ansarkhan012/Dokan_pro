@@ -235,6 +235,19 @@ final class ReferencePullService {
                 isActive: Value(r['is_active']! as bool),
                 createdAt: _date(r, 'created_at'),
                 updatedAt: c.updatedAt,
+                // U1. A server without these columns sends a piece product.
+                sellMode: Value(
+                  r['sell_mode'] as String? ?? SellMode.piece.name,
+                ),
+                familyId: _text(r, 'family_id'),
+                measurePresets: Value(
+                  r['measure_presets'] == null
+                      ? null
+                      : jsonEncode(r['measure_presets']),
+                ),
+                allowCustomQuantity: Value(
+                  r['allow_custom_quantity'] as bool? ?? true,
+                ),
               ),
             );
       case PullEntity.customers:
@@ -460,6 +473,7 @@ final class ReferencePullService {
                 discountAmount: r['discount_amount']! as int,
                 lineTotal: r['line_total']! as int,
                 createdAt: _date(r, 'created_at'),
+                measureUnitSnapshot: _text(r, 'measure_unit_snapshot'),
               ),
             );
       case PullEntity.salePayments:

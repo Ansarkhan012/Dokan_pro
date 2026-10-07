@@ -1,3 +1,5 @@
+import '../../core/domain/enums.dart';
+
 enum ReceiptPaperWidth { mm58, mm80 }
 
 final class ReceiptLine {
@@ -6,9 +8,13 @@ final class ReceiptLine {
     required this.quantity,
     required this.unitPrice,
     required this.total,
+    this.measureUnit,
   });
   final String name;
+
+  /// Thousandths; a count unless [measureUnit] is set (U1 snapshot).
   final int quantity, unitPrice, total;
+  final MeasureUnit? measureUnit;
 }
 
 /// Immutable, transport-neutral receipt snapshot. Historical instances are

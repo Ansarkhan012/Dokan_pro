@@ -14,6 +14,7 @@ final class PosProduct {
     this.categoryId,
     this.imagePath,
     this.lowStockLevel,
+    this.measureUnit,
   });
 
   final String id;
@@ -25,6 +26,9 @@ final class PosProduct {
   final int stockQuantity;
   final bool stockTrackingEnabled;
   final int? lowStockLevel;
+
+  /// Set for a measured product (U1); null for a count.
+  final MeasureUnit? measureUnit;
 
   bool get isLowStock =>
       stockTrackingEnabled &&

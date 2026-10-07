@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async => m.createAll(),
@@ -153,6 +153,22 @@ class AppDatabase extends _$AppDatabase {
         ]) {
           await m.addColumn(syncOperations, column);
         }
+      }
+      if (from < 13) {
+        // U1: product units and pack variants. Every existing product
+        // becomes a piece product and every existing sale line a count.
+        await m.addColumn(shopProducts, shopProducts.sellMode);
+        await m.addColumn(shopProducts, shopProducts.familyId);
+        await m.addColumn(shopProducts, shopProducts.measurePresets);
+        await m.addColumn(shopProducts, shopProducts.allowCustomQuantity);
+        await m.addColumn(saleItems, saleItems.measureUnitSnapshot);
+        // Rows pulled before v13 lack the new fields. Re-pull only these two
+        // entities from the start (a cursor without a position, as in v11);
+        // every other cursor keeps its position.
+        await customStatement(
+          'UPDATE sync_cursors SET server_seq = NULL '
+          "WHERE entity_type IN ('shopProducts', 'saleItems')",
+        );
       }
     },
     beforeOpen: (details) async {

@@ -5,7 +5,6 @@
 @Tags(['r1-green'])
 library;
 
-import 'package:drift/native.dart';
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:dukaan_pro/core/domain/enums.dart';
 import 'package:dukaan_pro/database/app_database.dart';
@@ -48,7 +47,7 @@ void main() {
     schema.rawDatabase.execute(_v11Seed);
     final db = AppDatabase(schema.newConnection());
     addTearDown(db.close);
-    await verifier.migrateAndValidate(db, 12);
+    await verifier.migrateAndValidate(db, db.schemaVersion);
 
     expect((await db.select(db.sales).get()).map((s) => s.id).toSet(), {'S1', 'S2', 'S3'});
     expect((await db.select(db.customerLedgerEntries).getSingle()).amount, 18000);
@@ -68,10 +67,5 @@ void main() {
     expect(ops['op-S1']!.payload, '{"sale":"S1"}');
   });
 
-  test('a fresh v12 install has exactly the v12 schema', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    expect(db.schemaVersion, 12);
-    await db.validateDatabaseSchema();
-  });
+  // The fresh-install check moved to drift_v13_upgrade_test.dart with U1.
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
 import '../../core/format/display_format.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/ui/pos_ui.dart';
 import '../../subscription/entitlement_policy.dart';
@@ -322,7 +323,6 @@ class _PosWorkspaceState extends State<PosWorkspace>
       ('Products', Icons.inventory_2_outlined),
       ('Bills', Icons.receipt_long_outlined),
       ('Khata', Icons.people_outline),
-      ('Inventory', Icons.warehouse_outlined),
     ];
     // The soft keyboard overlays the shell instead of resizing it: the header,
     // sidebar, product grid and Current Bill keep their geometry, and the
@@ -370,9 +370,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
                             repository: widget.salesHistory,
                             shopName: widget.shopName,
                           )
-                        : destination == 3
-                        ? CustomerKhataView(actions: widget.committer)
-                        : _Placeholder(title: destinations[destination].$1),
+                        : CustomerKhataView(actions: widget.committer),
                   ),
                 ],
               ),
@@ -858,7 +856,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text('${line.quantity ~/ quantityScale}'),
+              child: Text(
+                formatLineQuantity(line.quantity, line.product.measureUnit),
+              ),
             ),
             SizedBox.square(
               dimension: 44,
@@ -1530,24 +1530,6 @@ class _StatusChip extends StatelessWidget {
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 6),
         Text(label, style: TextStyle(color: color)),
-      ],
-    ),
-  );
-}
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.construction, size: 52, color: Color(0xff176b52)),
-        const SizedBox(height: 12),
-        Text(title, style: Theme.of(context).textTheme.headlineSmall),
-        const Text('Coming in the next Dukaan Pro phase.'),
       ],
     ),
   );

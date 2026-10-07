@@ -12,8 +12,9 @@ insert into public.devices(id,shop_id,device_name,device_type,device_identifier)
  ('bd000000-0000-0000-0000-000000000001','ba000000-0000-0000-0000-000000000001','Counter','windowsDesktop','bc000000-0000-0000-0000-000000000001');
 insert into public.categories(id,shop_id,name,created_at,updated_at) values
  ('b3000000-0000-0000-0000-000000000001','ba000000-0000-0000-0000-000000000001','Staples',now(),now());
-insert into public.shop_products(id,shop_id,custom_name,category_id,unit,purchase_price,sale_price,created_at,updated_at) values
- ('be000000-0000-0000-0000-000000000001','ba000000-0000-0000-0000-000000000001','Rice','b3000000-0000-0000-0000-000000000001','kg',10000,12000,now(),now());
+-- Loose rice (U1 measured, per kg): the half-kilo return below is valid.
+insert into public.shop_products(id,shop_id,custom_name,category_id,unit,purchase_price,sale_price,sell_mode,created_at,updated_at) values
+ ('be000000-0000-0000-0000-000000000001','ba000000-0000-0000-0000-000000000001','Rice','b3000000-0000-0000-0000-000000000001','kg',10000,12000,'measured',now(),now());
 insert into public.customers(id,shop_id,name,created_at,updated_at) values
  ('bf000000-0000-0000-0000-000000000001','ba000000-0000-0000-0000-000000000001','Ahmed',now(),now());
 insert into public.sales(id,shop_id,cashier_id,customer_id,device_id,subtotal,discount_total,tax_total,grand_total,payment_status,sale_status,created_at) values

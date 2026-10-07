@@ -51,8 +51,14 @@ Future<String> psql(String script, {String? db}) async {
   ]);
   process.stdin.write(script);
   await process.stdin.close();
-  final out = await process.stdout.transform(utf8.decoder).join();
-  final err = await process.stderr.transform(utf8.decoder).join();
+  // Drain both streams together: an error with a long CONTEXT (a whole
+  // failing INSERT) can fill the stderr pipe, and docker exec then never
+  // closes stdout while stderr is unread.
+  final streams = await Future.wait([
+    process.stdout.transform(utf8.decoder).join(),
+    process.stderr.transform(utf8.decoder).join(),
+  ]);
+  final out = streams[0], err = streams[1];
   if (await process.exitCode != 0) {
     final line = err.split('\n').firstWhere(
       (l) => l.contains('ERROR'),

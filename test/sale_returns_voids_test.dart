@@ -68,6 +68,9 @@ void main() {
             id: 'product',
             shopId: 'shop',
             customName: const Value('Rice'),
+            // Loose rice (U1 measured, per kg): half-kilo returns are valid.
+            unit: const Value('kg'),
+            sellMode: Value(SellMode.measured.name),
             purchasePrice: 10000,
             salePrice: 12000,
             createdAt: soldAt,

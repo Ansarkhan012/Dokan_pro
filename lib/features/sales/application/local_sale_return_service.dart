@@ -24,6 +24,10 @@ final class LocalSaleReturnService {
       if (draft.lines.isEmpty) {
         throw ArgumentError('Select at least one item.');
       }
+      if (draft.lines.map((l) => l.originalSaleItemId).toSet().length !=
+          draft.lines.length) {
+        throw ArgumentError('Each sale item can appear once per return.');
+      }
       if (draft.reason.trim().isEmpty) {
         throw ArgumentError('Return reason is required.');
       }
@@ -92,9 +96,22 @@ final class LocalSaleReturnService {
         if (item == null || line.quantity <= 0) {
           throw StateError('Invalid sale item or quantity.');
         }
+        // U1: a piece product is returned in whole units (the server
+        // enforces the same rule); a measured product in any thousandths.
+        final product =
+            await (db.select(db.shopProducts)..where(
+                  (t) =>
+                      t.id.equals(item.productId) &
+                      t.shopId.equals(draft.shopId),
+                ))
+                .getSingleOrNull();
+        if (product?.sellMode != SellMode.measured.name &&
+            line.quantity % 1000 != 0) {
+          throw ArgumentError('Piece products are returned in whole units.');
+        }
         final prior = await db
             .customSelect(
-              'select coalesce(sum(ri.quantity),0) q from sale_return_items ri join sale_returns r on r.id=ri.return_id and r.shop_id=ri.shop_id where ri.shop_id=? and r.original_sale_id=? and ri.original_sale_item_id=?',
+              'select coalesce(sum(ri.quantity),0) q,coalesce(sum(ri.refund_amount),0) r from sale_return_items ri join sale_returns r on r.id=ri.return_id and r.shop_id=ri.shop_id where ri.shop_id=? and r.original_sale_id=? and ri.original_sale_item_id=?',
               variables: [
                 Variable(draft.shopId),
                 Variable(sale.id),
@@ -105,10 +122,13 @@ final class LocalSaleReturnService {
         if (prior.read<int>('q') + line.quantity > item.quantity) {
           throw StateError('Return quantity exceeds quantity sold.');
         }
-        final refund = line.quantity == item.quantity
-            ? item.lineTotal
-            : (item.lineTotal * line.quantity + item.quantity ~/ 2) ~/
-                  item.quantity;
+        final refund = saleReturnRefund(
+          lineTotal: item.lineTotal,
+          sold: item.quantity,
+          priorQuantity: prior.read<int>('q'),
+          priorRefund: prior.read<int>('r'),
+          quantity: line.quantity,
+        );
         final returnItemId = ids.next(), movementId = ids.next();
         total += refund;
         payloadItems.add({
