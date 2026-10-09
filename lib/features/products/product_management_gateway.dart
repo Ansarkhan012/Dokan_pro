@@ -30,5 +30,8 @@ abstract interface class ProductManagementGateway {
     required int salePriceMinor,
     required int lowStockLevel,
     required bool isActive,
+    // U2: measured products only; null leaves the stored value unchanged.
+    List<int>? measurePresets,
+    bool? allowCustomQuantity,
   });
 }

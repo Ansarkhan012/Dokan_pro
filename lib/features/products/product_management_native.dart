@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/errors/safe_error_message.dart';
 import '../../core/images/product_image_store.dart';
@@ -379,6 +380,8 @@ class _MyProductsState extends State<_MyProducts> {
             salePriceMinor: edit.salePriceMinor,
             lowStockLevel: edit.lowStockLevel,
             isActive: edit.isActive,
+            measurePresets: edit.measurePresets,
+            allowCustomQuantity: edit.allowCustomQuantity,
           );
           imageSaved = await applyProductImageEdit(
             product.id,
@@ -439,11 +442,11 @@ class _ManagedProductCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'Sale ${formatProductMoney(product.salePriceMinor)} • '
-                  'Purchase ${formatProductMoney(product.purchasePriceMinor)}',
+                  'Sale ${formatProductMoney(product.salePriceMinor)}${_perUnit(product)} • '
+                  'Purchase ${formatProductMoney(product.purchasePriceMinor)}${_perUnit(product)}',
                 ),
                 Text(
-                  'Stock ${quantityToInput(product.stockQuantity)}${product.isLowStock ? ' • Low stock' : ''}${product.isActive ? '' : ' • Inactive'}',
+                  'Stock ${formatLineQuantity(product.stockQuantity, product.measureUnit)}${product.isLowStock ? ' • Low stock' : ''}${product.isActive ? '' : ' • Inactive'}',
                   style: TextStyle(
                     color: product.isLowStock ? Colors.orange.shade800 : null,
                   ),
@@ -844,3 +847,7 @@ String formatProductMoney(int minor) {
   return '${minor < 0 ? '-' : ''}Rs ${absolute ~/ 100}.'
       '${(absolute % 100).toString().padLeft(2, '0')}';
 }
+
+/// `/kg` or `/L` after a measured product's prices; empty for a piece product.
+String _perUnit(ManagedProduct product) =>
+    product.measureUnit == null ? '' : '/${product.measureUnit!.wholeLabel}';

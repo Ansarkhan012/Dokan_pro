@@ -1,3 +1,5 @@
+import '../../core/domain/enums.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/ids/id_generator.dart';
 import 'product_management_gateway.dart';
 import 'product_management_models.dart';
@@ -50,6 +52,7 @@ final class ProductManagementService {
       throw const ProductValidationException('Category is required');
     }
     _validateMoneyAndStock(input);
+    if (input.sellMode == SellMode.measured) _validateMeasured(input);
     return gateway.createCustomProduct(
       shopId: shopId,
       deviceId: deviceId,
@@ -57,6 +60,26 @@ final class ProductManagementService {
       movementId: ids.next(),
       input: input,
     );
+  }
+
+  /// U2 loose products: weight (kg) or volume (L), and at most eight valid,
+  /// distinct quick quantities. The server enforces the same rules.
+  void _validateMeasured(CustomProductInput input) {
+    if (input.unit != ProductUnit.kg && input.unit != ProductUnit.liter) {
+      throw const ProductValidationException(
+        'Loose products are sold by weight (kg) or volume (L)',
+      );
+    }
+    final presets = input.measurePresets ?? const <int>[];
+    if (presets.length > maxMeasurePresets) {
+      throw const ProductValidationException(
+        'Use at most $maxMeasurePresets quick quantities',
+      );
+    }
+    if (presets.any((q) => measureQuantityError(q) != null) ||
+        presets.toSet().length != presets.length) {
+      throw const ProductValidationException('Quick quantities are not valid');
+    }
   }
 
   void _validateMoneyAndStock(AddProductInput input) {

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/domain/enums.dart';
 import '../../core/errors/safe_error_message.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/images/product_image_processing.dart';
 import '../../core/ui/pos_ui.dart';
 import '../pos/pos_state.dart' show parseMoneyMinor;
+import 'measure_preset_editor.dart';
 import 'product_image_picker.dart';
 import 'product_management_models.dart';
 import 'product_management_native.dart' show parseQuantity;
@@ -57,6 +60,13 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
       low = TextEditingController(text: '0');
   String? categoryId;
   ProductUnit unit = ProductUnit.piece;
+
+  // U2: a loose product is sold by weight or volume, priced per kg / L.
+  SellMode sellMode = SellMode.piece;
+  MeasureUnit measure = MeasureUnit.kg;
+  List<int> presets = [...defaultMeasurePresets];
+  bool allowCustomQuantity = true;
+  bool get loose => sellMode == SellMode.measured;
   Uint8List? image;
   bool processingImage = false;
   bool saving = false;
@@ -117,13 +127,18 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
       input: CustomProductInput(
         name: name.text.trim(),
         categoryId: categoryId!,
-        unit: unit,
+        unit: loose
+            ? (measure == MeasureUnit.kg ? ProductUnit.kg : ProductUnit.liter)
+            : unit,
         barcode: barcode.text.trim().isEmpty ? null : barcode.text.trim(),
-        packLabel: pack.text.trim().isEmpty ? null : pack.text.trim(),
+        packLabel: loose || pack.text.trim().isEmpty ? null : pack.text.trim(),
         purchasePriceMinor: p,
         salePriceMinor: s,
         openingQuantity: o,
         lowStockLevel: l,
+        sellMode: sellMode,
+        measurePresets: loose ? presets : null,
+        allowCustomQuantity: loose ? allowCustomQuantity : true,
       ),
       image: image,
     );
@@ -204,94 +219,163 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
     );
   }
 
-  Widget _fields() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const FormSectionLabel('Product details'),
-      TextField(
-        key: const ValueKey('custom-product-name'),
-        controller: name,
-        textInputAction: TextInputAction.next,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(labelText: 'Product name *'),
+  Widget _fields() {
+    final per = loose ? ' per ${measure.wholeLabel}' : '';
+    final stockUnit = loose ? ' (${measure.wholeLabel})' : '';
+    final barcodeField = TextField(
+      key: const ValueKey('custom-product-barcode'),
+      controller: barcode,
+      textInputAction: TextInputAction.next,
+      decoration: const InputDecoration(
+        labelText: 'Barcode',
+        hintText: 'Optional',
       ),
-      const SizedBox(height: 12),
-      FieldPair(
-        DropdownButtonFormField<String>(
-          key: const ValueKey('custom-product-category'),
-          initialValue: categoryId,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Category *'),
-          items: widget.categories
-              .map(
-                (c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, overflow: TextOverflow.ellipsis),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const FormSectionLabel('Product details'),
+        SegmentedButton<SellMode>(
+          key: const ValueKey('custom-product-selling-type'),
+          segments: const [
+            ButtonSegment(
+              value: SellMode.piece,
+              icon: Icon(Icons.inventory_2_outlined),
+              label: Text('Piece', key: ValueKey('selling-piece')),
+            ),
+            ButtonSegment(
+              value: SellMode.measured,
+              icon: Icon(Icons.scale_outlined),
+              label: Text('Loose / Measured', key: ValueKey('selling-loose')),
+            ),
+          ],
+          selected: {sellMode},
+          onSelectionChanged: saving
+              ? null
+              : (value) => setState(() => sellMode = value.single),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const ValueKey('custom-product-name'),
+          controller: name,
+          textInputAction: TextInputAction.next,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Product name *'),
+        ),
+        const SizedBox(height: 12),
+        FieldPair(
+          DropdownButtonFormField<String>(
+            key: const ValueKey('custom-product-category'),
+            initialValue: categoryId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Category *'),
+            items: widget.categories
+                .map(
+                  (c) => DropdownMenuItem(
+                    value: c.id,
+                    child: Text(c.name, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => categoryId = v),
+          ),
+          loose
+              ? SegmentedButton<MeasureUnit>(
+                  key: const ValueKey('custom-product-measure'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                      value: MeasureUnit.kg,
+                      label: Text('Weight (kg)', key: ValueKey('measure-kg')),
+                    ),
+                    ButtonSegment(
+                      value: MeasureUnit.liter,
+                      label: Text('Volume (L)', key: ValueKey('measure-liter')),
+                    ),
+                  ],
+                  selected: {measure},
+                  onSelectionChanged: (value) =>
+                      setState(() => measure = value.single),
+                )
+              : DropdownButtonFormField<ProductUnit>(
+                  initialValue: unit,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Unit *'),
+                  items: ProductUnit.values
+                      .map(
+                        (u) => DropdownMenuItem(value: u, child: Text(u.label)),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => unit = v!),
                 ),
-              )
-              .toList(),
-          onChanged: (v) => setState(() => categoryId = v),
         ),
-        DropdownButtonFormField<ProductUnit>(
-          initialValue: unit,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Unit *'),
-          items: ProductUnit.values
-              .map((u) => DropdownMenuItem(value: u, child: Text(u.label)))
-              .toList(),
-          onChanged: (v) => setState(() => unit = v!),
-        ),
-      ),
-      const SizedBox(height: 12),
-      FieldPair(
-        TextField(
-          key: const ValueKey('custom-product-barcode'),
-          controller: barcode,
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(
-            labelText: 'Barcode',
-            hintText: 'Optional',
+        const SizedBox(height: 12),
+        if (loose)
+          barcodeField
+        else
+          FieldPair(
+            barcodeField,
+            TextField(
+              controller: pack,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Pack size / label',
+                hintText: 'e.g. 500 g',
+              ),
+            ),
+          ),
+        const SizedBox(height: 24),
+        const FormSectionLabel('Pricing & stock'),
+        FieldPair(
+          moneyField(
+            purchase,
+            'Purchase price$per *',
+            key: const ValueKey('custom-product-purchase'),
+          ),
+          moneyField(
+            sale,
+            'Sale price$per *',
+            key: const ValueKey('custom-product-sale'),
           ),
         ),
-        TextField(
-          controller: pack,
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(
-            labelText: 'Pack size / label',
-            hintText: 'e.g. 500 g',
+        const SizedBox(height: 12),
+        FieldPair(
+          quantityField(
+            opening,
+            'Opening stock$stockUnit',
+            key: const ValueKey('custom-product-opening'),
+          ),
+          quantityField(
+            low,
+            'Low-stock alert at$stockUnit',
+            key: const ValueKey('custom-product-low'),
+            onSubmitted: loose ? null : _submit,
           ),
         ),
-      ),
-      const SizedBox(height: 24),
-      const FormSectionLabel('Pricing & stock'),
-      FieldPair(
-        moneyField(
-          purchase,
-          'Purchase price *',
-          key: const ValueKey('custom-product-purchase'),
-        ),
-        moneyField(
-          sale,
-          'Sale price *',
-          key: const ValueKey('custom-product-sale'),
-        ),
-      ),
-      const SizedBox(height: 12),
-      FieldPair(
-        quantityField(
-          opening,
-          'Opening stock',
-          key: const ValueKey('custom-product-opening'),
-        ),
-        quantityField(
-          low,
-          'Low-stock alert at',
-          key: const ValueKey('custom-product-low'),
-          onSubmitted: _submit,
-        ),
-      ),
-    ],
-  );
+        if (loose) ...[
+          const SizedBox(height: 24),
+          const FormSectionLabel('Quick quantities'),
+          MeasurePresetEditor(
+            key: const ValueKey('custom-product-presets'),
+            unit: measure,
+            presets: presets,
+            onChanged: (value) => setState(() => presets = value),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            key: const ValueKey('custom-product-allow-custom'),
+            contentPadding: EdgeInsets.zero,
+            value: allowCustomQuantity,
+            onChanged: (value) => setState(() => allowCustomQuantity = value),
+            title: const Text('Allow custom quantity'),
+            subtitle: const Text(
+              'Cashier may type any amount, not only quick quantities.',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 /// Numeric money input shared by Create and Edit product.

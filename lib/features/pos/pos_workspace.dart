@@ -13,6 +13,7 @@ import '../sales/sales_history.dart';
 import '../receipts/receipt_model.dart';
 import '../receipts/receipt_view.dart';
 import '../customers/customer_khata_view.dart';
+import 'measured_quantity_picker.dart';
 import 'pos_catalog.dart';
 import 'pos_state.dart';
 import 'product_thumbnail.dart';
@@ -141,7 +142,40 @@ class _PosWorkspaceState extends State<PosWorkspace>
     }).toList();
   }
 
-  void addProduct(PosProduct product) => setState(() => cart.add(product));
+  /// A piece product adds one unit at once; a measured product (U2) asks for
+  /// its quantity first and adds it to the product's single bill line.
+  Future<void> addProduct(PosProduct product) async {
+    if (!product.isMeasured) {
+      setState(() => cart.add(product));
+      return;
+    }
+    final quantity = await showMeasuredQuantityPicker(
+      context,
+      product: product,
+      allowNegativeStock: catalog.allowNegativeStock,
+      alreadyInCart: cart.quantityOf(product.id),
+    );
+    if (quantity == null || !mounted) return;
+    setState(() => cart.addQuantity(product, quantity));
+  }
+
+  /// Sets a measured line to an exact quantity picked again (U2).
+  Future<void> _editMeasuredLine(
+    PosCartLine line, [
+    StateSetter? updateParent,
+  ]) async {
+    final quantity = await showMeasuredQuantityPicker(
+      context,
+      product: line.product,
+      allowNegativeStock: catalog.allowNegativeStock,
+      editing: line.quantity,
+    );
+    if (quantity == null || !mounted) return;
+    _updateCart(
+      () => cart.setQuantity(line.product.id, quantity),
+      updateParent,
+    );
+  }
 
   void submitBarcode(String value) {
     final code = value.trim();
@@ -836,57 +870,94 @@ class _PosWorkspaceState extends State<PosWorkspace>
             ),
           ],
         ),
-        Row(
-          children: [
-            SizedBox.square(
-              dimension: 44,
-              child: OutlinedButton(
-                onPressed: () => _updateCart(
-                  () => cart.decrement(line.product.id),
-                  updateParent,
-                ),
+        if (line.product.measureUnit case final unit?)
+          Row(
+            children: [
+              OutlinedButton(
+                key: ValueKey('cart-quantity-${line.product.id}'),
+                onPressed: () => _editMeasuredLine(line, updateParent),
                 style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 44),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(7),
                   ),
                 ),
-                child: const Icon(Icons.remove),
+                child: Text(formatLineQuantity(line.quantity, unit)),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                formatLineQuantity(line.quantity, line.product.measureUnit),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '× ${measureUnitPriceLabel(formatPkr(line.product.salePriceMinor), unit)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xff6c7680)),
+                ),
               ),
-            ),
-            SizedBox.square(
-              dimension: 44,
-              child: OutlinedButton(
+              TextButton(
                 onPressed: () => _updateCart(
-                  () => cart.increment(line.product.id),
+                  () => cart.remove(line.product.id),
                   updateParent,
                 ),
-                style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(color: Color(0xffd92d20)),
                 ),
-                child: const Icon(Icons.add),
               ),
-            ),
-            const SizedBox(width: 4),
-            TextButton(
-              onPressed: () =>
-                  _updateCart(() => cart.remove(line.product.id), updateParent),
-              child: const Text(
-                'Remove',
-                style: TextStyle(color: Color(0xffd92d20)),
+            ],
+          )
+        else
+          Row(
+            children: [
+              SizedBox.square(
+                dimension: 44,
+                child: OutlinedButton(
+                  onPressed: () => _updateCart(
+                    () => cart.decrement(line.product.id),
+                    updateParent,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  child: const Icon(Icons.remove),
+                ),
               ),
-            ),
-          ],
-        ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  formatLineQuantity(line.quantity, line.product.measureUnit),
+                ),
+              ),
+              SizedBox.square(
+                dimension: 44,
+                child: OutlinedButton(
+                  onPressed: () => _updateCart(
+                    () => cart.increment(line.product.id),
+                    updateParent,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  child: const Icon(Icons.add),
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: () => _updateCart(
+                  () => cart.remove(line.product.id),
+                  updateParent,
+                ),
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(color: Color(0xffd92d20)),
+                ),
+              ),
+            ],
+          ),
       ],
     ),
   );
@@ -1298,7 +1369,7 @@ class PosProductCard extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          formatPkr(product.salePriceMinor),
+                          productPriceLabel(product),
                           maxLines: 1,
                           style: const TextStyle(
                             fontSize: 17,
@@ -1307,7 +1378,7 @@ class PosProductCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Stock ${formatQuantity(product.stockQuantity)}${product.isLowStock ? ' • Low' : ''}',
+                        'Stock ${productStockLabel(product)}${product.isLowStock ? ' • Low' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1376,8 +1447,8 @@ class _CashierProductLookup extends StatelessWidget {
               const Spacer(),
               Text(product.barcode ?? 'No barcode'),
               Text(
-                '${formatPkr(product.salePriceMinor)} • '
-                'Stock ${formatQuantity(product.stockQuantity)}',
+                '${productPriceLabel(product)} • '
+                'Stock ${productStockLabel(product)}',
               ),
               if (product.isLowStock)
                 const Text('Low stock', style: TextStyle(color: Colors.orange)),
@@ -1548,3 +1619,13 @@ String formatQuantity(int quantity) {
   final absolute = quantity.abs();
   return '$sign${absolute ~/ quantityScale}.${(absolute % quantityScale).toString().padLeft(3, '0')}';
 }
+
+/// `Rs 130.00/kg` for a measured product, `Rs 95.00` for a piece product.
+String productPriceLabel(PosProduct product) => switch (product.measureUnit) {
+  final unit? => measureUnitPriceLabel(formatPkr(product.salePriceMinor), unit),
+  null => formatPkr(product.salePriceMinor),
+};
+
+/// `40 kg` / `750 g` for a measured product, a count otherwise.
+String productStockLabel(PosProduct product) =>
+    formatLineQuantity(product.stockQuantity, product.measureUnit);

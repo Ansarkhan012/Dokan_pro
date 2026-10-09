@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+import '../../core/domain/enums.dart';
+import '../../core/format/measure_format.dart';
 import '../../database/app_database.dart';
 import 'product_management_models.dart';
 
@@ -31,7 +33,8 @@ final class DriftProductManagementRepository {
       coalesce(c.name,'Uncategorized') category_name,coalesce(sp.barcode,mp.barcode) barcode,
       coalesce(sp.unit,mp.default_unit,'piece') unit,coalesce(sp.pack_label,mp.pack_label) pack_label,
       coalesce(sp.image_path,mp.default_image_path) image_path,sp.purchase_price,sp.sale_price,
-      sp.low_stock_level,sp.is_active,sp.master_product_id,coalesce(sum(im.quantity),0) stock
+      sp.low_stock_level,sp.is_active,sp.master_product_id,coalesce(sum(im.quantity),0) stock,
+      sp.sell_mode,sp.measure_presets,sp.allow_custom_quantity
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join categories c on c.id=coalesce(sp.category_id,mp.category_id)
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
@@ -67,6 +70,11 @@ final class DriftProductManagementRepository {
         lowStockLevel: row['low_stock_level'] as int?,
         isActive: (row['is_active'] as int) != 0,
         isCustom: row['master_product_id'] == null,
+        sellMode: row['sell_mode'] == SellMode.measured.name
+            ? SellMode.measured
+            : SellMode.piece,
+        measurePresets: decodeMeasurePresets(row['measure_presets'] as String?),
+        allowCustomQuantity: (row['allow_custom_quantity'] as int) != 0,
       );
     }).toList();
   }

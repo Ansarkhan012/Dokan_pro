@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/domain/enums.dart';
 import 'product_management_gateway.dart';
 import 'product_management_models.dart';
 
@@ -105,6 +106,36 @@ final class SupabaseProductManagementGateway
     required String movementId,
     required CustomProductInput input,
   }) async {
+    if (input.sellMode == SellMode.measured) {
+      // U2: loose products are created by the U1 owner RPC, which writes the
+      // product and its one opening-stock movement in one transaction.
+      final created =
+          await client.rpc(
+                'create_shop_product',
+                params: {
+                  'p_payload': {
+                    'shop_id': shopId,
+                    'device_id': deviceId,
+                    'product_id': shopProductId,
+                    'movement_id': movementId,
+                    'name': input.name.trim(),
+                    'category_id': input.categoryId,
+                    'barcode': input.barcode?.trim(),
+                    'unit': input.unit.name,
+                    'image_path': input.imagePath?.trim(),
+                    'purchase_price': input.purchasePriceMinor,
+                    'sale_price': input.salePriceMinor,
+                    'opening_quantity': input.openingQuantity,
+                    'low_stock_level': input.lowStockLevel,
+                    'sell_mode': SellMode.measured.name,
+                    'measure_presets': input.measurePresets,
+                    'allow_custom_quantity': input.allowCustomQuantity,
+                  },
+                },
+              )
+              as Map<String, dynamic>;
+      return created['product_id']! as String;
+    }
     final result =
         await client.rpc(
               'create_custom_shop_product',
@@ -137,7 +168,11 @@ final class SupabaseProductManagementGateway
     required int salePriceMinor,
     required int lowStockLevel,
     required bool isActive,
+    List<int>? measurePresets,
+    bool? allowCustomQuantity,
   }) async {
+    // Prices, threshold, activation and (U2) quick quantities only: selling
+    // mode, unit and stock are never written by an edit.
     await client
         .from('shop_products')
         .update({
@@ -145,6 +180,8 @@ final class SupabaseProductManagementGateway
           'sale_price': salePriceMinor,
           'low_stock_level': lowStockLevel,
           'is_active': isActive,
+          'measure_presets': ?measurePresets,
+          'allow_custom_quantity': ?allowCustomQuantity,
         })
         .eq('shop_id', shopId)
         .eq('id', productId);

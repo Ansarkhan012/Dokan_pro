@@ -15,6 +15,8 @@ final class PosProduct {
     this.imagePath,
     this.lowStockLevel,
     this.measureUnit,
+    this.measurePresets = const [],
+    this.allowCustomQuantity = true,
   });
 
   final String id;
@@ -29,6 +31,12 @@ final class PosProduct {
 
   /// Set for a measured product (U1); null for a count.
   final MeasureUnit? measureUnit;
+
+  /// Owner quick quantities in thousandths (U2); empty means the defaults.
+  final List<int> measurePresets;
+  final bool allowCustomQuantity;
+
+  bool get isMeasured => measureUnit != null;
 
   bool get isLowStock =>
       stockTrackingEnabled &&
@@ -60,12 +68,16 @@ final class PosCartLine {
   final PosProduct product;
   final int quantity;
 
-  int get totalMinor =>
-      (product.salePriceMinor * quantity + quantityScale ~/ 2) ~/ quantityScale;
+  int get totalMinor => lineTotalMinor(product.salePriceMinor, quantity);
 
   PosCartLine copyWith({int? quantity}) =>
       PosCartLine(product: product, quantity: quantity ?? this.quantity);
 }
+
+/// Exact line value in paisa: (price * thousandths + 500) ~/ 1000, the same
+/// rounding as checkout, sync validation and reports.
+int lineTotalMinor(int unitPriceMinor, int quantity) =>
+    (unitPriceMinor * quantity + quantityScale ~/ 2) ~/ quantityScale;
 
 final class PosPayment {
   const PosPayment({required this.method, required this.amountMinor});
@@ -124,13 +136,32 @@ final class PosCart {
   int get subtotalMinor =>
       _lines.values.fold(0, (sum, line) => sum + line.totalMinor);
 
-  void add(PosProduct product) {
+  void add(PosProduct product) => addQuantity(product, quantityScale);
+
+  /// Adds [quantity] thousandths to the product's single line (U2: a measured
+  /// product adds its picked quantity; a piece product adds whole units).
+  void addQuantity(PosProduct product, int quantity) {
+    if (quantity <= 0) return;
     final current = _lines[product.id];
     _lines[product.id] = PosCartLine(
       product: product,
-      quantity: (current?.quantity ?? 0) + quantityScale,
+      quantity: (current?.quantity ?? 0) + quantity,
     );
   }
+
+  /// Sets the line to exactly [quantity] thousandths; zero or less removes it.
+  void setQuantity(String productId, int quantity) {
+    final current = _lines[productId];
+    if (current == null) return;
+    if (quantity <= 0) {
+      _lines.remove(productId);
+    } else {
+      _lines[productId] = current.copyWith(quantity: quantity);
+    }
+  }
+
+  /// Thousandths of [productId] already in the cart.
+  int quantityOf(String productId) => _lines[productId]?.quantity ?? 0;
 
   void increment(String productId) {
     final current = _lines[productId];

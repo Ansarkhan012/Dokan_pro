@@ -249,5 +249,7 @@ final class _Gateway implements ProductManagementGateway {
     required int salePriceMinor,
     required int lowStockLevel,
     required bool isActive,
+    List<int>? measurePresets,
+    bool? allowCustomQuantity,
   }) async {}
 }

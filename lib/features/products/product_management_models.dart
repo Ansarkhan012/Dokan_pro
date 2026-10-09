@@ -1,3 +1,5 @@
+import '../../core/domain/enums.dart';
+
 enum ProductUnit {
   piece('Piece'),
   pack('Pack'),
@@ -56,6 +58,9 @@ final class ManagedProduct {
     this.barcode,
     this.packLabel,
     this.imagePath,
+    this.sellMode = SellMode.piece,
+    this.measurePresets,
+    this.allowCustomQuantity = true,
   });
 
   final String id;
@@ -71,6 +76,17 @@ final class ManagedProduct {
   final int? lowStockLevel;
   final bool isActive;
   final bool isCustom;
+
+  /// U2: how the product is sold. Fixed at creation.
+  final SellMode sellMode;
+
+  /// Owner quick quantities (thousandths); null means the defaults.
+  final List<int>? measurePresets;
+  final bool allowCustomQuantity;
+
+  /// kg / liter for a measured product, null for a piece product.
+  MeasureUnit? get measureUnit =>
+      sellMode == SellMode.measured ? MeasureUnit.tryParse(unit) : null;
   bool get isLowStock =>
       lowStockLevel != null && stockQuantity <= lowStockLevel!;
 }
@@ -100,10 +116,21 @@ final class CustomProductInput extends AddProductInput {
     this.barcode,
     this.packLabel,
     this.imagePath,
+    this.sellMode = SellMode.piece,
+    this.measurePresets,
+    this.allowCustomQuantity = true,
   });
   final String name;
   final String categoryId;
+
+  /// For a measured product: [ProductUnit.kg] (weight) or
+  /// [ProductUnit.liter] (volume); prices and stock are per that unit.
   final ProductUnit unit;
+  final SellMode sellMode;
+
+  /// Measured quick quantities in thousandths (at most 8); null for none.
+  final List<int>? measurePresets;
+  final bool allowCustomQuantity;
   final String? barcode;
   final String? packLabel;
   final String? imagePath;

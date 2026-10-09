@@ -25,7 +25,8 @@ final class DriftPosCatalog implements PosCatalog {
       coalesce(sp.barcode,mp.barcode) barcode,coalesce(sp.category_id,mp.category_id) category_id,
       coalesce(sp.image_path,mp.default_image_path) image_path,sp.sale_price,
       sp.stock_tracking_enabled,sp.low_stock_level,coalesce(sum(im.quantity),0) stock,
-      sp.sell_mode,sp.unit,sp.family_id,coalesce(sp.pack_label,mp.pack_label) pack_label
+      sp.sell_mode,sp.unit,sp.family_id,coalesce(sp.pack_label,mp.pack_label) pack_label,
+      sp.measure_presets,sp.allow_custom_quantity
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
       where sp.shop_id=? and sp.is_active=1 group by sp.id order by name limit 5000''',
@@ -43,7 +44,12 @@ final class DriftPosCatalog implements PosCatalog {
         )
         .get();
 
+    final shop = await (db.select(
+      db.shops,
+    )..where((row) => row.id.equals(shopId))).getSingleOrNull();
+
     return PosCatalogSnapshot(
+      allowNegativeStock: shop?.allowNegativeStock ?? true,
       categories: categories
           .map((row) => PosCategory(id: row.id, name: row.name))
           .toList(),
@@ -66,6 +72,10 @@ final class DriftPosCatalog implements PosCatalog {
           measureUnit: row['sell_mode'] == SellMode.measured.name
               ? MeasureUnit.tryParse(row['unit'] as String?)
               : null,
+          measurePresets:
+              decodeMeasurePresets(row['measure_presets'] as String?) ??
+              const [],
+          allowCustomQuantity: (row['allow_custom_quantity'] as int) != 0,
         );
       }).toList(),
       customers: customers

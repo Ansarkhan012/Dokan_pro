@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../core/domain/enums.dart';
 import '../../core/errors/safe_error_message.dart';
+import '../../core/format/measure_format.dart';
 import '../../core/images/product_image_processing.dart';
 import '../../core/ui/pos_ui.dart';
 import '../pos/pos_state.dart' show parseMoneyMinor, minorToInput;
 import 'custom_product_dialog.dart';
+import 'measure_preset_editor.dart';
 import 'product_image_picker.dart';
 import 'product_management_models.dart';
 import 'product_management_native.dart' show parseQuantity, quantityToInput;
@@ -21,9 +24,17 @@ final class ProductEdit {
     required this.isActive,
     this.newImage,
     this.removeImage = false,
+    this.measurePresets,
+    this.allowCustomQuantity,
   });
   final int purchasePriceMinor, salePriceMinor, lowStockLevel;
   final bool isActive;
+
+  /// U2, measured products only (null for a piece product): the quick
+  /// quantities and custom-quantity switch. Selling mode, unit and stock are
+  /// never part of an edit.
+  final List<int>? measurePresets;
+  final bool? allowCustomQuantity;
   final Uint8List? newImage;
   final bool removeImage;
 }
@@ -63,10 +74,16 @@ class _EditProductDialogState extends State<EditProductDialog> {
     text: quantityToInput(widget.product.lowStockLevel ?? 0),
   );
   late bool active = widget.product.isActive;
+  late final MeasureUnit? measure = widget.product.measureUnit;
+  late List<int> presets =
+      widget.product.measurePresets ?? [...defaultMeasurePresets];
+  late bool allowCustomQuantity = widget.product.allowCustomQuantity;
   Uint8List? newImage;
   bool removeImage = false;
   bool processingImage = false, saving = false;
   String? imageError, error;
+
+  String get _per => measure == null ? '' : ' per ${measure!.wholeLabel}';
 
   @override
   void dispose() {
@@ -139,6 +156,8 @@ class _EditProductDialogState extends State<EditProductDialog> {
           isActive: active,
           newImage: newImage,
           removeImage: removeImage,
+          measurePresets: measure == null ? null : presets,
+          allowCustomQuantity: measure == null ? null : allowCustomQuantity,
         ),
       );
     } catch (e) {
@@ -177,25 +196,53 @@ class _EditProductDialogState extends State<EditProductDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const FormSectionLabel('Pricing & stock'),
+          if (measure case final unit?)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                unit == MeasureUnit.kg
+                    ? 'Loose product · sold by weight (kg)'
+                    : 'Loose product · sold by volume (L)',
+                key: const ValueKey('edit-product-measure'),
+              ),
+            ),
           FieldPair(
             moneyField(
               purchase,
-              'Purchase price',
+              'Purchase price$_per',
               key: const ValueKey('edit-product-purchase'),
             ),
             moneyField(
               sale,
-              'Sale price',
+              'Sale price$_per',
               key: const ValueKey('edit-product-sale'),
             ),
           ),
           const SizedBox(height: 12),
           quantityField(
             low,
-            'Low-stock alert at',
+            'Low-stock alert at${measure == null ? '' : ' (${measure!.wholeLabel})'}',
             key: const ValueKey('edit-product-low'),
-            onSubmitted: _submit,
+            onSubmitted: measure == null ? _submit : null,
           ),
+          if (measure case final unit?) ...[
+            const SizedBox(height: 16),
+            const FormSectionLabel('Quick quantities'),
+            MeasurePresetEditor(
+              key: const ValueKey('edit-product-presets'),
+              unit: unit,
+              presets: presets,
+              onChanged: (value) => setState(() => presets = value),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              key: const ValueKey('edit-product-allow-custom'),
+              contentPadding: EdgeInsets.zero,
+              value: allowCustomQuantity,
+              onChanged: (value) => setState(() => allowCustomQuantity = value),
+              title: const Text('Allow custom quantity'),
+            ),
+          ],
           const SizedBox(height: 16),
           const FormSectionLabel('Availability'),
           SwitchListTile(
