@@ -33,9 +33,14 @@ void main() {
   test('DAAL sale is immediately summarized, paged and uses snapshots', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
-    final now = DateTime.now();
+    // The sale belongs to the current Karachi business day, the day
+    // watchToday() reports, never the test machine's local midnight (on a
+    // UTC runner that midnight is the previous Karachi day after 19:00 UTC).
     final start =
-        DateTime(now.year, now.month, now.day).toUtc().millisecondsSinceEpoch ~/
+        ReportRange.forPreset(
+          ReportRangePreset.today,
+          DateTime.now().toUtc(),
+        ).startUtc.millisecondsSinceEpoch ~/
         1000;
     await db.customStatement(
       "insert into shops(id,name,phone,address,subscription_plan,subscription_status,created_at,updated_at) values('shop','Test','','','trial','trial',$start,$start)",
@@ -77,6 +82,47 @@ void main() {
     final detail = await repo.detail(row);
     expect(detail.lines.single.name, 'DAAL');
     expect(detail.lines.single.unitPrice, 57000);
+  });
+
+  test('Karachi business day at 2026-10-09T19:26Z is October 10 in Karachi', () async {
+    // The instant CI run 37980062236 ran at: already Oct 10 in Karachi.
+    final today = ReportRange.forPreset(
+      ReportRangePreset.today,
+      DateTime.utc(2026, 10, 9, 19, 26),
+    );
+    expect(today.startUtc, DateTime.utc(2026, 10, 9, 19));
+    expect(today.endUtc, DateTime.utc(2026, 10, 10, 19));
+
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    int seconds(DateTime at) => at.millisecondsSinceEpoch ~/ 1000;
+    final t = seconds(DateTime.utc(2026, 10, 9));
+    await db.customStatement(
+      "insert into shops(id,name,phone,address,subscription_plan,subscription_status,created_at,updated_at) values('shop','Test','','','trial','trial',$t,$t)",
+    );
+    await db.customStatement(
+      "insert into devices(id,shop_id,device_name,device_type,device_identifier,created_at,updated_at) values('device','shop','PC','windowsDesktop','x',$t,$t)",
+    );
+    await db.customStatement(
+      "insert into cashiers(id,shop_id,display_name,login_code,created_at,updated_at) values('cashier','shop','Ali','1',$t,$t)",
+    );
+    for (final (id, at) in [
+      // UTC midnight: the old fixture's instant, the previous Karachi day.
+      ('utc-midnight', DateTime.utc(2026, 10, 9)),
+      ('before-boundary', DateTime.utc(2026, 10, 9, 18, 59, 59)),
+      ('karachi-midnight', DateTime.utc(2026, 10, 9, 19)),
+      ('ci-instant', DateTime.utc(2026, 10, 9, 19, 26)),
+      ('next-karachi-day', DateTime.utc(2026, 10, 10, 19)),
+    ]) {
+      await db.customStatement(
+        "insert into sales(id,shop_id,cashier_id,device_id,subtotal,discount_total,tax_total,grand_total,payment_status,sale_status,created_at) values('$id','shop','cashier','device',100,0,0,100,'paid','completed',${seconds(at)})",
+      );
+    }
+    final rows = await DriftSalesHistoryRepository(
+      db,
+      shopId: 'shop',
+    ).page(filter: SaleHistoryFilter(range: today));
+    expect(rows.map((r) => r.id).toSet(), {'karachi-midnight', 'ci-instant'});
   });
 
   test('SQL filters cover dates, payments, search and active pagination', () async {
