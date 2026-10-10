@@ -14,6 +14,7 @@ import '../receipts/receipt_model.dart';
 import '../receipts/receipt_view.dart';
 import '../customers/customer_khata_view.dart';
 import 'measured_quantity_picker.dart';
+import 'pack_selector.dart';
 import 'pos_catalog.dart';
 import 'pos_state.dart';
 import 'product_thumbnail.dart';
@@ -132,14 +133,29 @@ class _PosWorkspaceState extends State<PosWorkspace>
     if (state == AppLifecycleState.resumed) _retrySync();
   }
 
-  List<PosProduct> get filteredProducts {
-    final query = search.text.trim().toLowerCase();
-    return catalog.products.where((product) {
-      if (categoryId != null && product.categoryId != categoryId) return false;
-      if (query.isEmpty) return true;
-      return product.name.toLowerCase().contains(query) ||
-          product.barcode?.toLowerCase() == query;
-    }).toList();
+  List<PosProduct> get filteredProducts => catalog.products
+      .where(
+        (product) =>
+            (categoryId == null || product.categoryId == categoryId) &&
+            matchesPosSearch(product, search.text),
+      )
+      .toList();
+
+  /// U3: the sale grid, with each pack family's sizes on one card.
+  List<PosCatalogEntry> get catalogEntries => groupCatalog(filteredProducts);
+
+  /// U3: the cashier picks one size; exactly one pack of it is added, on
+  /// that size's own bill line.
+  Future<void> _addFromFamily(PosCatalogEntry family) async {
+    final variant = await showPackSelector(
+      context,
+      familyName: family.name,
+      variants: family.variants,
+      allowNegativeStock: catalog.allowNegativeStock,
+      inCart: cart.quantityOf,
+    );
+    if (variant == null || !mounted) return;
+    setState(() => cart.add(variant));
   }
 
   /// A piece product adds one unit at once; a measured product (U2) asks for
@@ -573,6 +589,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
 
   Widget _catalogPane() => LayoutBuilder(
     builder: (context, constraints) {
+      final entries = catalogEntries;
       // In a short window the heading and today line give their height to
       // the product grid; category chips go only when space is tiny.
       final showHeading = constraints.maxHeight >= 330;
@@ -671,7 +688,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
               ),
             ],
             const SizedBox(height: 10),
-            if (filteredProducts.isEmpty)
+            if (entries.isEmpty)
               const Expanded(
                 child: Center(child: Text('No local products found.')),
               )
@@ -685,11 +702,20 @@ class _PosWorkspaceState extends State<PosWorkspace>
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
-                  itemCount: filteredProducts.length,
-                  itemBuilder: (_, index) => PosProductCard(
-                    product: filteredProducts[index],
-                    onTap: () => addProduct(filteredProducts[index]),
-                  ),
+                  itemCount: entries.length,
+                  itemBuilder: (_, index) {
+                    final entry = entries[index];
+                    final product = entry.product;
+                    return product == null
+                        ? PosFamilyCard(
+                            entry: entry,
+                            onTap: () => _addFromFamily(entry),
+                          )
+                        : PosProductCard(
+                            product: product,
+                            onTap: () => addProduct(product),
+                          );
+                  },
                 ),
               ),
           ],
@@ -870,6 +896,12 @@ class _PosWorkspaceState extends State<PosWorkspace>
             ),
           ],
         ),
+        if (line.product.familyId != null && line.product.measureUnit == null)
+          Text(
+            '${packCountLabel(line.quantity)} × ${formatPkr(line.product.salePriceMinor)}',
+            key: ValueKey('cart-packs-${line.product.id}'),
+            style: const TextStyle(color: Color(0xff6c7680)),
+          ),
         if (line.product.measureUnit case final unit?)
           Row(
             children: [
@@ -1414,6 +1446,113 @@ class PosProductCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// U3: one card for a pack family: its name, how many sizes, the lowest
+/// price; Add opens the pack selector.
+class PosFamilyCard extends StatelessWidget {
+  const PosFamilyCard({super.key, required this.entry, required this.onTap});
+  final PosCatalogEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final low = entry.variants.any((v) => v.isLowStock);
+    return Material(
+      key: ValueKey('family-card-${entry.variants.first.familyId}'),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Color(0xffdce2e6)),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  ProductThumbnail(
+                    imagePath: entry.variants.first.imagePath,
+                    productId: entry.variants.first.id,
+                    width: 64,
+                    height: 64,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      entry.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'From ${formatPkr(entry.fromPriceMinor)}',
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${entry.variants.length} pack sizes${low ? ' • Low' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: low
+                                ? const Color(0xffb42318)
+                                : const Color(0xff6c7680),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    height: 44,
+                    child: FilledButton(
+                      onPressed: onTap,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xff07966d),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                      ),
+                      child: const Text('Add'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CashierProductLookup extends StatelessWidget {

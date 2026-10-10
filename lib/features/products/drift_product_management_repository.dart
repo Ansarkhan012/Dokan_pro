@@ -34,12 +34,13 @@ final class DriftProductManagementRepository {
       coalesce(sp.unit,mp.default_unit,'piece') unit,coalesce(sp.pack_label,mp.pack_label) pack_label,
       coalesce(sp.image_path,mp.default_image_path) image_path,sp.purchase_price,sp.sale_price,
       sp.low_stock_level,sp.is_active,sp.master_product_id,coalesce(sum(im.quantity),0) stock,
-      sp.sell_mode,sp.measure_presets,sp.allow_custom_quantity
+      sp.sell_mode,sp.measure_presets,sp.allow_custom_quantity,sp.family_id
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join categories c on c.id=coalesce(sp.category_id,mp.category_id)
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
       where sp.shop_id=? and (?='' or lower(coalesce(sp.custom_name,mp.name,'')) like ?
-        or coalesce(sp.barcode,mp.barcode)=?)
+        or coalesce(sp.barcode,mp.barcode)=?
+        or (sp.family_id is not null and replace(lower(coalesce(sp.custom_name,'')||coalesce(sp.pack_label,'')),' ','') like ?))
         and (? is null or coalesce(c.name,'Uncategorized')=?)
       group by sp.id order by name limit ? offset ?''',
           variables: [
@@ -47,6 +48,8 @@ final class DriftProductManagementRepository {
             Variable(query.trim()),
             Variable(pattern),
             Variable(query.trim()),
+            // U3: "500g" finds a "500 g" pack variant (spaces ignored).
+            Variable('%${query.trim().toLowerCase().replaceAll(' ', '')}%'),
             Variable(category),
             Variable(category),
             Variable(limit),
@@ -58,7 +61,13 @@ final class DriftProductManagementRepository {
       final row = result.data;
       return ManagedProduct(
         id: row['id'] as String,
-        name: row['name'] as String,
+        // U3: a pack variant reads as its family name plus the pack size.
+        name: sellableName(
+          row['name'] as String,
+          row['pack_label'] as String?,
+          familyId: row['family_id'] as String?,
+        ),
+        familyId: row['family_id'] as String?,
         categoryName: row['category_name'] as String,
         barcode: row['barcode'] as String?,
         unit: row['unit'] as String,

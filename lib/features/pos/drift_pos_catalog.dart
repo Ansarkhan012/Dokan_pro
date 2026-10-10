@@ -76,6 +76,9 @@ final class DriftPosCatalog implements PosCatalog {
               decodeMeasurePresets(row['measure_presets'] as String?) ??
               const [],
           allowCustomQuantity: (row['allow_custom_quantity'] as int) != 0,
+          familyId: row['family_id'] as String?,
+          familyName: row['name'] as String,
+          packLabel: row['pack_label'] as String?,
         );
       }).toList(),
       customers: customers

@@ -106,9 +106,10 @@ final class SupabaseProductManagementGateway
     required String movementId,
     required CustomProductInput input,
   }) async {
-    if (input.sellMode == SellMode.measured) {
-      // U2: loose products are created by the U1 owner RPC, which writes the
-      // product and its one opening-stock movement in one transaction.
+    if (input.sellMode == SellMode.measured || input.familyId != null) {
+      // U2 loose products and U3 pack variants are created by the U1 owner
+      // RPC, which writes the product and its one opening-stock movement in
+      // one transaction and answers already_exists for a repeated id.
       final created =
           await client.rpc(
                 'create_shop_product',
@@ -127,9 +128,11 @@ final class SupabaseProductManagementGateway
                     'sale_price': input.salePriceMinor,
                     'opening_quantity': input.openingQuantity,
                     'low_stock_level': input.lowStockLevel,
-                    'sell_mode': SellMode.measured.name,
+                    'sell_mode': input.sellMode.name,
                     'measure_presets': input.measurePresets,
                     'allow_custom_quantity': input.allowCustomQuantity,
+                    'family_id': input.familyId,
+                    'pack_label': input.packLabel?.trim(),
                   },
                 },
               )

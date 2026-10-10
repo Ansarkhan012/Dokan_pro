@@ -666,29 +666,58 @@ class _AddProductState extends State<_AddProduct> {
   }
 
   Future<void> _createCustom() async {
-    String? productId;
+    var createdIds = <String>[];
+    // U3: barcodes the shop already uses, checked before a family is sent
+    // (the server enforces them too). A failed lookup never blocks.
+    var barcodes = <String>{};
+    try {
+      barcodes = {
+        for (final product in await widget.existingProducts())
+          if (product.barcode?.trim().isNotEmpty ?? false)
+            product.barcode!.trim(),
+      };
+    } catch (_) {}
+    // A family retried after a partial failure is not re-confirmed.
+    final attemptedFamilies = <String>{};
+    if (!mounted) return;
     final draft = await showDialog<CustomProductDraft>(
       context: context,
       // A stray tap while dismissing the keyboard must not discard the form.
       barrierDismissible: false,
       builder: (_) => CustomProductDialog(
         categories: widget.categories,
+        existingBarcodes: barcodes,
         // Runs inside the dialog so a failure keeps the entered data open.
         onSubmit: (submitted) async {
-          if (!await _confirmNotDuplicate(submitted.input)) {
+          final family = submitted.family;
+          if ((family == null || attemptedFamilies.add(family.familyId)) &&
+              !await _confirmNotDuplicate(submitted.input)) {
+            if (family != null) attemptedFamilies.remove(family.familyId);
             throw const CustomProductSubmitCancelled();
           }
-          productId = await widget.service.createCustom(
-            shopId: widget.shopId,
-            deviceId: widget.deviceId,
-            input: submitted.input,
-          );
+          createdIds = family == null
+              ? [
+                  await widget.service.createCustom(
+                    shopId: widget.shopId,
+                    deviceId: widget.deviceId,
+                    input: submitted.input,
+                  ),
+                ]
+              : await widget.service.createFamily(
+                  shopId: widget.shopId,
+                  deviceId: widget.deviceId,
+                  family: family,
+                  existingBarcodes: barcodes,
+                );
         },
       ),
     );
-    final createdId = productId;
-    if (draft == null || createdId == null) return;
-    final imageSaved = await saveProductImage(createdId, draft.image);
+    if (draft == null || createdIds.isEmpty) return;
+    // The family's shared image goes to every pack size (local store only).
+    var imageSaved = true;
+    for (final id in createdIds) {
+      imageSaved = await saveProductImage(id, draft.image) && imageSaved;
+    }
     await widget.onChanged();
     if (!mounted) return;
     if (!imageSaved) {

@@ -17,6 +17,9 @@ final class PosProduct {
     this.measureUnit,
     this.measurePresets = const [],
     this.allowCustomQuantity = true,
+    this.familyId,
+    this.familyName,
+    this.packLabel,
   });
 
   final String id;
@@ -37,6 +40,12 @@ final class PosProduct {
   final bool allowCustomQuantity;
 
   bool get isMeasured => measureUnit != null;
+
+  /// U3: the pack family this variant belongs to; [familyName] is the
+  /// family's own name and [packLabel] the size ([name] combines them).
+  final String? familyId;
+  final String? familyName;
+  final String? packLabel;
 
   bool get isLowStock =>
       stockTrackingEnabled &&
@@ -233,4 +242,62 @@ String formatPkr(int minor) {
   final absolute = minor.abs();
   return '${minor < 0 ? '-' : ''}Rs ${absolute ~/ 100}.'
       '${(absolute % 100).toString().padLeft(2, '0')}';
+}
+
+/// One card on the sale grid (U3): a single product, or the visible pack
+/// sizes of one family. A family with a single visible size is shown as that
+/// product, so it adds directly.
+final class PosCatalogEntry {
+  const PosCatalogEntry.product(PosProduct this.product) : variants = const [];
+  const PosCatalogEntry.family(this.variants) : product = null;
+
+  final PosProduct? product;
+  final List<PosProduct> variants;
+
+  bool get isFamily => product == null;
+  String get name => product?.name ?? variants.first.familyName!;
+  int get fromPriceMinor =>
+      variants.map((v) => v.salePriceMinor).reduce((a, b) => a < b ? a : b);
+}
+
+/// Groups explicitly linked pack variants (same family id) into one entry at
+/// the position of the first size; every other product stays its own entry.
+/// Products are never grouped by similar names.
+List<PosCatalogEntry> groupCatalog(Iterable<PosProduct> products) {
+  final families = <String, List<PosProduct>>{};
+  final order = <Object>[];
+  for (final product in products) {
+    final family = product.familyId;
+    if (family == null) {
+      order.add(product);
+    } else {
+      final sizes = families.putIfAbsent(family, () {
+        order.add(family);
+        return [];
+      });
+      sizes.add(product);
+    }
+  }
+  return [
+    for (final item in order)
+      if (item is PosProduct)
+        PosCatalogEntry.product(item)
+      else if (families[item]!.length == 1)
+        PosCatalogEntry.product(families[item]!.single)
+      else
+        PosCatalogEntry.family(
+          families[item]!..sort((a, b) => a.salePriceMinor - b.salePriceMinor),
+        ),
+  ];
+}
+
+/// POS search (U3): name contains the query (also ignoring spaces, so
+/// `500g` finds `Tapal Danedar 500 g`), or the barcode is exactly it.
+bool matchesPosSearch(PosProduct product, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final name = product.name.toLowerCase();
+  return name.contains(q) ||
+      name.replaceAll(' ', '').contains(q.replaceAll(' ', '')) ||
+      product.barcode?.toLowerCase() == q;
 }
