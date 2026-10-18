@@ -55,7 +55,11 @@ SQL
 
   # 2. GoTrue: same image and configuration, different database.
   env_of "supabase_auth_${PROJECT}" \
-    | sed -E "s#(GOTRUE_DB_DATABASE_URL=postgres(ql)?://[^@]+@[^/]+/)[^?]*#\1${SCRATCH_DB}#" > "$WORK/auth.env"
+    | sed -E "s#(GOTRUE_DB_DATABASE_URL=postgres(ql)?://[^@]+@[^/]+/)[^?]*#\1${SCRATCH_DB}#" \
+    | grep -v '^GOTRUE_MFA_TOTP_' > "$WORK/auth.env"
+  # Platform admins need a verified TOTP factor (AAL2, migration 202610160001),
+  # even if the dev stack was started before config.toml enabled it.
+  printf 'GOTRUE_MFA_TOTP_ENROLL_ENABLED=true\nGOTRUE_MFA_TOTP_VERIFY_ENABLED=true\n' >> "$WORK/auth.env"
   docker run -d --name "${PREFIX}_auth" --network "$NETWORK" --env-file "$WORK/auth.env" \
     "$(docker inspect -f '{{.Config.Image}}' "supabase_auth_${PROJECT}")" >/dev/null
   for _ in $(seq 1 60); do
@@ -72,6 +76,8 @@ SQL
   # 3. Application migrations from zero, then seed (as the CLI would).
   for f in "$ROOT"/supabase/migrations/*.sql; do psql_as postgres "$SCRATCH_DB" < "$f" >/dev/null; done
   psql_as postgres "$SCRATCH_DB" < "$ROOT/supabase/seed.sql" >/dev/null
+  # Local-only: lets the harness sign up a platform admin (shops are admin-created).
+  psql_as postgres "$SCRATCH_DB" < "$ROOT/supabase/dev/r1_local_platform_admin.sql" >/dev/null
 
   # 4. PostgREST.
   env_of "supabase_rest_${PROJECT}" \

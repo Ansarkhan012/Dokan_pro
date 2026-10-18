@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../core/domain/enums.dart';
 import '../../../core/ids/id_generator.dart';
 import '../../../database/app_database.dart';
+import '../../../database/repositories/sync_queue_repository.dart';
 import '../../../subscription/entitlement_policy.dart';
 
 final class LocalSaleVoidService {
@@ -74,10 +75,13 @@ final class LocalSaleVoidService {
           null) {
         throw StateError('Sale is already voided.');
       }
-      if (await (db.select(db.saleReturns)..where(
-                (t) =>
-                    t.shopId.equals(shopId) & t.originalSaleId.equals(saleId),
-              ))
+      // A sale may have several returns; any one of them blocks the void.
+      if (await (db.select(db.saleReturns)
+                ..where(
+                  (t) =>
+                      t.shopId.equals(shopId) & t.originalSaleId.equals(saleId),
+                )
+                ..limit(1))
               .getSingleOrNull() !=
           null) {
         throw StateError('A sale with returns cannot be voided.');
@@ -177,6 +181,12 @@ final class LocalSaleVoidService {
               createdAt: now,
             ),
           );
+      final saleOperationId = await SyncQueueRepository.unsyncedOperationId(
+        db,
+        shopId: shopId,
+        entityType: 'sale_aggregate',
+        entityId: saleId,
+      );
       final payload = {
         'version': 2,
         'operation': 'sync_sale_void',
@@ -206,6 +216,7 @@ final class LocalSaleVoidService {
               entityId: voidId,
               operationType: SyncOperationType.create,
               payload: jsonEncode(payload),
+              dependsOnOperationId: Value(saleOperationId),
               createdAt: now,
               updatedAt: now,
             ),

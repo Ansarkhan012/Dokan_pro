@@ -126,7 +126,7 @@ void main() {
     final rpc = shop.owner.client.rpc;
     final atta = await _create(shop, {'name': 'Atta', 'unit': 'kg', 'sell_mode': 'measured',
         'sale_price': 13000, 'opening_quantity': 40000});
-    final identifier = _id();
+    final identifier = shop.deviceAIdentifier; // the shop's tablet slot
     final deviceId = (((await rpc('register_shop_device', params: {
       'p_shop_id': shop.shopId, 'p_device_name': 'Counter tablet',
       'p_device_type': 'androidTablet', 'p_device_identifier': identifier,

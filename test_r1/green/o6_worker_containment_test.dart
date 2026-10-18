@@ -37,6 +37,8 @@ Future<AppDatabase> _seed() async {
   ));
   await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
     id: _product, shopId: _shop, customName: const Value('Coke'),
+    // Not a stock test: untracked, so the sale never depends on stock.
+    stockTrackingEnabled: const Value(false),
     purchasePrice: 15000, salePrice: 18000, createdAt: t, updatedAt: t,
   ));
   return db;

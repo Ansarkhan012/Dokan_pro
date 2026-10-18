@@ -18,7 +18,9 @@ import 'package:dukaan_pro/sync/sync_worker_runner.dart';
 const shopId = 'shop', ownerId = 'owner', deviceId = 'device';
 const cokeId = 'coke', freeId = 'free-bag', customerId = 'ahmed';
 const cokePrice = 18000; // Rs 180.00
-const openingStock = 10000; // 10 units
+// 1000 units: the double-tap stress rounds sell hundreds, and sales never
+// oversell (stock_policy.dart).
+const openingStock = 1000000;
 
 const coke = PosProduct(
   id: cokeId,

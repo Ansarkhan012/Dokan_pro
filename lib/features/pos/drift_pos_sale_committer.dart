@@ -113,9 +113,13 @@ final class DriftPosSaleCommitter implements PosSaleCommitter {
       reference: reference,
       note: note,
     );
-    // As before R1.1, the payment waits for one sync attempt. It now joins
-    // the runtime's single runner, so it is bounded by the RPC timeout and a
-    // sync error can no longer be reported as an unsaved payment.
-    await sync.run();
+    // As before R1.1, the payment waits for one sync attempt. It joins the
+    // runtime's single runner, so a sync error can never be reported as an
+    // unsaved payment. The wait is capped: a run may hold several uploads,
+    // and the payment is already saved; the runner carries on by itself.
+    await sync.run().timeout(
+      SyncWorkerRunner.defaultRpcTimeout,
+      onTimeout: () => false,
+    );
   }
 }

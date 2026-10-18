@@ -83,7 +83,8 @@ final class SyncQueueRepository {
           );
           continue;
         }
-        if (parent?.status != SyncStatus.synced) continue;
+        // A parent that is gone (nothing to wait for) does not block.
+        if (parent != null && parent.status != SyncStatus.synced) continue;
       }
       final changed =
           await (db.update(db.syncOperations)..where(
@@ -226,6 +227,30 @@ final class SyncQueueRepository {
       case SyncFailureKind.connectivity || SyncFailureKind.transient:
         return _retryLater(current, workerId, error, now, failure);
     }
+  }
+
+  /// The not-yet-synced operation that uploads [entityType]/[entityId], if
+  /// any. A void or return of a sale made on this device must not reach the
+  /// cloud before the sale itself (the server would answer "original sale
+  /// required" until it does), so it is queued behind that operation.
+  static Future<String?> unsyncedOperationId(
+    AppDatabase db, {
+    required String shopId,
+    required String entityType,
+    required String entityId,
+  }) async {
+    final row =
+        await (db.select(db.syncOperations)
+              ..where(
+                (t) =>
+                    t.shopId.equals(shopId) &
+                    t.entityType.equals(entityType) &
+                    t.entityId.equals(entityId) &
+                    t.status.equals(SyncStatus.synced.name).not(),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    return row?.id;
   }
 
   static const maxUnknownErrors = 5;

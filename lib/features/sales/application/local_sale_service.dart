@@ -7,6 +7,7 @@ import '../../../database/app_database.dart';
 import '../../../subscription/entitlement_policy.dart';
 import '../../../sync/sync_time.dart';
 import '../domain/sale_draft.dart';
+import '../domain/stock_policy.dart';
 
 final class LocalSaleService {
   LocalSaleService(
@@ -69,6 +70,7 @@ final class LocalSaleService {
       final itemRows = <Map<String, Object?>>[];
       var subtotal = 0;
       var discountTotal = 0;
+      final requestedStock = <String, int>{};
       for (final line in draft.lines) {
         if (line.quantity <= 0) {
           throw const SaleValidationException(
@@ -131,10 +133,23 @@ final class LocalSaleService {
           'line_total': lineTotal,
           'measure_unit_snapshot': measureUnit?.name,
         });
-        if (!shop.allowNegativeStock && product.stockTrackingEnabled) {
+        if (product.stockTrackingEnabled &&
+            !salesMayOversell(
+              shopAllowsNegativeStock: shop.allowNegativeStock,
+            )) {
+          // INV-1: repeated lines of one product draw on the same stock. The
+          // check and the stock movements below share this transaction, so
+          // two checkouts can never both take the last unit.
+          final requested = requestedStock[product.id] =
+              (requestedStock[product.id] ?? 0) + line.quantity;
           final stock = await _stock(draft.shopId, product.id);
-          if (stock < line.quantity) {
-            throw const SaleValidationException('Insufficient stock');
+          if (stock < requested) {
+            throw InsufficientStockException(
+              productName: name,
+              availableQuantity: stock,
+              requestedQuantity: requested,
+              measureUnitName: measureUnit?.name,
+            );
           }
         }
       }
@@ -444,17 +459,19 @@ final class LocalSaleService {
     return sellableName(name, product.packLabel, familyId: product.familyId);
   }
 
+  /// Summed in SQL: a product's movement history grows with every sale and
+  /// must not be loaded row by row on each checkout.
   Future<int> _stock(String shopId, String productId) async {
-    final rows =
-        await (db.select(db.inventoryMovements)..where(
-              (t) => t.shopId.equals(shopId) & t.productId.equals(productId),
-            ))
-            .get();
-    var total = 0;
-    for (final row in rows) {
-      total += row.quantity;
-    }
-    return total;
+    final total = db.inventoryMovements.quantity.sum();
+    final row =
+        await (db.selectOnly(db.inventoryMovements)
+              ..addColumns([total])
+              ..where(
+                db.inventoryMovements.shopId.equals(shopId) &
+                    db.inventoryMovements.productId.equals(productId),
+              ))
+            .getSingle();
+    return row.read(total) ?? 0;
   }
 
   Future<Map<String, Object?>> _aggregatePayload(

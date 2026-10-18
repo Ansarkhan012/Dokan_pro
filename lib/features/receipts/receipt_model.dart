@@ -34,6 +34,7 @@ final class ReceiptModel {
     this.customer,
     this.received,
     this.change = 0,
+    this.discount = 0,
     this.returned = 0,
     this.status = 'Completed',
     this.footer,
@@ -43,6 +44,9 @@ final class ReceiptModel {
   final DateTime dateTime;
   final List<ReceiptLine> lines;
   final int subtotal, total, change, returned;
+
+  /// The sale's stored `discount_total`; zero shows no discount line.
+  final int discount;
   final int? received;
   final Map<String, int> payments;
   int get netTotal => total - returned;

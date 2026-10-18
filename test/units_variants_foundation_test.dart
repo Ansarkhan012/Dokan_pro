@@ -35,6 +35,8 @@ Future<AppDatabase> _shop() async {
   // Surf: an existing-style row that never sets the U1 columns.
   await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
     id: 'surf', shopId: 'shop', customName: const Value('Surf'),
+    // Selling-mode tests, not stock tests: these products are untracked.
+    stockTrackingEnabled: const Value(false),
     purchasePrice: 30000, salePrice: 35000, createdAt: _t, updatedAt: _t,
   ));
   // Atta: loose, Rs 130/kg. Oil: loose, Rs 175 per liter.
@@ -45,6 +47,7 @@ Future<AppDatabase> _shop() async {
     await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
       id: id, shopId: 'shop', customName: Value(name), unit: Value(unit),
       sellMode: Value(SellMode.measured.name),
+      stockTrackingEnabled: const Value(false),
       purchasePrice: price - 1000, salePrice: price, createdAt: _t, updatedAt: _t,
     ));
   }
@@ -52,6 +55,7 @@ Future<AppDatabase> _shop() async {
   await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
     id: 'tapal-250', shopId: 'shop', customName: const Value('Tapal Danedar'),
     packLabel: const Value('250 g'), familyId: const Value('family-tapal'),
+    stockTrackingEnabled: const Value(false),
     purchasePrice: 38000, salePrice: 41000, createdAt: _t, updatedAt: _t,
   ));
   return db;

@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+import '../../core/domain/enums.dart';
+import '../../core/l10n/product_display_names.dart';
 import '../../database/app_database.dart';
 import '../sales/domain/bill_reference.dart';
 import 'inventory_models.dart';
@@ -19,6 +21,7 @@ final class DriftInventoryRepository {
       coalesce(sp.unit,mp.default_unit,'piece') unit,
       coalesce(sp.barcode,mp.barcode) barcode,sp.low_stock_level,sp.is_active,
       coalesce(sp.image_path,mp.default_image_path) image_path,
+      sp.sell_mode,
       coalesce(sum(im.quantity),0) stock
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
@@ -38,11 +41,16 @@ final class DriftInventoryRepository {
             stockQuantity: row['stock'] as int,
             lowStockLevel: row['low_stock_level'] as int?,
             isActive: (row['is_active'] as int) != 0,
+            measured: row['sell_mode'] == SellMode.measured.name,
           );
         })
         .where((row) {
           if (query.isNotEmpty &&
-              !row.name.toLowerCase().contains(query) &&
+              !ProductDisplayNameResolver.instance.matches(
+                row.name,
+                query,
+                productId: row.id,
+              ) &&
               row.barcode?.toLowerCase() != query) {
             return false;
           }

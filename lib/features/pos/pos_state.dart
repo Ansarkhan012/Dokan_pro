@@ -1,5 +1,7 @@
 import '../../core/domain/enums.dart';
 import '../sales/domain/sale_draft.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/product_display_names.dart';
 
 const int quantityScale = 1000;
 
@@ -196,12 +198,61 @@ final class PosCart {
   void remove(String productId) => _lines.remove(productId);
   void clear() => _lines.clear();
 
+  /// Re-binds every line to the current [products] (price, stock, name), so
+  /// the cart shows what checkout will charge: checkout prices each line from
+  /// the database, not from the cart. A line whose product is no longer
+  /// offered keeps its last details; checkout then refuses it.
+  ///
+  /// Returns the lines whose unit price changed, so the cashier can be shown
+  /// the old and new price before taking payment (B-4).
+  List<PosPriceChange> refreshProducts(Iterable<PosProduct> products) {
+    final current = {for (final product in products) product.id: product};
+    final changes = <PosPriceChange>[];
+    for (final line in _lines.values.toList()) {
+      if (current[line.product.id] case final product?) {
+        if (product.salePriceMinor != line.product.salePriceMinor) {
+          changes.add(
+            PosPriceChange(
+              productId: product.id,
+              productName: product.name,
+              oldPriceMinor: line.product.salePriceMinor,
+              newPriceMinor: product.salePriceMinor,
+            ),
+          );
+        }
+        _lines[product.id] = PosCartLine(
+          product: product,
+          quantity: line.quantity,
+        );
+      }
+    }
+    return changes;
+  }
+
+  /// Whether [productId] still has a line in the cart.
+  bool contains(String productId) => _lines.containsKey(productId);
+
   List<SaleLineDraft> toSaleLines() => _lines.values
       .map(
         (line) =>
             SaleLineDraft(productId: line.product.id, quantity: line.quantity),
       )
       .toList();
+}
+
+/// A cart line's unit price changed after it was added (a pull brought the
+/// owner's new price). [oldPriceMinor] is what the cart showed before.
+final class PosPriceChange {
+  const PosPriceChange({
+    required this.productId,
+    required this.productName,
+    required this.oldPriceMinor,
+    required this.newPriceMinor,
+  });
+  final String productId;
+  final String productName;
+  final int oldPriceMinor;
+  final int newPriceMinor;
 }
 
 final class PosCheckoutController {
@@ -230,7 +281,10 @@ String minorToInput(int minor) {
 }
 
 int? parseMoneyMinor(String input) {
-  final match = RegExp(r'^\s*(\d+)(?:\.(\d{0,2}))?\s*$').firstMatch(input);
+  final match = RegExp(
+    // At most 12 rupee digits: longer input would overflow, not be money.
+    r'^\s*(\d{1,12})(?:\.(\d{0,2}))?\s*$',
+  ).firstMatch(normalizeDigits(input));
   if (match == null) return null;
   final rupees = int.tryParse(match.group(1)!);
   if (rupees == null) return null;
@@ -292,12 +346,17 @@ List<PosCatalogEntry> groupCatalog(Iterable<PosProduct> products) {
 }
 
 /// POS search (U3): name contains the query (also ignoring spaces, so
-/// `500g` finds `Tapal Danedar 500 g`), or the barcode is exactly it.
+/// `500g` finds `Tapal Danedar 500 g`), or the barcode is exactly it. The
+/// Urdu display name matches too, whatever the UI language.
 bool matchesPosSearch(PosProduct product, String query) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
   final name = product.name.toLowerCase();
-  return name.contains(q) ||
+  return ProductDisplayNameResolver.instance.matches(
+        product.name,
+        q,
+        productId: product.id,
+      ) ||
       name.replaceAll(' ', '').contains(q.replaceAll(' ', '')) ||
       product.barcode?.toLowerCase() == q;
 }

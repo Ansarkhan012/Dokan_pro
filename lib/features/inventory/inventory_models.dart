@@ -10,6 +10,7 @@ final class InventoryProductRow {
     required this.isActive,
     this.barcode,
     this.imagePath,
+    this.measured = false,
   });
 
   final String id;
@@ -20,6 +21,10 @@ final class InventoryProductRow {
   final int stockQuantity;
   final int? lowStockLevel;
   final bool isActive;
+
+  /// Sold by weight or volume (kg / L), so stock may hold decimals; a counted
+  /// product moves in whole units.
+  final bool measured;
 
   bool get isOutOfStock => stockQuantity <= 0;
   bool get isLowStock =>

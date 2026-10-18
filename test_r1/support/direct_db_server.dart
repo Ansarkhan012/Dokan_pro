@@ -264,7 +264,9 @@ final class ShopFixture {
   final String shopId, ownerId, categoryId, productId, freeProductId,
       customerId, openingMovementId, deviceA, deviceB;
   static const salePrice = 18000; // Rs 180.00
-  static const openingStock = 10000; // 10 units
+  // 1000 units: several suites sell more than 10, and sales never oversell
+  // (stock_policy.dart), as in pos_fixture.dart.
+  static const openingStock = 1000000;
   final seededAt = DateTime.utc(2026, 1, 1);
 
   /// Server rows, inserted as the database owner (like the app's RPC setup).
@@ -276,9 +278,9 @@ insert into public.devices(id,shop_id,device_name,device_type,device_identifier)
   (${_q(deviceA)},${_q(shopId)},'A','androidTablet',gen_random_uuid()),
   (${_q(deviceB)},${_q(shopId)},'B','androidTablet',gen_random_uuid());
 insert into public.categories(id,shop_id,name,created_at,updated_at) values(${_q(categoryId)},${_q(shopId)},'C',now(),now());
-insert into public.shop_products(id,shop_id,custom_name,category_id,unit,purchase_price,sale_price,created_at,updated_at) values
-  (${_q(productId)},${_q(shopId)},'Coke',${_q(categoryId)},'piece',15000,$salePrice,now(),now()),
-  (${_q(freeProductId)},${_q(shopId)},'Free bag',${_q(categoryId)},'piece',0,0,now(),now());
+insert into public.shop_products(id,shop_id,custom_name,category_id,unit,purchase_price,sale_price,stock_tracking_enabled,created_at,updated_at) values
+  (${_q(productId)},${_q(shopId)},'Coke',${_q(categoryId)},'piece',15000,$salePrice,true,now(),now()),
+  (${_q(freeProductId)},${_q(shopId)},'Free bag',${_q(categoryId)},'piece',0,0,false,now(),now());
 insert into public.customers(id,shop_id,name,credit_limit,created_at,updated_at) values
   (${_q(customerId)},${_q(shopId)},'Ahmed',${creditLimit ?? 'null'},now(),now());
 insert into public.inventory_movements(id,shop_id,product_id,type,quantity,reference_type,created_by,device_id,created_at) values
@@ -313,6 +315,8 @@ insert into public.inventory_movements(id,shop_id,product_id,type,quantity,refer
       await db.into(db.shopProducts).insert(ShopProductsCompanion.insert(
         id: id, shopId: shopId, customName: Value(name),
         purchasePrice: price == 0 ? 0 : 15000, salePrice: price,
+        // The free bag is a giveaway with no stock (never oversold).
+        stockTrackingEnabled: Value(price != 0),
         createdAt: seededAt, updatedAt: seededAt,
       ));
     }

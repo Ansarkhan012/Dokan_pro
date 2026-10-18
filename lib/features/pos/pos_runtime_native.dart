@@ -10,6 +10,7 @@ import '../../database/repositories/sync_queue_repository.dart';
 import '../../sync/sync_health.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
+import '../../sync/pull/remote_refresh.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
 import '../../sync/supabase_sale_upload_gateway.dart';
 import '../../sync/sync_worker_runner.dart';
@@ -23,6 +24,7 @@ import 'drift_pos_catalog.dart';
 import 'drift_pos_sale_committer.dart';
 import 'pos_catalog.dart';
 import 'pos_workspace.dart';
+import '../../core/l10n/l10n.dart';
 
 class PosRuntime extends StatefulWidget {
   const PosRuntime({
@@ -55,6 +57,9 @@ class _PosRuntimeState extends State<PosRuntime> {
   late Future<_RuntimeState> startup = _start();
 
   Future<_RuntimeState> _start() async {
+    // Retry after a failed start: never keep two connections to one file.
+    await db?.close();
+    db = null;
     final database = await AppDatabase.open();
     db = database;
     try {
@@ -72,9 +77,15 @@ class _PosRuntimeState extends State<PosRuntime> {
     final hasCachedContext = await _hasCachedContext(database);
     final useCachedStartup = hasCachedContext && cached.products.isNotEmpty;
     final sync = _syncRunner(database);
+    // B-4: every later pull (resume, connectivity back) goes through this one
+    // guard, so pulls never overlap and never run back to back.
+    final remote = RemoteRefresh(
+      pull: () => _pullReferences(database, stopAtFirstFailure: true),
+    );
     var offline = false;
+    Future<void>? catalogRefresh;
     if (useCachedStartup) {
-      unawaited(_refreshAndSync(database, sync));
+      catalogRefresh = _refreshAndSync(remote, sync);
     } else {
       offline = !await _pullReferences(database);
     }
@@ -112,16 +123,18 @@ class _PosRuntimeState extends State<PosRuntime> {
       authorizer: authorizer,
     );
     if (!offline && !useCachedStartup) await sync.run();
-    final shopOperations = await (database.select(
-      database.syncOperations,
-    )..where((row) => row.shopId.equals(widget.shopId))).get();
+    // Only operations that decide the status: synced history is never pruned
+    // and must not be loaded on every start.
+    final health = await watchShopSyncHealth(database, widget.shopId).first;
     return _RuntimeState(
       catalog: snapshot,
       committer: committer,
       offline: offline,
-      hasPendingSync: syncHealthOf(shopOperations) != SyncHealth.synced,
+      hasPendingSync: health != SyncHealth.synced,
       entitlement: entitlement,
       lastSavedSale: await _lastSavedSale(database),
+      catalogRefresh: catalogRefresh,
+      remoteRefresh: remote,
     );
   }
 
@@ -165,7 +178,13 @@ class _PosRuntimeState extends State<PosRuntime> {
     }
   }
 
-  Future<bool> _pullReferences(AppDatabase database) async {
+  /// Pulls every entity the POS uses. [stopAtFirstFailure] is for refreshes
+  /// while selling: offline, the first entity fails fast and the rest are not
+  /// tried (each could otherwise wait out its 8 s timeout).
+  Future<bool> _pullReferences(
+    AppDatabase database, {
+    bool stopAtFirstFailure = false,
+  }) async {
     var succeeded = true;
     final pull = ReferencePullService(
       database,
@@ -195,6 +214,7 @@ class _PosRuntimeState extends State<PosRuntime> {
         await pull.pull(entity).timeout(const Duration(seconds: 8));
       } catch (_) {
         succeeded = false;
+        if (stopAtFirstFailure) break;
       }
     }
     return succeeded;
@@ -224,10 +244,10 @@ class _PosRuntimeState extends State<PosRuntime> {
   }
 
   Future<void> _refreshAndSync(
-    AppDatabase database,
+    RemoteRefresh remote,
     SyncWorkerRunner sync,
   ) async {
-    await _pullReferences(database);
+    await remote.now();
     await sync.run();
   }
 
@@ -265,16 +285,18 @@ class _PosRuntimeState extends State<PosRuntime> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'The local POS could not be opened. Check this device’s local storage and try again.',
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(context.l10n.posOpenFailed, textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: () => setState(() => startup = _start()),
-                    child: const Text('Retry'),
+                    onPressed: () => setState(() {
+                      startup = _start();
+                    }),
+                    child: Text(context.l10n.commonRetry),
                   ),
-                  TextButton(onPressed: _logout, child: const Text('Log out')),
+                  TextButton(
+                    onPressed: _logout,
+                    child: Text(context.l10n.posLogOut),
+                  ),
                 ],
               ),
             ),
@@ -292,6 +314,8 @@ class _PosRuntimeState extends State<PosRuntime> {
         initialHasPendingSync: state.hasPendingSync,
         entitlement: state.entitlement,
         lastSavedSale: state.lastSavedSale,
+        catalogRefresh: state.catalogRefresh,
+        remoteRefresh: state.remoteRefresh,
         onLogout: _logout,
       );
     },
@@ -306,6 +330,8 @@ final class _RuntimeState {
     required this.hasPendingSync,
     required this.entitlement,
     required this.lastSavedSale,
+    this.catalogRefresh,
+    this.remoteRefresh,
   });
   final PosCatalogSnapshot catalog;
   final PosSaleCommitter committer;
@@ -313,4 +339,6 @@ final class _RuntimeState {
   final bool hasPendingSync;
   final EntitlementEvaluation entitlement;
   final SaleHistoryRow? lastSavedSale;
+  final Future<void>? catalogRefresh;
+  final RemoteRefresh? remoteRefresh;
 }

@@ -68,6 +68,30 @@ final class SaleValidationException implements Exception {
   String toString() => 'SaleValidationException: $message';
 }
 
+/// A sale line asks for more tracked stock than the product has (repeated
+/// lines of one product count together). Nothing was written. [message] stays
+/// `Insufficient stock` for logs and callers that only read the message.
+final class InsufficientStockException extends SaleValidationException {
+  const InsufficientStockException({
+    required this.productName,
+    required this.availableQuantity,
+    required this.requestedQuantity,
+    this.measureUnitName,
+  }) : super('Insufficient stock');
+
+  final String productName;
+
+  /// Thousandths on hand before this sale; negative when earlier sales
+  /// already took stock below zero.
+  final int availableQuantity;
+
+  /// Thousandths this sale asks for, all lines of the product together.
+  final int requestedQuantity;
+
+  /// `kg` or `liter` for a measured product; null for a count.
+  final String? measureUnitName;
+}
+
 /// The checkout id is already committed with different content. Nothing was
 /// written; the committed sale is unchanged.
 final class CheckoutConflict implements Exception {

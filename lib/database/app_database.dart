@@ -173,10 +173,27 @@ class AppDatabase extends _$AppDatabase {
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
+      // One batch, one round trip to the database isolate. The four v9
+      // indexes: v9 created those tables with createTable, which does not
+      // create indexes, so a device upgraded from v7/v8 lacked them. Each
+      // statement is idempotent, so this also repairs devices that already
+      // upgraded.
       await customStatement(
-        'CREATE UNIQUE INDEX IF NOT EXISTS shop_products_unique_master '
-        'ON shop_products(shop_id, master_product_id) '
-        'WHERE master_product_id IS NOT NULL',
+        [
+          'CREATE UNIQUE INDEX IF NOT EXISTS shop_products_unique_master '
+              'ON shop_products(shop_id, master_product_id) '
+              'WHERE master_product_id IS NOT NULL',
+          for (final index in [
+            saleReturnsOriginal,
+            saleReturnItemsReturn,
+            saleReturnItemsOriginalItem,
+            saleVoidsOriginal,
+          ])
+            index.createStatementsByDialect[SqlDialect.sqlite]!.replaceFirst(
+              'CREATE INDEX ',
+              'CREATE INDEX IF NOT EXISTS ',
+            ),
+        ].join(';\n'),
       );
     },
   );

@@ -76,6 +76,7 @@ final class SyncWorkerRunner {
         gateway: _gateway,
         workerId: workerId,
         cashierToken: cashierToken,
+        uploadTimeout: rpcTimeout,
         clock: _clock,
       ).runOnce();
       return (await queue.pending()).isEmpty;

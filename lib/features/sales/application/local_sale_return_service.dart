@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../core/domain/enums.dart';
 import '../../../core/ids/id_generator.dart';
 import '../../../database/app_database.dart';
+import '../../../database/repositories/sync_queue_repository.dart';
 import '../../../subscription/entitlement_policy.dart';
 import '../domain/sale_return.dart';
 
@@ -236,6 +237,12 @@ final class LocalSaleReturnService {
               createdAt: now,
             ),
           );
+      final saleOperationId = await SyncQueueRepository.unsyncedOperationId(
+        db,
+        shopId: draft.shopId,
+        entityType: 'sale_aggregate',
+        entityId: sale.id,
+      );
       final payload = {
         'version': 1,
         'operation': 'sync_sale_return',
@@ -266,6 +273,7 @@ final class LocalSaleReturnService {
               entityId: returnId,
               operationType: SyncOperationType.create,
               payload: jsonEncode(payload),
+              dependsOnOperationId: Value(saleOperationId),
               createdAt: now,
               updatedAt: now,
             ),

@@ -221,6 +221,8 @@ jobs:
           test "${applied}" = "$(ls supabase/migrations/*.sql | wc -l)"
           test "${applied}" -ge "${BASELINE_MIN_MIGRATIONS}"
           echo "::notice title=R1 stack::${applied} migrations applied from zero"
+          # Local-only harness admin (shops are created by platform admins).
+          docker exec -i supabase_db_POS_store psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1             < supabase/dev/r1_local_platform_admin.sql
       - name: Export local-only HTTP endpoint (loopback URL + local anon key)
         run: |
           set -euo pipefail

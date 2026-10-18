@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import '../database/repositories/sync_queue_repository.dart';
 import 'sale_upload_gateway.dart';
@@ -9,12 +10,17 @@ final class SyncWorker {
     required this.gateway,
     required this.workerId,
     this.cashierToken,
+    this.uploadTimeout = const Duration(seconds: 15),
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
   final SyncQueueRepository queue;
   final SaleUploadGateway gateway;
   final String workerId;
   final Future<String?> Function()? cashierToken;
+
+  /// Cuts each upload, so a hanging request can never hold a screen that
+  /// awaits [runOnce]. A timeout is a connectivity failure (retried later).
+  final Duration uploadTimeout;
   final DateTime Function() _clock;
 
   /// Processes at most [limit] operations. Call from lifecycle opportunities;
@@ -38,10 +44,12 @@ final class SyncWorker {
         if (operation == null) break;
         final Object? result;
         try {
-          result = await gateway.uploadSaleAggregate(
-            jsonDecode(operation.payload) as Map<String, dynamic>,
-            cashierSessionToken: await cashierToken?.call(),
-          );
+          result = await gateway
+              .uploadSaleAggregate(
+                jsonDecode(operation.payload) as Map<String, dynamic>,
+                cashierSessionToken: await cashierToken?.call(),
+              )
+              .timeout(uploadTimeout);
         } catch (error) {
           failed++;
           final recorded = await queue.failLease(

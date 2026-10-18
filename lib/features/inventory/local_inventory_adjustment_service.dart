@@ -44,6 +44,10 @@ final class LocalInventoryAdjustmentService {
               )..where((t) => t.id.equals(productId) & t.shopId.equals(shopId)))
               .getSingleOrNull();
       if (product == null) throw StateError('Product is outside this shop.');
+      // A counted product moves in whole units, as its sales do.
+      if (product.sellMode != SellMode.measured.name && quantity % 1000 != 0) {
+        throw ArgumentError('Piece products are adjusted in whole units.');
+      }
       final owner =
           await (db.select(db.shopUsers)..where(
                 (t) =>

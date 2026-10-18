@@ -748,10 +748,11 @@ final class _RecordingGateway implements ProductManagementGateway {
     required String movementId,
     required String masterProductId,
     required AddProductInput input,
+    String? customName,
   }) => throw UnimplementedError();
 
   @override
-  Future<List<MasterCatalogItem>> searchMasterCatalog({required String shopId, required String query}) async => [];
+  Future<List<MasterCatalogItem>> searchMasterCatalog({required String shopId, required String query, int offset = 0}) async => [];
 
   @override
   Future<void> updateProduct({
