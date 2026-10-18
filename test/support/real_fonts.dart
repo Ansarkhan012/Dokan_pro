@@ -1,7 +1,9 @@
 // Real fonts for layout tests. Flutter's default test font draws every glyph
 // one em wide, which says nothing about whether Urdu (Nastaliq or Naskh) or
-// English text really fits. Loads Roboto (the Android UI font, from the
-// Flutter SDK) and the two bundled Urdu fonts under their app family names.
+// English text really fits. Loads Roboto (the Android UI font, bundled under
+// test/support/fonts/roboto with its Apache 2.0 license, so tests never depend
+// on an SDK cache that CI may not have) and the two bundled Urdu fonts under
+// their app family names.
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -9,20 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 bool _loaded = false;
 
-String get _flutterRoot {
-  final fromEnv = Platform.environment['FLUTTER_ROOT'];
-  if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
-  // flutter_tester runs from <flutter>/bin/cache/artifacts/engine/<platform>.
-  var dir = File(Platform.resolvedExecutable).parent;
-  while (dir.parent.path != dir.path) {
-    if (File('${dir.path}/bin/flutter').existsSync() ||
-        File('${dir.path}/bin/flutter.bat').existsSync()) {
-      return dir.path;
-    }
-    dir = dir.parent;
-  }
-  throw StateError('Flutter SDK not found for real-font tests');
-}
+const _roboto = 'test/support/fonts/roboto';
 
 Future<ByteData> _bytes(String path) async =>
     ByteData.sublistView(Uint8List.fromList(await File(path).readAsBytes()));
@@ -30,12 +19,11 @@ Future<ByteData> _bytes(String path) async =>
 /// Call from `setUpAll` (or inside `tester.runAsync`). Safe to call twice.
 Future<void> loadRealFonts() async {
   if (_loaded) return;
-  final material = '$_flutterRoot/bin/cache/artifacts/material_fonts';
   final families = <String, List<String>>{
     'Roboto': [
-      '$material/roboto-regular.ttf',
-      '$material/roboto-medium.ttf',
-      '$material/roboto-bold.ttf',
+      '$_roboto/roboto-regular.ttf',
+      '$_roboto/roboto-medium.ttf',
+      '$_roboto/roboto-bold.ttf',
     ],
     'NotoNastaliqUrdu': [
       'assets/fonts/noto_nastaliq_urdu/NotoNastaliqUrdu-Regular.ttf',
@@ -67,7 +55,7 @@ void expectRealFontsAvailable() {
   );
   expect(
     File(
-      '$_flutterRoot/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
+      '$_roboto/roboto-regular.ttf',
     ).existsSync(),
     isTrue,
   );
