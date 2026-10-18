@@ -8,6 +8,10 @@ enum EntitlementState {
   expiringSoon,
   offlineGrace,
   expired,
+
+  /// The server refused this shop or device on its last reconnect
+  /// (suspended or pending shop, revoked or unapproved device).
+  revoked,
   clockVerificationRequired,
   unavailable,
 }
@@ -45,6 +49,20 @@ final class EntitlementPolicyService {
     required String deviceId,
     required DateTime localNow,
   }) async {
+    final revocation = await store.readRevocation(shopId, deviceId);
+    if (revocation != null) {
+      return revocation.shopNotActive
+          ? const EntitlementEvaluation(
+              EntitlementState.revoked,
+              MutationDecision.block,
+              'This shop is not active. Contact Dokan Pro Support.',
+            )
+          : const EntitlementEvaluation(
+              EntitlementState.revoked,
+              MutationDecision.block,
+              'This device is not approved. Contact Dokan Pro Support.',
+            );
+    }
     final token = await store.read(shopId, deviceId),
         observation = await store.readTime(shopId, deviceId);
     if (token == null || observation == null) {

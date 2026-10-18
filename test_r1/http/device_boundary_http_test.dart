@@ -57,7 +57,7 @@ void main() {
   Future<_Tablet> provisionedTablet() async {
     final shop = await ServerShop.create(await stack.signUpOwner());
     final rpc = shop.owner.client.rpc;
-    final identifier = const Uuid().v4();
+    final identifier = shop.deviceAIdentifier; // the shop's tablet slot
     final deviceId =
         ((await rpc('register_shop_device', params: {
                       'p_shop_id': shop.shopId,
@@ -253,8 +253,13 @@ void main() {
         'p_receipt_show_phone': true, 'p_receipt_show_address': true,
         'p_notifications_enabled': false,
       }),
-      'subscription claims': () => client.rpc('entitlement_claims', params: {
-        'p_shop_id': shopId, 'p_device_id': tablet.deviceId,
+      // Its own claims are allowed since 202610140001 (so revocation reaches
+      // cashier-only tablets); another device's never.
+      'other device subscription claims': () => client.rpc('entitlement_claims', params: {
+        'p_shop_id': shopId, 'p_device_id': tablet.shop.deviceB,
+      }),
+      'admin activation': () => client.rpc('admin_set_shop_status', params: {
+        'p_shop_id': shopId, 'p_status': 'active', 'p_note': '',
       }),
       'direct sales read': () => client.from('sales').select('id'),
     };
@@ -273,6 +278,10 @@ void main() {
         reason: '$name returned ${result ?? error}',
       );
     }
+    final own = await client.rpc('entitlement_claims', params: {
+      'p_shop_id': shopId, 'p_device_id': tablet.deviceId,
+    }) as Map;
+    expect(own['device_id'], tablet.deviceId);
     // Nothing changed on the server.
     final product = await tablet.shop.owner.client
         .from('shop_products')

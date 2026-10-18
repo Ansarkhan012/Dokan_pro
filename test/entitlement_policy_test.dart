@@ -157,6 +157,16 @@ void main() {
 final class _Store implements EntitlementStore {
   SignedEntitlement? token;
   TrustedTimeObservation? time;
+  EntitlementRevocation? revocation;
+  @override
+  Future<EntitlementRevocation?> readRevocation(String s, String d) async =>
+      revocation;
+  @override
+  Future<void> writeRevocation(
+    String s,
+    String d,
+    EntitlementRevocation? value,
+  ) async => revocation = value;
   @override
   Future<SignedEntitlement?> read(String s, String d) async => token;
   @override

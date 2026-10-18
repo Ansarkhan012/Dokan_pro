@@ -274,7 +274,8 @@ Future<void> _seedShop(AppDatabase db, DateTime now) async {
     "insert into shops(id,name,phone,address,subscription_plan,subscription_status,created_at,updated_at) values('shop','Test','','','trial','trial',$t,$t)",
     "insert into devices(id,shop_id,device_name,device_type,device_identifier,created_at,updated_at) values('device','shop','Tablet','androidTablet','x',$t,$t)",
     "insert into cashiers(id,shop_id,display_name,login_code,created_at,updated_at) values('cashier','shop','Ali','1',$t,$t)",
-    "insert into shop_products(id,shop_id,custom_name,purchase_price,sale_price,created_at,updated_at) values('product','shop','Daal',15000,20000,$t,$t)",
+    // Untracked: these tests sell without modelling stock.
+    "insert into shop_products(id,shop_id,custom_name,stock_tracking_enabled,purchase_price,sale_price,created_at,updated_at) values('product','shop','Daal',0,15000,20000,$t,$t)",
   ]) {
     await db.customStatement(sql);
   }

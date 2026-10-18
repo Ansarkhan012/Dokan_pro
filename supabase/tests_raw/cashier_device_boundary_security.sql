@@ -182,7 +182,11 @@ select pg_temp.expect_state($$select public.issue_device_credential('b5000000-00
 select pg_temp.expect_state($$select public.sync_sale_void('{}'::jsonb,null)$$,'42501','void');
 select pg_temp.expect_state($$select public.sync_sale_return('{}'::jsonb,null)$$,'42501','return');
 select pg_temp.expect_state($$select public.update_shop_settings('b5000000-0000-0000-0000-00000000000a','X','','',true,0,'','80mm',true,true,false)$$,'42501','shop settings');
-select pg_temp.expect_state($$select public.entitlement_claims('b5000000-0000-0000-0000-00000000000a','bd000000-0000-0000-0000-0000000000a1')$$,'42501','subscription claims');
+-- Since 202610140001 a device reads its own entitlement claims (read-only,
+-- signed server-side) so revocation reaches cashier-only tablets; never
+-- another device's.
+select public.entitlement_claims('b5000000-0000-0000-0000-00000000000a','bd000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_state($$select public.entitlement_claims('b5000000-0000-0000-0000-00000000000a',gen_random_uuid())$$,'42501','other device subscription claims');
 select pg_temp.expect_state($$select public.create_owner_shop('Rogue')$$,'42501','create shop');
 
 -- CASHIER: a live session uploads its own sale and payment.

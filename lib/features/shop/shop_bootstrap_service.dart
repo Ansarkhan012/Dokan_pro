@@ -5,8 +5,10 @@ sealed class ShopBootstrapState {
   const ShopBootstrapState();
 }
 
-final class NeedsShopCreation extends ShopBootstrapState {
-  const NeedsShopCreation();
+/// Signed in, but no shop is linked to the account. Only Dokan Pro Support
+/// can create and assign a shop.
+final class NoShopAssigned extends ShopBootstrapState {
+  const NoShopAssigned();
 }
 
 final class ShopReady extends ShopBootstrapState {
@@ -20,7 +22,7 @@ final class ShopBootstrapService {
   Future<ShopBootstrapState> resolve() async {
     final memberships = await gateway.memberships();
     return memberships.isEmpty
-        ? const NeedsShopCreation()
+        ? const NoShopAssigned()
         : ShopReady(memberships.first);
   }
 }
