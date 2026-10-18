@@ -1,5 +1,8 @@
 import 'package:drift/drift.dart';
+import '../../core/domain/enums.dart';
+import '../../core/format/measure_format.dart';
 import '../../database/app_database.dart';
+import '../sales/domain/stock_policy.dart';
 import 'pos_catalog.dart';
 import 'pos_state.dart';
 
@@ -22,11 +25,13 @@ final class DriftPosCatalog implements PosCatalog {
           '''select sp.id,coalesce(sp.custom_name,mp.name,'Unnamed product') name,
       coalesce(sp.barcode,mp.barcode) barcode,coalesce(sp.category_id,mp.category_id) category_id,
       coalesce(sp.image_path,mp.default_image_path) image_path,sp.sale_price,
-      sp.stock_tracking_enabled,sp.low_stock_level,coalesce(sum(im.quantity),0) stock
+      sp.stock_tracking_enabled,sp.low_stock_level,coalesce(sum(im.quantity),0) stock,
+      sp.sell_mode,sp.unit,sp.family_id,coalesce(sp.pack_label,mp.pack_label) pack_label,
+      sp.measure_presets,sp.allow_custom_quantity
       from shop_products sp left join master_products mp on mp.id=sp.master_product_id
       left join inventory_movements im on im.shop_id=sp.shop_id and im.product_id=sp.id
-      where sp.shop_id=? and sp.is_active=1 group by sp.id order by name limit 5000''',
-          variables: [Variable(shopId)],
+      where sp.shop_id=? and sp.is_active=1 group by sp.id order by name limit ?''',
+          variables: [Variable(shopId), Variable(posProductLimit)],
         )
         .get();
     final customers = await db
@@ -35,12 +40,32 @@ final class DriftPosCatalog implements PosCatalog {
       coalesce(sum(case when l.type in ('openingBalance','creditSale','adjustment')
       then l.amount else -l.amount end),0) balance from customers c
       left join customer_ledger_entries l on l.shop_id=c.shop_id and l.customer_id=c.id
-      where c.shop_id=? and c.is_active=1 group by c.id order by c.name limit 1000''',
-          variables: [Variable(shopId)],
+      where c.shop_id=? and c.is_active=1 group by c.id order by c.name limit ?''',
+          variables: [Variable(shopId), Variable(posCustomerLimit)],
         )
         .get();
+    // Only counted when a list is full: a full list may have been cut.
+    Future<int?> countIfFull(String table, int loaded, int limit) async =>
+        loaded < limit
+        ? null
+        : (await db
+                  .customSelect(
+                    'select count(*) n from $table where shop_id=? and is_active=1',
+                    variables: [Variable(shopId)],
+                  )
+                  .getSingle())
+              .read<int>('n');
+
+    final shop = await (db.select(
+      db.shops,
+    )..where((row) => row.id.equals(shopId))).getSingleOrNull();
 
     return PosCatalogSnapshot(
+      // The cart follows the same rule as checkout, so a cashier is told at
+      // once rather than when paying.
+      allowNegativeStock: salesMayOversell(
+        shopAllowsNegativeStock: shop?.allowNegativeStock ?? true,
+      ),
       categories: categories
           .map((row) => PosCategory(id: row.id, name: row.name))
           .toList(),
@@ -48,7 +73,11 @@ final class DriftPosCatalog implements PosCatalog {
         final row = result.data;
         return PosProduct(
           id: row['id'] as String,
-          name: row['name'] as String,
+          name: sellableName(
+            row['name'] as String,
+            row['pack_label'] as String?,
+            familyId: row['family_id'] as String?,
+          ),
           barcode: row['barcode'] as String?,
           categoryId: row['category_id'] as String?,
           imagePath: row['image_path'] as String?,
@@ -56,8 +85,28 @@ final class DriftPosCatalog implements PosCatalog {
           stockQuantity: row['stock'] as int,
           stockTrackingEnabled: (row['stock_tracking_enabled'] as int) != 0,
           lowStockLevel: row['low_stock_level'] as int?,
+          measureUnit: row['sell_mode'] == SellMode.measured.name
+              ? MeasureUnit.tryParse(row['unit'] as String?)
+              : null,
+          measurePresets:
+              decodeMeasurePresets(row['measure_presets'] as String?) ??
+              const [],
+          allowCustomQuantity: (row['allow_custom_quantity'] as int) != 0,
+          familyId: row['family_id'] as String?,
+          familyName: row['name'] as String,
+          packLabel: row['pack_label'] as String?,
         );
       }).toList(),
+      activeProductCount: await countIfFull(
+        'shop_products',
+        products.length,
+        posProductLimit,
+      ),
+      activeCustomerCount: await countIfFull(
+        'customers',
+        customers.length,
+        posCustomerLimit,
+      ),
       customers: customers
           .map(
             (result) => PosCustomer(

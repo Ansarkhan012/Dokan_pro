@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
+import '../../subscription/entitlement_policy.dart';
 import '../../subscription/subscription_runtime.dart';
 import '../../core/errors/safe_error_message.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
+import '../../sync/sync_health.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
@@ -18,6 +20,11 @@ import 'local_purchase_service.dart';
 import 'local_supplier_payment_service.dart';
 import 'purchase_models.dart';
 import 'supplier_gateway.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/messages.dart';
 
 class PurchaseManagementScreen extends StatefulWidget {
   const PurchaseManagementScreen({
@@ -25,9 +32,15 @@ class PurchaseManagementScreen extends StatefulWidget {
     required this.client,
     required this.shopId,
     required this.deviceId,
+    this.authorizer,
   });
   final SupabaseClient client;
   final String shopId, deviceId;
+
+  /// Gate for saving financial records; null means the subscription-checked
+  /// production authorizer (always, in the app). Tests inject one, as the
+  /// local services themselves allow.
+  final FinancialMutationAuthorizer? authorizer;
   @override
   State<PurchaseManagementScreen> createState() => _State();
 }
@@ -86,7 +99,13 @@ class _State extends State<PurchaseManagementScreen> {
 
   Future<void> refresh() async {
     await pull();
-    if (mounted) setState(() => data = load());
+    // Block body: returning the Future made setState throw in debug builds,
+    // so a saved purchase, supplier or payment was reported as failed.
+    if (mounted) {
+      setState(() {
+        data = load();
+      });
+    }
   }
 
   @override
@@ -99,13 +118,13 @@ class _State extends State<PurchaseManagementScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Suppliers & Purchases'),
+      title: Text(context.l10n.ownerNavPurchases),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(48),
         child: Row(
           children: [
-            Expanded(child: _tab('Suppliers', 0)),
-            Expanded(child: _tab('Purchases', 1)),
+            Expanded(child: _tab(context.l10n.purchasesTabSuppliers, 0)),
+            Expanded(child: _tab(context.l10n.purchasesTabPurchases, 1)),
           ],
         ),
       ),
@@ -113,7 +132,9 @@ class _State extends State<PurchaseManagementScreen> {
     floatingActionButton: FloatingActionButton.extended(
       onPressed: tab == 0 ? () => supplierForm() : () => newPurchase(),
       icon: const Icon(Icons.add),
-      label: Text(tab == 0 ? 'Add supplier' : 'New purchase'),
+      label: Text(
+        tab == 0 ? context.l10n.suppliersAdd : context.l10n.purchasesNew,
+      ),
     ),
     body: FutureBuilder<_Data>(
       future: data,
@@ -125,12 +146,14 @@ class _State extends State<PurchaseManagementScreen> {
               padding: const EdgeInsets.all(16),
               child: TextField(
                 controller: search,
-                onChanged: (_) => setState(() => data = load()),
+                onChanged: (_) => setState(() {
+                  data = load();
+                }),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search),
                   labelText: tab == 0
-                      ? 'Search supplier name or phone'
-                      : 'Search supplier or invoice',
+                      ? context.l10n.suppliersSearch
+                      : context.l10n.purchasesSearch,
                 ),
               ),
             ),
@@ -156,20 +179,25 @@ class _State extends State<PurchaseManagementScreen> {
     ),
   );
   Widget _suppliers(List<SupplierAccount> rows) => rows.isEmpty
-      ? const Center(child: Text('No suppliers yet.'))
+      ? Center(child: Text(context.l10n.suppliersEmpty))
       : ListView.builder(
           itemCount: rows.length,
           itemBuilder: (_, i) {
             final s = rows[i];
             return ListTile(
-              title: Text(s.name),
+              title: Text(bidiName(context, s.name)),
               subtitle: Text(
-                '${s.phone ?? 'No phone'}${s.isActive ? '' : ' • Inactive'}',
+                '${s.phone == null ? context.l10n.khataNoPhone : bidiId(context, s.phone!)}'
+                '${s.isActive ? '' : ' • ${context.l10n.productsInactive}'}',
               ),
               trailing: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Text('${formatPkr(s.payableMinor)} payable'),
+                  Text(
+                    context.l10n.suppliersPayable(
+                      bidiMoney(context, formatPkr(s.payableMinor)),
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => supplierForm(s),
                     icon: const Icon(Icons.edit),
@@ -191,23 +219,32 @@ class _State extends State<PurchaseManagementScreen> {
           },
         );
   Widget _purchases(List<PurchaseSummary> rows) => rows.isEmpty
-      ? const Center(child: Text('No purchases yet.'))
+      ? Center(child: Text(context.l10n.purchasesEmpty))
       : ListView.builder(
           itemCount: rows.length,
           itemBuilder: (_, i) {
             final p = rows[i];
             return ListTile(
-              title: Text('${p.supplierName} • ${formatPkr(p.totalMinor)}'),
+              title: Text(
+                '${bidiName(context, p.supplierName)} • '
+                '${bidiMoney(context, formatPkr(p.totalMinor))}',
+              ),
               subtitle: Text(
-                '${_date(p.date)} • ${p.invoiceNumber ?? 'No reference'} • ${p.itemCount} items',
+                context.l10n.purchaseRowDetails(
+                  bidiId(context, _date(p.date)),
+                  p.invoiceNumber == null
+                      ? context.l10n.purchasesNoReference
+                      : bidiId(context, p.invoiceNumber!),
+                  '${p.itemCount}',
+                ),
               ),
               trailing: Chip(
                 label: Text(
                   p.status == PaymentStatus.paid
-                      ? 'Paid'
+                      ? context.l10n.purchaseStatusPaid
                       : p.status == PaymentStatus.partiallyPaid
-                      ? 'Partial'
-                      : 'Credit',
+                      ? context.l10n.purchaseStatusPartial
+                      : context.l10n.purchaseStatusCredit,
                 ),
               ),
               onTap: () => Navigator.push(
@@ -236,7 +273,7 @@ class _State extends State<PurchaseManagementScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Supplier could not be saved.')),
+          SnackBar(content: Text(context.l10n.suppliersSaveFailed)),
         );
       }
     }
@@ -268,7 +305,9 @@ class _State extends State<PurchaseManagementScreen> {
             for (final p in products)
               (
                 p,
-                p.customName ?? masters[p.masterProductId]?.name ?? 'Product',
+                p.customName ??
+                    masters[p.masterProductId]?.name ??
+                    context.l10n.purchaseProductFallback,
               ),
           ],
         ),
@@ -279,23 +318,27 @@ class _State extends State<PurchaseManagementScreen> {
       await LocalPurchaseService(
         db!,
         const UuidV7Generator(),
-        authorizer: productionFinancialMutationAuthorizer(),
+        authorizer:
+            widget.authorizer ?? productionFinancialMutationAuthorizer(),
       ).create(draft);
       await sync();
       await refresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Purchase saved locally.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.purchasesSaved)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              safeUserMessage(
-                e,
-                fallback: 'Could not save the purchase. Please try again.',
+              localizedMessage(
+                context.l10n,
+                safeUserMessage(
+                  e,
+                  fallback: 'Could not save the purchase. Please try again.',
+                ),
               ),
             ),
           ),
@@ -314,7 +357,7 @@ class _State extends State<PurchaseManagementScreen> {
     await LocalSupplierPaymentService(
       db!,
       const UuidV7Generator(),
-      authorizer: productionFinancialMutationAuthorizer(),
+      authorizer: widget.authorizer ?? productionFinancialMutationAuthorizer(),
     ).record(
       shopId: widget.shopId,
       supplierId: s.id,
@@ -332,7 +375,7 @@ class _State extends State<PurchaseManagementScreen> {
   Future<void> sync() => SyncWorker(
     queue: SyncQueueRepository(db!, shopId: widget.shopId),
     gateway: SupabaseSaleUploadGateway(widget.client),
-    workerId: 'owner-${widget.deviceId}',
+    workerId: uniqueSyncWorkerId('owner-${widget.deviceId}'),
   ).runOnce().then((_) {});
 }
 
@@ -360,18 +403,22 @@ class _SupplierFormState extends State<_SupplierForm> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.current == null ? 'Add supplier' : 'Edit supplier'),
+    title: Text(
+      widget.current == null
+          ? context.l10n.suppliersAdd
+          : context.l10n.suppliersEdit,
+    ),
     content: SizedBox(
       width: 430,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final f in [
-            (name, 'Name *'),
-            (contact, 'Contact person'),
-            (phone, 'Phone'),
-            (address, 'Address'),
-            (notes, 'Notes'),
+            (name, context.l10n.customerName),
+            (contact, context.l10n.supplierContactPerson),
+            (phone, context.l10n.customerPhone),
+            (address, context.l10n.customerAddress),
+            (notes, context.l10n.customerNotes),
           ])
             TextField(
               controller: f.$1,
@@ -380,7 +427,7 @@ class _SupplierFormState extends State<_SupplierForm> {
           SwitchListTile(
             value: active,
             onChanged: (v) => setState(() => active = v),
-            title: const Text('Active'),
+            title: Text(context.l10n.editActive),
           ),
         ],
       ),
@@ -388,7 +435,7 @@ class _SupplierFormState extends State<_SupplierForm> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: name.text.trim().isEmpty
@@ -404,7 +451,7 @@ class _SupplierFormState extends State<_SupplierForm> {
                   isActive: active,
                 ),
               ),
-        child: const Text('Save'),
+        child: Text(context.l10n.commonSave),
       ),
     ],
   );
@@ -447,30 +494,39 @@ class _NewPurchaseState extends State<_NewPurchase> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('New Purchase')),
+    appBar: AppBar(title: Text(context.l10n.purchasesNewTitle)),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
         DropdownButtonFormField<String>(
           initialValue: supplier,
           items: widget.suppliers
-              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+              .map(
+                (s) => DropdownMenuItem(
+                  value: s.id,
+                  child: Text(bidiName(context, s.name)),
+                ),
+              )
               .toList(),
           onChanged: (v) => setState(() => supplier = v),
-          decoration: const InputDecoration(labelText: 'Supplier *'),
+          decoration: InputDecoration(
+            labelText: context.l10n.purchaseSupplierRequired,
+          ),
         ),
         TextField(
           controller: invoice,
-          decoration: const InputDecoration(labelText: 'Invoice/reference'),
+          decoration: InputDecoration(
+            labelText: context.l10n.purchaseInvoiceReference,
+          ),
         ),
         TextField(
           controller: notes,
-          decoration: const InputDecoration(labelText: 'Notes'),
+          decoration: InputDecoration(labelText: context.l10n.customerNotes),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Purchase date'),
-          subtitle: Text(_date(purchaseDate)),
+          title: Text(context.l10n.purchaseDate),
+          subtitle: Text(bidiId(context, _date(purchaseDate))),
           trailing: const Icon(Icons.calendar_month),
           onTap: () async {
             final selected = await showDatePicker(
@@ -485,42 +541,55 @@ class _NewPurchaseState extends State<_NewPurchase> {
           },
         ),
         const SizedBox(height: 16),
-        Text('Products', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          context.l10n.productsTitle,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         for (final p in widget.products) _product(p),
         const Divider(),
         Text(
-          'Total ${formatPkr(total)}',
+          context.l10n.receiptTotal(bidiMoney(context, formatPkr(total))),
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         TextField(
           controller: paid,
+          inputFormatters: const [AsciiDigitsFormatter()],
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Amount paid',
+          decoration: InputDecoration(
+            labelText: context.l10n.purchaseAmountPaid,
             prefixText: 'Rs ',
           ),
         ),
         SegmentedButton<PaymentMethod>(
-          segments: const [
-            ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
-            ButtonSegment(value: PaymentMethod.digital, label: Text('Digital')),
+          segments: [
+            ButtonSegment(
+              value: PaymentMethod.cash,
+              label: Text(context.l10n.paymentCash),
+            ),
+            ButtonSegment(
+              value: PaymentMethod.digital,
+              label: Text(context.l10n.paymentDigital),
+            ),
           ],
           selected: {method},
           onSelectionChanged: (v) => setState(() => method = v.single),
         ),
         const SizedBox(height: 16),
-        FilledButton(onPressed: save, child: const Text('Save Purchase')),
+        FilledButton(onPressed: save, child: Text(context.l10n.purchaseSave)),
       ],
     ),
   );
   Widget _product((ShopProduct, String) row) {
     final current = lines[row.$1.id];
     return ListTile(
-      title: Text(row.$2),
+      title: Text(productDisplayName(context, row.$2, productId: row.$1.id)),
       subtitle: current == null
           ? null
           : Text(
-              'Qty ${quantityToInput(current.$1)} @ ${formatPkr(current.$2)}',
+              context.l10n.purchaseLineQtyCost(
+                bidiQuantity(context, quantityToInput(current.$1)),
+                bidiMoney(context, formatPkr(current.$2)),
+              ),
             ),
       trailing: IconButton(
         icon: Icon(current == null ? Icons.add : Icons.edit),
@@ -545,9 +614,7 @@ class _NewPurchaseState extends State<_NewPurchase> {
         paidMinor == null ||
         paidMinor > total) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Select supplier/items and enter a valid payment.'),
-        ),
+        SnackBar(content: Text(context.l10n.purchasesErrSelection)),
       );
       return;
     }
@@ -599,17 +666,21 @@ class _LineDialogState extends State<_LineDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Purchase item'),
+    title: Text(context.l10n.purchaseItemTitle),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
           controller: q,
-          decoration: const InputDecoration(labelText: 'Quantity'),
+          inputFormatters: const [AsciiDigitsFormatter()],
+          decoration: InputDecoration(
+            labelText: context.l10n.measureQuantityLabel,
+          ),
         ),
         TextField(
           controller: c,
-          decoration: const InputDecoration(labelText: 'Unit cost'),
+          inputFormatters: const [AsciiDigitsFormatter()],
+          decoration: InputDecoration(labelText: context.l10n.purchaseUnitCost),
         ),
       ],
     ),
@@ -622,7 +693,7 @@ class _LineDialogState extends State<_LineDialog> {
             Navigator.pop(context, (quantity, cost));
           }
         },
-        child: const Text('Add'),
+        child: Text(context.l10n.posAdd),
       ),
     ],
   );
@@ -647,11 +718,11 @@ class _SupplierDetailState extends State<_SupplierDetail> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.supplier.name)),
+    appBar: AppBar(title: Text(bidiName(context, widget.supplier.name))),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: pay,
       icon: const Icon(Icons.payments),
-      label: const Text('Record Payment'),
+      label: Text(context.l10n.khataRecordPayment),
     ),
     body: FutureBuilder<List<SupplierLedgerLine>>(
       future: lines,
@@ -659,21 +730,32 @@ class _SupplierDetailState extends State<_SupplierDetail> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Payable ${formatPkr(widget.supplier.payableMinor)}',
+            context.l10n.supplierPayableHeading(
+              bidiMoney(context, formatPkr(widget.supplier.payableMinor)),
+            ),
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           Text(
-            'Purchases ${formatPkr(widget.supplier.totalPurchasesMinor)} • Payments ${formatPkr(widget.supplier.totalPaymentsMinor)}',
+            context.l10n.supplierTotals(
+              bidiMoney(
+                context,
+                formatPkr(widget.supplier.totalPurchasesMinor),
+              ),
+              bidiMoney(context, formatPkr(widget.supplier.totalPaymentsMinor)),
+            ),
           ),
           const Divider(),
           for (final l in s.data ?? [])
             ListTile(
               title: Text(
-                l.type == SupplierLedgerType.purchase ? 'Purchase' : 'Payment',
+                l.type == SupplierLedgerType.purchase
+                    ? context.l10n.movementPurchase
+                    : context.l10n.ledgerPayment,
               ),
-              subtitle: Text(_date(l.date)),
+              subtitle: Text(bidiId(context, _date(l.date))),
               trailing: Text(
-                '${l.signedAmountMinor > 0 ? '+' : '-'}${formatPkr(l.amountMinor)} • ${formatPkr(l.runningBalanceMinor)}',
+                '${bidiMoney(context, '${l.signedAmountMinor > 0 ? '+' : '-'}${formatPkr(l.amountMinor)}')} • '
+                '${bidiMoney(context, formatPkr(l.runningBalanceMinor))}',
               ),
             ),
         ],
@@ -686,9 +768,27 @@ class _SupplierDetailState extends State<_SupplierDetail> {
       builder: (_) => _PayDialog(maximumMinor: widget.supplier.payableMinor),
     );
     if (v != null) {
-      await widget.onPay(v.$1, v.$2, v.$3, v.$4);
+      // A refused or failed payment used to escape unhandled with no message;
+      // the owner now always sees whether it was recorded.
+      try {
+        await widget.onPay(v.$1, v.$2, v.$3, v.$4);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.l10n.supplierPaymentFailed)),
+          );
+        }
+        return;
+      }
       if (mounted) {
-        setState(() => lines = widget.repo.statement(widget.supplier.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.supplierPaymentSaved)),
+        );
+        // Block body (see refresh): the statement now refreshes after a
+        // payment instead of throwing in debug builds.
+        setState(() {
+          lines = widget.repo.statement(widget.supplier.id);
+        });
       }
     }
   }
@@ -716,32 +816,39 @@ class _PayDialogState extends State<_PayDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Supplier Payment'),
+    title: Text(context.l10n.supplierPaymentTitle),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
           controller: amount,
-          decoration: const InputDecoration(
-            labelText: 'Amount',
+          inputFormatters: const [AsciiDigitsFormatter()],
+          decoration: InputDecoration(
+            labelText: context.l10n.khataAmount,
             prefixText: 'Rs ',
           ),
         ),
         SegmentedButton<PaymentMethod>(
-          segments: const [
-            ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
-            ButtonSegment(value: PaymentMethod.digital, label: Text('Digital')),
+          segments: [
+            ButtonSegment(
+              value: PaymentMethod.cash,
+              label: Text(context.l10n.paymentCash),
+            ),
+            ButtonSegment(
+              value: PaymentMethod.digital,
+              label: Text(context.l10n.paymentDigital),
+            ),
           ],
           selected: {method},
           onSelectionChanged: (v) => setState(() => method = v.single),
         ),
         TextField(
           controller: ref,
-          decoration: const InputDecoration(labelText: 'Reference'),
+          decoration: InputDecoration(labelText: context.l10n.commonReference),
         ),
         TextField(
           controller: note,
-          decoration: const InputDecoration(labelText: 'Note'),
+          decoration: InputDecoration(labelText: context.l10n.commonNote),
         ),
       ],
     ),
@@ -753,7 +860,7 @@ class _PayDialogState extends State<_PayDialog> {
             Navigator.pop(context, (v, method, _o(ref.text), _o(note.text)));
           }
         },
-        child: const Text('Record'),
+        child: Text(context.l10n.supplierPaymentRecord),
       ),
     ],
   );
@@ -765,27 +872,38 @@ class _PurchaseDetail extends StatelessWidget {
   final DriftPurchaseRepository repo;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(purchase.invoiceNumber ?? 'Purchase')),
+    appBar: AppBar(
+      title: Text(
+        purchase.invoiceNumber == null
+            ? context.l10n.movementPurchase
+            : bidiId(context, purchase.invoiceNumber!),
+      ),
+    ),
     body: FutureBuilder<List<PurchaseLineView>>(
       future: repo.purchaseLines(purchase.id),
       builder: (context, s) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            purchase.supplierName,
+            bidiName(context, purchase.supplierName),
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           Text(
-            'Total ${formatPkr(purchase.totalMinor)} • Paid ${formatPkr(purchase.paidMinor)} • Due ${formatPkr(purchase.dueMinor)}',
+            context.l10n.purchaseTotals(
+              bidiMoney(context, formatPkr(purchase.totalMinor)),
+              bidiMoney(context, formatPkr(purchase.paidMinor)),
+              bidiMoney(context, formatPkr(purchase.dueMinor)),
+            ),
           ),
           const Divider(),
           for (final l in s.data ?? [])
             ListTile(
-              title: Text(l.name),
+              title: Text(productDisplayName(context, l.name)),
               subtitle: Text(
-                '${quantityToInput(l.quantity)} × ${formatPkr(l.unitCostMinor)}',
+                '${bidiQuantity(context, quantityToInput(l.quantity))} × '
+                '${bidiMoney(context, formatPkr(l.unitCostMinor))}',
               ),
-              trailing: Text(formatPkr(l.lineTotalMinor)),
+              trailing: Text(bidiMoney(context, formatPkr(l.lineTotalMinor))),
             ),
         ],
       ),
@@ -802,7 +920,9 @@ final class _Data {
 String? _o(String s) => s.trim().isEmpty ? null : s.trim();
 String _date(DateTime d) => '${d.day}/${d.month}/${d.year}';
 int? parseQuantity(String input) {
-  final m = RegExp(r'^(\d+)(?:\.(\d{1,3}))?$').firstMatch(input.trim());
+  final m = RegExp(
+    r'^(\d{1,9})(?:\.(\d{1,3}))?$',
+  ).firstMatch(normalizeDigits(input).trim());
   if (m == null) return null;
   final whole = int.parse(m.group(1)!);
   final fraction = (m.group(2) ?? '').padRight(3, '0');

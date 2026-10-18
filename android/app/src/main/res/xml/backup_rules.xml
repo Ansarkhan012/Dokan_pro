@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower (android:fullBackupContent).
+     sharedpref: the owner's Supabase session, secure storage (device
+     credential, cashier session) and the device identifier.
+     file/dukaan_pro.sqlite*: the local database (customers, phones, Udhaar,
+     sales, the unsynced outbox) and its SQLite companion files. It is plain
+     SQLite (SEC-2), and a copy restored onto another tablet would carry an
+     outbox its new device identity cannot upload. The cloud is the system of
+     record; a restored or replaced tablet pulls its data again.
+     Product photos (file/product_images/) stay in the backup: they are not
+     personal data and, until cloud image storage exists (IMG-1), the backup
+     is their only copy off the tablet. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="dukaan_pro.sqlite" />
+    <exclude domain="file" path="dukaan_pro.sqlite-journal" />
+    <exclude domain="file" path="dukaan_pro.sqlite-wal" />
+    <exclude domain="file" path="dukaan_pro.sqlite-shm" />
+</full-backup-content>

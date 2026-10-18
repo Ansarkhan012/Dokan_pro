@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/domain/enums.dart';
 import '../pos/pos_state.dart';
+import '../sales/domain/bill_reference.dart';
 import 'customer_models.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/messages.dart';
 
 abstract interface class CustomerKhataActions {
   Future<List<CustomerAccount>> searchCustomers(String query);
@@ -28,7 +33,11 @@ class _CustomerKhataViewState extends State<CustomerKhataView> {
     '',
   );
   void refresh() =>
-      setState(() => customers = widget.actions.searchCustomers(search.text));
+      // Block body: a closure returning the Future makes setState throw in
+      // debug builds (the list then never refreshed).
+      setState(() {
+        customers = widget.actions.searchCustomers(search.text);
+      });
   @override
   void dispose() {
     search.dispose();
@@ -43,9 +52,9 @@ class _CustomerKhataViewState extends State<CustomerKhataView> {
         child: TextField(
           controller: search,
           onChanged: (_) => refresh(),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            labelText: 'Search customer name or phone',
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            labelText: context.l10n.khataSearchLabel,
           ),
         ),
       ),
@@ -55,11 +64,15 @@ class _CustomerKhataViewState extends State<CustomerKhataView> {
           builder: (context, snap) {
             if (!snap.hasData) {
               return snap.hasError
-                  ? Center(child: Text('Could not load Khata: ${snap.error}'))
+                  ? Center(
+                      child: Text(
+                        context.l10n.khataLoadFailed('${snap.error}'),
+                      ),
+                    )
                   : const Center(child: CircularProgressIndicator());
             }
             if (snap.data!.isEmpty) {
-              return const Center(child: Text('No customers found.'));
+              return Center(child: Text(context.l10n.khataNoCustomers));
             }
             return ListView.builder(
               itemCount: snap.data!.length,
@@ -69,14 +82,10 @@ class _CustomerKhataViewState extends State<CustomerKhataView> {
                   leading: CircleAvatar(
                     child: Text(customer.name.substring(0, 1).toUpperCase()),
                   ),
-                  title: Text(customer.name),
-                  subtitle: Text(
-                    '${customer.phone ?? 'No phone'}${customer.isActive ? '' : ' • Inactive'}',
-                  ),
+                  title: Text(bidiName(context, customer.name)),
+                  subtitle: Text(customerPhoneLine(context, customer)),
                   trailing: Text(
-                    customer.balanceMinor == 0
-                        ? 'Clear'
-                        : '${formatPkr(customer.balanceMinor)} due',
+                    customerBalanceLabel(context, customer.balanceMinor),
                     style: TextStyle(
                       color: customer.balanceMinor > 0
                           ? Colors.red.shade700
@@ -122,14 +131,17 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
   late Future<List<CustomerLedgerLine>> lines = widget.actions.statement(
     widget.customer.id,
   );
+
+  /// A payment is being recorded: a second tap must not record it twice.
+  bool receiving = false;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.customer.name)),
+    appBar: AppBar(title: Text(bidiName(context, widget.customer.name))),
     floatingActionButton: widget.customer.isActive
         ? FloatingActionButton.extended(
-            onPressed: receive,
+            onPressed: receiving ? null : receive,
             icon: const Icon(Icons.payments_outlined),
-            label: const Text('Receive Payment'),
+            label: Text(context.l10n.khataReceivePayment),
           )
         : null,
     body: FutureBuilder<List<CustomerLedgerLine>>(
@@ -148,31 +160,37 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                   spacing: 28,
                   runSpacing: 12,
                   children: [
-                    _metric('Balance', formatPkr(widget.customer.balanceMinor)),
                     _metric(
-                      'Credit limit',
+                      context.l10n.khataBalance,
+                      _money(context, widget.customer.balanceMinor),
+                    ),
+                    _metric(
+                      context.l10n.khataCreditLimit,
                       widget.customer.creditLimitMinor == null
-                          ? 'Not set'
-                          : formatPkr(widget.customer.creditLimitMinor!),
+                          ? context.l10n.khataNotSet
+                          : _money(context, widget.customer.creditLimitMinor!),
                     ),
                     _metric(
-                      'Credit sales',
-                      formatPkr(widget.customer.totalCreditMinor),
+                      context.l10n.khataCreditSales,
+                      _money(context, widget.customer.totalCreditMinor),
                     ),
                     _metric(
-                      'Payments',
-                      formatPkr(widget.customer.totalPaymentsMinor),
+                      context.l10n.khataPayments,
+                      _money(context, widget.customer.totalPaymentsMinor),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            Text('Statement', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              context.l10n.khataStatement,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             if (snap.data!.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No ledger entries yet.')),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(child: Text(context.l10n.khataNoEntries)),
               ),
             for (final line in snap.data!)
               ListTile(
@@ -184,19 +202,24 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                       ? Colors.red
                       : Colors.green,
                 ),
-                title: Text(_ledgerLabel(line)),
+                title: Text(_ledgerLabel(context, line)),
                 subtitle: Text(
-                  '${_date(line.createdAt)}${line.note == null ? '' : ' • ${line.note}'}',
+                  '${_date(line.createdAt)}${line.note == null ? '' : ' • ${bidiName(context, line.note!)}'}',
                 ),
                 trailing: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '${line.signedAmountMinor >= 0 ? '+' : '-'}${formatPkr(line.amountMinor.abs())}',
+                      bidiMoney(
+                        context,
+                        '${line.signedAmountMinor >= 0 ? '+' : '-'}${formatPkr(line.amountMinor.abs())}',
+                      ),
                     ),
                     Text(
-                      'Balance ${formatPkr(line.runningBalanceMinor)}',
+                      context.l10n.khataRunningBalance(
+                        _money(context, line.runningBalanceMinor),
+                      ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -222,6 +245,16 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     ),
   );
   Future<void> receive() async {
+    if (receiving) return;
+    setState(() => receiving = true);
+    try {
+      await _receive();
+    } finally {
+      if (mounted) setState(() => receiving = false);
+    }
+  }
+
+  Future<void> _receive() async {
     final request = await showDialog<_PaymentInput>(
       context: context,
       builder: (_) =>
@@ -237,20 +270,18 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
         note: request.note,
       );
       if (!mounted) return;
-      setState(() => lines = widget.actions.statement(widget.customer.id));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment saved locally and queued for sync.'),
-        ),
-      );
+      // Block body: returning the Future made setState throw in debug
+      // builds, so a saved payment was reported as "could not be recorded".
+      setState(() {
+        lines = widget.actions.statement(widget.customer.id);
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.khataPaymentSaved)));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Payment could not be recorded. Nothing was changed.',
-            ),
-          ),
+          SnackBar(content: Text(context.l10n.khataPaymentFailed)),
         );
       }
     }
@@ -281,7 +312,7 @@ class _ReceivePaymentDialogState extends State<_ReceivePaymentDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Receive Payment'),
+    title: Text(context.l10n.khataReceivePayment),
     content: SizedBox(
       width: 420,
       child: Column(
@@ -289,18 +320,22 @@ class _ReceivePaymentDialogState extends State<_ReceivePaymentDialog> {
         children: [
           TextField(
             controller: amount,
+            inputFormatters: const [AsciiDigitsFormatter()],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Amount',
+            decoration: InputDecoration(
+              labelText: context.l10n.khataAmount,
               prefixText: 'Rs ',
             ),
           ),
           SegmentedButton<PaymentMethod>(
-            segments: const [
-              ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
+            segments: [
+              ButtonSegment(
+                value: PaymentMethod.cash,
+                label: Text(context.l10n.paymentCash),
+              ),
               ButtonSegment(
                 value: PaymentMethod.digital,
-                label: Text('Digital'),
+                label: Text(context.l10n.paymentDigital),
               ),
             ],
             selected: {method},
@@ -308,17 +343,19 @@ class _ReceivePaymentDialogState extends State<_ReceivePaymentDialog> {
           ),
           TextField(
             controller: reference,
-            decoration: const InputDecoration(
-              labelText: 'Reference (optional)',
+            decoration: InputDecoration(
+              labelText: context.l10n.khataReferenceOptional,
             ),
           ),
           TextField(
             controller: note,
-            decoration: const InputDecoration(labelText: 'Note (optional)'),
+            decoration: InputDecoration(
+              labelText: context.l10n.khataNoteOptional,
+            ),
           ),
           if (error != null)
             Text(
-              error!,
+              localizedMessage(context.l10n, error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
         ],
@@ -327,7 +364,7 @@ class _ReceivePaymentDialogState extends State<_ReceivePaymentDialog> {
     actions: [
       TextButton(
         onPressed: submitting ? null : () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: submitting
@@ -356,7 +393,7 @@ class _ReceivePaymentDialogState extends State<_ReceivePaymentDialog> {
                   ),
                 );
               },
-        child: const Text('Record Payment'),
+        child: Text(context.l10n.khataRecordPayment),
       ),
     ],
   );
@@ -372,12 +409,31 @@ final class _PaymentInput {
 String? _optional(String v) => v.trim().isEmpty ? null : v.trim();
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
-String _ledgerLabel(CustomerLedgerLine line) => switch (line.type) {
-  CustomerLedgerType.creditSale =>
-    'Sale${line.saleId == null ? '' : ' • ${line.saleId!.substring(0, 8)}'}',
-  CustomerLedgerType.paymentReceived =>
-    'Payment${line.paymentMethod == null ? '' : ' • ${line.paymentMethod}'}',
-  CustomerLedgerType.openingBalance => 'Opening balance',
-  CustomerLedgerType.refund => 'Return adjustment',
-  CustomerLedgerType.adjustment => 'Manual adjustment',
-};
+String _ledgerLabel(BuildContext context, CustomerLedgerLine line) {
+  final l10n = context.l10n;
+  return switch (line.type) {
+    CustomerLedgerType.creditSale =>
+      '${l10n.ledgerSale}${line.saleId == null ? '' : ' • ${bidiId(context, billReference(line.saleId!))}'}',
+    CustomerLedgerType.paymentReceived =>
+      '${l10n.ledgerPayment}${line.paymentMethod == null ? '' : ' • ${l10n.paymentStored(line.paymentMethod!, line.paymentMethod!)}'}',
+    CustomerLedgerType.openingBalance => l10n.ledgerOpeningBalance,
+    CustomerLedgerType.refund => l10n.ledgerReturnAdjustment,
+    CustomerLedgerType.adjustment => l10n.ledgerManualAdjustment,
+  };
+}
+
+String _money(BuildContext context, int minor) =>
+    bidiMoney(context, formatPkr(minor));
+
+/// `0300 1234567` (or `No phone`), plus ` • Inactive`, in the UI language.
+String customerPhoneLine(BuildContext context, CustomerAccount customer) {
+  final phone = customer.phone;
+  return '${phone == null ? context.l10n.khataNoPhone : bidiId(context, phone)}'
+      '${customer.isActive ? '' : ' • ${context.l10n.productsInactive}'}';
+}
+
+/// `Clear`, or `Rs 1,200.00 due`, in the UI language.
+String customerBalanceLabel(BuildContext context, int balanceMinor) =>
+    balanceMinor == 0
+    ? context.l10n.khataBalanceClear
+    : context.l10n.khataDue(_money(context, balanceMinor));

@@ -40,6 +40,9 @@ class SaleItems extends Table {
   IntColumn get discountAmount => integer()();
   IntColumn get lineTotal => integer()();
   DateTimeColumn get createdAt => dateTime()();
+
+  /// U1 (v13): `kg` / `liter` for a measured line, null for a count.
+  TextColumn get measureUnitSnapshot => text().nullable()();
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

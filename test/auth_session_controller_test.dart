@@ -160,9 +160,5 @@ final class _FakeAuth implements AuthRepository {
   }
 
   @override
-  Future<void> signUp({
-    required String email,
-    required String password,
-    required String fullName,
-  }) async {}
+  Future<void> sendPasswordReset({required String email}) async {}
 }

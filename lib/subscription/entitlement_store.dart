@@ -16,6 +16,28 @@ final class TrustedTimeObservation {
       );
 }
 
+/// The server's refusal to issue an entitlement for this shop and device,
+/// recorded when the device reconnects. While present it blocks financial
+/// mutations whatever the cached token says; a later successful issuance
+/// clears it. [code] is the server's stable reason: DPL01 shop not active
+/// (pending or suspended), DPL02 device not approved or revoked, DPL03 no
+/// subscription.
+final class EntitlementRevocation {
+  const EntitlementRevocation(this.code, this.recordedAt);
+  final String code;
+  final DateTime recordedAt;
+  bool get shopNotActive => code == 'DPL01';
+  Map<String, dynamic> toJson() => {
+    'code': code,
+    'recorded_at': recordedAt.toUtc().toIso8601String(),
+  };
+  factory EntitlementRevocation.fromJson(Map<String, dynamic> j) =>
+      EntitlementRevocation(
+        j['code'] as String,
+        DateTime.parse(j['recorded_at'] as String).toUtc(),
+      );
+}
+
 abstract interface class EntitlementStore {
   Future<SignedEntitlement?> read(String shopId, String deviceId);
   Future<TrustedTimeObservation?> readTime(String shopId, String deviceId);
@@ -24,6 +46,14 @@ abstract interface class EntitlementStore {
     String deviceId,
     SignedEntitlement token,
     TrustedTimeObservation time,
+  );
+  Future<EntitlementRevocation?> readRevocation(String shopId, String deviceId);
+
+  /// Records a refusal, or clears it with null.
+  Future<void> writeRevocation(
+    String shopId,
+    String deviceId,
+    EntitlementRevocation? revocation,
   );
 }
 
@@ -66,5 +96,29 @@ final class SecureEntitlementStore implements EntitlementStore {
       key: _key(s, d, 'time'),
       value: jsonEncode(time.toJson()),
     );
+  }
+
+  @override
+  Future<EntitlementRevocation?> readRevocation(String s, String d) async {
+    final v = await _storage.read(key: _key(s, d, 'revocation'));
+    return v == null
+        ? null
+        : EntitlementRevocation.fromJson(jsonDecode(v) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> writeRevocation(
+    String s,
+    String d,
+    EntitlementRevocation? revocation,
+  ) async {
+    if (revocation == null) {
+      await _storage.delete(key: _key(s, d, 'revocation'));
+    } else {
+      await _storage.write(
+        key: _key(s, d, 'revocation'),
+        value: jsonEncode(revocation.toJson()),
+      );
+    }
   }
 }

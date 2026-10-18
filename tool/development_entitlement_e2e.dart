@@ -8,6 +8,7 @@ import 'package:dukaan_pro/subscription/entitlement_verifier.dart';
 import 'package:dukaan_pro/subscription/supabase_entitlement_gateway.dart';
 import 'package:supabase/supabase.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../test_r1/support/totp.dart';
 
 const url = String.fromEnvironment('E2E_SUPABASE_URL');
 const anonKey = String.fromEnvironment('E2E_SUPABASE_ANON_KEY');
@@ -31,11 +32,36 @@ Future<void> _run() async {
   final auth = await client.auth.signUp(email: email, password: password);
   if (auth.session == null) throw StateError('Owner authentication failed.');
 
-  final created = await client.rpc(
-    'create_owner_shop',
-    params: {'p_name': 'Entitlement E2E', 'p_phone': '', 'p_address': ''},
+  // Shops are created by a platform admin (migration 202610140001). On a
+  // local stack with supabase/dev/r1_local_platform_admin.sql applied, an
+  // @r1-admin.test sign-up is one.
+  final admin = SupabaseClient(
+    url,
+    anonKey,
+    authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
   );
-  final shopId = ((created as List).single as Map)['shop_id'] as String;
+  final adminAuth = await admin.auth.signUp(
+    email: 'entitlement-e2e-admin-$marker@r1-admin.test',
+    password: password,
+  );
+  if (adminAuth.session == null) throw StateError('Admin sign-up failed.');
+  // Admin RPCs require a verified-MFA (AAL2) session (202610160001).
+  await elevateToAal2(admin);
+  final shopId =
+      await admin.rpc(
+            'admin_create_shop',
+            params: {
+              'p_name': 'Entitlement E2E',
+              'p_phone': '',
+              'p_address': '',
+              'p_owner_email': email,
+            },
+          )
+          as String;
+  await admin.rpc(
+    'admin_set_shop_status',
+    params: {'p_shop_id': shopId, 'p_status': 'active', 'p_note': 'E2E'},
+  );
   final registered = await client.rpc(
     'register_shop_device',
     params: {
@@ -172,6 +198,16 @@ Future<void> _expectHttpFailure(
 final class _MemoryStore implements EntitlementStore {
   SignedEntitlement? token;
   TrustedTimeObservation? time;
+  EntitlementRevocation? revocation;
+  @override
+  Future<EntitlementRevocation?> readRevocation(String s, String d) async =>
+      revocation;
+  @override
+  Future<void> writeRevocation(
+    String s,
+    String d,
+    EntitlementRevocation? value,
+  ) async => revocation = value;
   @override
   Future<SignedEntitlement?> read(String shopId, String deviceId) async =>
       token;

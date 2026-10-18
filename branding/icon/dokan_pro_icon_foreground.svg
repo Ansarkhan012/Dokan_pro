@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024">
+  <title>Dokan Pro</title>
+  <path fill="#F4B63F" d="M30,35 A3,3 0 0,1 33,32 H42 V41 A6,6 0 0,1 30,41 Z"/>
+  <path fill="#FFFFFF" d="M42,32 H54 V41 A6,6 0 0,1 42,41 Z"/>
+  <path fill="#F4B63F" d="M54,32 H66 V41 A6,6 0 0,1 54,41 Z"/>
+  <path fill="#FFFFFF" d="M66,32 H75 A3,3 0 0,1 78,35 V41 A6,6 0 0,1 66,41 Z"/>
+  <path fill="#FFFFFF" d="M33,50 H75 V73 A3,3 0 0,1 72,76 H61 V66 A7,7 0 0,0 47,66 V76 H36 A3,3 0 0,1 33,73 Z"/>
+</svg>

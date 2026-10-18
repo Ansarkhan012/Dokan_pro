@@ -1,0 +1,9 @@
+# Stage 2 localization (Flutter gen-l10n). English is the template and the
+# default; Urdu (ur) is right-to-left. See STAGE2_LOCALIZATION_PLAN.md.
+arb-dir: lib/l10n
+output-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+untranslated-messages-file: build/l10n_untranslated.txt

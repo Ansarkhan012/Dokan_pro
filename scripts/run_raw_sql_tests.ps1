@@ -19,6 +19,11 @@ $rawTests = @(
     'expense_security.sql'
     'owner_reporting_security.sql'
     'subscription_security.sql'
+    'cashier_device_boundary_security.sql'
+    'units_variants_security.sql'
+    'platform_admin_licensing_security.sql'
+    'product_image_storage_security.sql'
+    'admin_master_catalog_security.sql'
 )
 
 $running = & docker inspect --format '{{.State.Running}}' $databaseContainer 2>$null

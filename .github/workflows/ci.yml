@@ -14,7 +14,8 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # Recovery branches (r1/*, r2/*, ...) must be verified before any merge.
+    branches: [main, 'r[0-9]*/**']
   pull_request:
   workflow_dispatch:
 
@@ -34,7 +35,7 @@ env:
   # never lower them to make CI pass.
   BASELINE_MIN_FLUTTER_PASSED: "95"
   BASELINE_MAX_FLUTTER_SKIPPED: "1"
-  BASELINE_MIN_MIGRATIONS: "18"
+  BASELINE_MIN_MIGRATIONS: "20"
   BASELINE_MIN_RAW_SQL_FILES: "10"
   BASELINE_MIN_PGTAP_TESTS: "40"
 
@@ -164,6 +165,154 @@ jobs:
           test -n "${tests}"
           test "${tests}" -ge "${BASELINE_MIN_PGTAP_TESTS}"
           echo "::notice title=pgTAP::${tests} pgTAP tests passed in ${files} files"
+      - name: Stop stack
+        if: always()
+        run: supabase stop --no-backup
+
+  r1-integration:
+    name: R1 integration (disposable local stack, HTTP + direct DB, TZ matrix, expected-red gate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@f2c4f6686ca8e8d6e6d0f28410eeef506ed66aff # v2.18.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: supabase/setup-cli@d347ba47d3fb7eeeddbbc793bc8d4779caf773ea # v1.5.0
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Restore dependencies (lock file must not change)
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          git diff --exit-code pubspec.lock
+      - name: Local-target guard (fails closed before any stack exists)
+        run: |
+          set -uo pipefail
+          flutter test test_r1/guard --reporter expanded --file-reporter json:"${RUNNER_TEMP}/guard.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/guard.json"             --label "R1 local-target guard" --min-passed 15 --max-skipped 0
+      - name: Time-zone matrix proves TZ actually changed
+        run: |
+          set -euo pipefail
+          TZ=UTC flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=0 --reporter expanded
+          TZ=Asia/Karachi flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=300 --reporter expanded
+          TZ=EST5 flutter test test_r1/tz --dart-define=EXPECTED_TZ_OFFSET_MINUTES=-300 --reporter expanded
+          echo "::notice title=TZ matrix::UTC (+0), Asia/Karachi (+300 min) and EST5 (-300 min) verified"
+      - name: R1.1 checkout durability suite (green, local Drift only)
+        run: |
+          set -uo pipefail
+          flutter test test_r1/green --reporter expanded --file-reporter json:"${RUNNER_TEMP}/green.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/green.json" \
+            --label "R1.1 checkout durability (green)" --min-passed 79 --max-skipped 0
+      - name: Start fresh local Supabase stack (all migrations + seed from zero)
+        run: |
+          set -euo pipefail
+          test "$(supabase --version)" = "${SUPABASE_CLI_VERSION}"
+          supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector \
+            > "${RUNNER_TEMP}/supabase-start.txt" 2>&1 || {
+              tail -n 25 "${RUNNER_TEMP}/supabase-start.txt" | sed -E 's/(eyJ|sb_secret_|sb_publishable_)[A-Za-z0-9._-]*/[redacted]/g'
+              exit 1; }
+          applied=$(docker exec supabase_db_POS_store psql -X -U postgres -d postgres -At \
+            -c "select count(*) from supabase_migrations.schema_migrations")
+          test "${applied}" = "$(ls supabase/migrations/*.sql | wc -l)"
+          test "${applied}" -ge "${BASELINE_MIN_MIGRATIONS}"
+          echo "::notice title=R1 stack::${applied} migrations applied from zero"
+          # Local-only harness admin (shops are created by platform admins).
+          docker exec -i supabase_db_POS_store psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1             < supabase/dev/r1_local_platform_admin.sql
+      - name: Export local-only HTTP endpoint (loopback URL + local anon key)
+        run: |
+          set -euo pipefail
+          supabase status -o env > "${RUNNER_TEMP}/status.env"
+          url=$(grep '^API_URL=' "${RUNNER_TEMP}/status.env" | cut -d= -f2- | tr -d '"')
+          key=$(grep '^ANON_KEY=' "${RUNNER_TEMP}/status.env" | cut -d= -f2- | tr -d '"')
+          rm -f "${RUNNER_TEMP}/status.env"
+          echo "::add-mask::${key}"
+          case "${url}" in http://127.0.0.1:*|http://localhost:*) ;; *) echo "::error::non-local API_URL"; exit 1 ;; esac
+          echo "R1_HTTP_URL=${url}" >> "${GITHUB_ENV}"
+          echo "R1_HTTP_ANON_KEY=${key}" >> "${GITHUB_ENV}"
+      - name: Direct-DB layer (green)
+        run: |
+          set -uo pipefail
+          flutter test test_r1/direct_db --dart-define=R1_SERVER=true --reporter expanded \
+            --file-reporter json:"${RUNNER_TEMP}/direct.json"
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/direct.json" \
+            --label "R1 direct-DB (green)" --min-passed 28 --max-skipped 0
+      - name: HTTP layer through Kong/PostgREST/GoTrue (green)
+        run: |
+          # GitHub runs `run:` steps with `bash -e`; turn it off so the gate and
+          # the diagnostics below always run (step logs need sign-in on this
+          # public repository). The step still fails if flutter or the gate did.
+          set +e
+          set -uo pipefail
+          out="${RUNNER_TEMP}/http.txt"
+          flutter test test_r1/http --reporter expanded \
+            --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
+            --file-reporter json:"${RUNNER_TEMP}/http.json" 2>&1 | tee "${out}"
+          flutter_status=${PIPESTATUS[0]}
+          python3 .github/scripts/flutter_test_counts.py "${RUNNER_TEMP}/http.json" \
+            --label "R1 HTTP (green)" --min-passed 21 --max-skipped 0
+          gate_status=$?
+          echo "::notice title=R1 HTTP exit codes::flutter test=${flutter_status} gate=${gate_status}"
+          if [ "${flutter_status}" -ne 0 ] || [ "${gate_status}" -ne 0 ]; then
+            # One annotation per chunk (sanitized; '%' and newlines encoded).
+            annotate() {
+              sed -E 's/(eyJ|sb_secret_|sb_publishable_)[A-Za-z0-9._-]*/[redacted]/g; s/%/%25/g; s/\r//g' \
+                | awk 'BEGIN{ORS="%0A"} {print}' | sed "s|^|::error title=$1::|"
+              echo
+            }
+            echo "flutter test=${flutter_status} gate=${gate_status}" | annotate "R1 HTTP exit codes"
+            # Each failing test: name line plus the error and stack that follow it.
+            grep -n -A25 -E '\[E\]$' "${out}" | head -n 104 | annotate "R1 HTTP failing tests"
+            # Final output, in chunks.
+            tail -n 150 "${out}" | head -n 50 | annotate "R1 HTTP output tail 1/3"
+            tail -n 100 "${out}" | head -n 50 | annotate "R1 HTTP output tail 2/3"
+            tail -n 50 "${out}" | annotate "R1 HTTP output tail 3/3"
+            exit 1
+          fi
+      - name: R1.2 timestamp suite under UTC, Asia/Karachi and EST5 (local + direct DB + HTTP)
+        run: |
+          set -uo pipefail
+          status=0
+          for zone in UTC Asia/Karachi EST5; do
+            report="${RUNNER_TEMP}/time-$(echo "${zone}" | tr '/' '-').json"
+            TZ="${zone}" flutter test test_r1/green/t1_timestamp_local_test.dart \
+              test_r1/direct_db/t1_timestamp_test.dart test_r1/http/timestamp_http_test.dart \
+              --dart-define=R1_SERVER=true --reporter expanded \
+              --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
+              --file-reporter json:"${report}"
+            python3 .github/scripts/flutter_test_counts.py "${report}" \
+              --label "R1.2 timestamps TZ=${zone}" --min-passed 20 --max-skipped 0 || status=1
+            # R1.3: local void, and the server void window / restart / F-2 in each zone.
+            void_report="${RUNNER_TEMP}/void-$(echo "${zone}" | tr '/' '-').json"
+            TZ="${zone}" flutter test test_r1/green/void_local_test.dart test_r1/direct_db/void_convergence_test.dart \
+              --name '^(B|C|D|K|L|F-2|a second|a failure)' --dart-define=R1_SERVER=true --reporter expanded \
+              --file-reporter json:"${void_report}"
+            python3 .github/scripts/flutter_test_counts.py "${void_report}" \
+              --label "R1.3 void TZ=${zone}" --min-passed 9 --max-skipped 0 || status=1
+          done
+          exit "${status}"
+      - name: Expected-red recovery suite under TZ=Asia/Karachi (gate)
+        run: |
+          set -euo pipefail
+          # With no test files `flutter test test_r1/red` would run test/ instead.
+          # Without a report the gate passes only for an empty manifest.
+          rm -f "${RUNNER_TEMP}/red.json"
+          if compgen -G "test_r1/red/*_test.dart" > /dev/null; then
+            TZ=Asia/Karachi flutter test test_r1/red --concurrency=2 --dart-define=R1_SERVER=true \
+              --dart-define=R1_HTTP_URL="${R1_HTTP_URL}" --dart-define=R1_HTTP_ANON_KEY="${R1_HTTP_ANON_KEY}" \
+              --file-reporter json:"${RUNNER_TEMP}/red.json" > "${RUNNER_TEMP}/red.txt" 2>&1 || true
+          fi
+          python3 .github/scripts/expect_red.py "${RUNNER_TEMP}/red.json" --manifest test_r1/red/EXPECTED_RED.txt
+      - name: No scratch database left behind
+        if: always()
+        run: |
+          left=$(docker exec supabase_db_POS_store psql -X -U postgres -d postgres -At \
+            -c "select count(*) from pg_database where datname like 'r1_%'" 2>/dev/null || echo 0)
+          test "${left}" = "0"
       - name: Stop stack
         if: always()
         run: supabase stop --no-backup

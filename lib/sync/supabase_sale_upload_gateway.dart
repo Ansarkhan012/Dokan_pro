@@ -6,7 +6,7 @@ final class SupabaseSaleUploadGateway implements SaleUploadGateway {
   SupabaseSaleUploadGateway(this.client);
   final SupabaseClient client;
   @override
-  Future<void> uploadSaleAggregate(
+  Future<Object?> uploadSaleAggregate(
     Map<String, dynamic> payload, {
     String? cashierSessionToken,
   }) async {
@@ -21,12 +21,10 @@ final class SupabaseSaleUploadGateway implements SaleUploadGateway {
       'sync_sale_void' => 'sync_sale_void',
       _ => 'sync_sale_transaction',
     };
-    await client.rpc(
+    return await client.rpc(
       rpc,
       params: {
-        'p_payload': operation == 'sync_sale_transaction'
-            ? normalizeSalePayloadForCloud(payload)
-            : payload,
+        'p_payload': payloadForCloud(payload),
         'p_cashier_token': cashierSessionToken,
       },
     );

@@ -3855,6 +3855,54 @@ class $ShopProductsTable extends ShopProducts
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sellModeMeta = const VerificationMeta(
+    'sellMode',
+  );
+  @override
+  late final GeneratedColumn<String> sellMode = GeneratedColumn<String>(
+    'sell_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: Constant(SellMode.piece.name),
+  );
+  static const VerificationMeta _familyIdMeta = const VerificationMeta(
+    'familyId',
+  );
+  @override
+  late final GeneratedColumn<String> familyId = GeneratedColumn<String>(
+    'family_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _measurePresetsMeta = const VerificationMeta(
+    'measurePresets',
+  );
+  @override
+  late final GeneratedColumn<String> measurePresets = GeneratedColumn<String>(
+    'measure_presets',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _allowCustomQuantityMeta =
+      const VerificationMeta('allowCustomQuantity');
+  @override
+  late final GeneratedColumn<bool> allowCustomQuantity = GeneratedColumn<bool>(
+    'allow_custom_quantity',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_custom_quantity" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3873,6 +3921,10 @@ class $ShopProductsTable extends ShopProducts
     isActive,
     createdAt,
     updatedAt,
+    sellMode,
+    familyId,
+    measurePresets,
+    allowCustomQuantity,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4003,6 +4055,36 @@ class $ShopProductsTable extends ShopProducts
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('sell_mode')) {
+      context.handle(
+        _sellModeMeta,
+        sellMode.isAcceptableOrUnknown(data['sell_mode']!, _sellModeMeta),
+      );
+    }
+    if (data.containsKey('family_id')) {
+      context.handle(
+        _familyIdMeta,
+        familyId.isAcceptableOrUnknown(data['family_id']!, _familyIdMeta),
+      );
+    }
+    if (data.containsKey('measure_presets')) {
+      context.handle(
+        _measurePresetsMeta,
+        measurePresets.isAcceptableOrUnknown(
+          data['measure_presets']!,
+          _measurePresetsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('allow_custom_quantity')) {
+      context.handle(
+        _allowCustomQuantityMeta,
+        allowCustomQuantity.isAcceptableOrUnknown(
+          data['allow_custom_quantity']!,
+          _allowCustomQuantityMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4076,6 +4158,22 @@ class $ShopProductsTable extends ShopProducts
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      sellMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sell_mode'],
+      )!,
+      familyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}family_id'],
+      ),
+      measurePresets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measure_presets'],
+      ),
+      allowCustomQuantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_custom_quantity'],
+      )!,
     );
   }
 
@@ -4102,6 +4200,15 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String sellMode;
+
+  /// Pack variants of one product share it. Grouping only, never sellable.
+  final String? familyId;
+
+  /// Measured quick quantities in thousandths, as a JSON array; null means
+  /// the defaults.
+  final String? measurePresets;
+  final bool allowCustomQuantity;
   const ShopProduct({
     required this.id,
     required this.shopId,
@@ -4119,6 +4226,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    required this.sellMode,
+    this.familyId,
+    this.measurePresets,
+    required this.allowCustomQuantity,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4155,6 +4266,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['sell_mode'] = Variable<String>(sellMode);
+    if (!nullToAbsent || familyId != null) {
+      map['family_id'] = Variable<String>(familyId);
+    }
+    if (!nullToAbsent || measurePresets != null) {
+      map['measure_presets'] = Variable<String>(measurePresets);
+    }
+    map['allow_custom_quantity'] = Variable<bool>(allowCustomQuantity);
     return map;
   }
 
@@ -4190,6 +4309,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: Value(isActive),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      sellMode: Value(sellMode),
+      familyId: familyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(familyId),
+      measurePresets: measurePresets == null && nullToAbsent
+          ? const Value.absent()
+          : Value(measurePresets),
+      allowCustomQuantity: Value(allowCustomQuantity),
     );
   }
 
@@ -4217,6 +4344,12 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      sellMode: serializer.fromJson<String>(json['sellMode']),
+      familyId: serializer.fromJson<String?>(json['familyId']),
+      measurePresets: serializer.fromJson<String?>(json['measurePresets']),
+      allowCustomQuantity: serializer.fromJson<bool>(
+        json['allowCustomQuantity'],
+      ),
     );
   }
   @override
@@ -4239,6 +4372,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'sellMode': serializer.toJson<String>(sellMode),
+      'familyId': serializer.toJson<String?>(familyId),
+      'measurePresets': serializer.toJson<String?>(measurePresets),
+      'allowCustomQuantity': serializer.toJson<bool>(allowCustomQuantity),
     };
   }
 
@@ -4259,6 +4396,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? sellMode,
+    Value<String?> familyId = const Value.absent(),
+    Value<String?> measurePresets = const Value.absent(),
+    bool? allowCustomQuantity,
   }) => ShopProduct(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -4280,6 +4421,12 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    sellMode: sellMode ?? this.sellMode,
+    familyId: familyId.present ? familyId.value : this.familyId,
+    measurePresets: measurePresets.present
+        ? measurePresets.value
+        : this.measurePresets,
+    allowCustomQuantity: allowCustomQuantity ?? this.allowCustomQuantity,
   );
   ShopProduct copyWithCompanion(ShopProductsCompanion data) {
     return ShopProduct(
@@ -4311,6 +4458,14 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      sellMode: data.sellMode.present ? data.sellMode.value : this.sellMode,
+      familyId: data.familyId.present ? data.familyId.value : this.familyId,
+      measurePresets: data.measurePresets.present
+          ? data.measurePresets.value
+          : this.measurePresets,
+      allowCustomQuantity: data.allowCustomQuantity.present
+          ? data.allowCustomQuantity.value
+          : this.allowCustomQuantity,
     );
   }
 
@@ -4332,7 +4487,11 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
           ..write('lowStockLevel: $lowStockLevel, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('sellMode: $sellMode, ')
+          ..write('familyId: $familyId, ')
+          ..write('measurePresets: $measurePresets, ')
+          ..write('allowCustomQuantity: $allowCustomQuantity')
           ..write(')'))
         .toString();
   }
@@ -4355,6 +4514,10 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
     isActive,
     createdAt,
     updatedAt,
+    sellMode,
+    familyId,
+    measurePresets,
+    allowCustomQuantity,
   );
   @override
   bool operator ==(Object other) =>
@@ -4375,7 +4538,11 @@ class ShopProduct extends DataClass implements Insertable<ShopProduct> {
           other.lowStockLevel == this.lowStockLevel &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.sellMode == this.sellMode &&
+          other.familyId == this.familyId &&
+          other.measurePresets == this.measurePresets &&
+          other.allowCustomQuantity == this.allowCustomQuantity);
 }
 
 class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
@@ -4395,6 +4562,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String> sellMode;
+  final Value<String?> familyId;
+  final Value<String?> measurePresets;
+  final Value<bool> allowCustomQuantity;
   final Value<int> rowid;
   const ShopProductsCompanion({
     this.id = const Value.absent(),
@@ -4413,6 +4584,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.sellMode = const Value.absent(),
+    this.familyId = const Value.absent(),
+    this.measurePresets = const Value.absent(),
+    this.allowCustomQuantity = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ShopProductsCompanion.insert({
@@ -4432,6 +4607,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     this.isActive = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.sellMode = const Value.absent(),
+    this.familyId = const Value.absent(),
+    this.measurePresets = const Value.absent(),
+    this.allowCustomQuantity = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -4456,6 +4635,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? sellMode,
+    Expression<String>? familyId,
+    Expression<String>? measurePresets,
+    Expression<bool>? allowCustomQuantity,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4476,6 +4659,11 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (sellMode != null) 'sell_mode': sellMode,
+      if (familyId != null) 'family_id': familyId,
+      if (measurePresets != null) 'measure_presets': measurePresets,
+      if (allowCustomQuantity != null)
+        'allow_custom_quantity': allowCustomQuantity,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4497,6 +4685,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String>? sellMode,
+    Value<String?>? familyId,
+    Value<String?>? measurePresets,
+    Value<bool>? allowCustomQuantity,
     Value<int>? rowid,
   }) {
     return ShopProductsCompanion(
@@ -4516,6 +4708,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      sellMode: sellMode ?? this.sellMode,
+      familyId: familyId ?? this.familyId,
+      measurePresets: measurePresets ?? this.measurePresets,
+      allowCustomQuantity: allowCustomQuantity ?? this.allowCustomQuantity,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4573,6 +4769,18 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (sellMode.present) {
+      map['sell_mode'] = Variable<String>(sellMode.value);
+    }
+    if (familyId.present) {
+      map['family_id'] = Variable<String>(familyId.value);
+    }
+    if (measurePresets.present) {
+      map['measure_presets'] = Variable<String>(measurePresets.value);
+    }
+    if (allowCustomQuantity.present) {
+      map['allow_custom_quantity'] = Variable<bool>(allowCustomQuantity.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4598,6 +4806,10 @@ class ShopProductsCompanion extends UpdateCompanion<ShopProduct> {
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('sellMode: $sellMode, ')
+          ..write('familyId: $familyId, ')
+          ..write('measurePresets: $measurePresets, ')
+          ..write('allowCustomQuantity: $allowCustomQuantity, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8179,6 +8391,17 @@ class $SaleItemsTable extends SaleItems
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _measureUnitSnapshotMeta =
+      const VerificationMeta('measureUnitSnapshot');
+  @override
+  late final GeneratedColumn<String> measureUnitSnapshot =
+      GeneratedColumn<String>(
+        'measure_unit_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -8193,6 +8416,7 @@ class $SaleItemsTable extends SaleItems
     discountAmount,
     lineTotal,
     createdAt,
+    measureUnitSnapshot,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -8312,6 +8536,15 @@ class $SaleItemsTable extends SaleItems
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('measure_unit_snapshot')) {
+      context.handle(
+        _measureUnitSnapshotMeta,
+        measureUnitSnapshot.isAcceptableOrUnknown(
+          data['measure_unit_snapshot']!,
+          _measureUnitSnapshotMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -8369,6 +8602,10 @@ class $SaleItemsTable extends SaleItems
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      measureUnitSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}measure_unit_snapshot'],
+      ),
     );
   }
 
@@ -8391,6 +8628,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
   final int discountAmount;
   final int lineTotal;
   final DateTime createdAt;
+
+  /// U1 (v13): `kg` / `liter` for a measured line, null for a count.
+  final String? measureUnitSnapshot;
   const SaleItem({
     required this.id,
     required this.shopId,
@@ -8404,6 +8644,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     required this.discountAmount,
     required this.lineTotal,
     required this.createdAt,
+    this.measureUnitSnapshot,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -8422,6 +8663,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     map['discount_amount'] = Variable<int>(discountAmount);
     map['line_total'] = Variable<int>(lineTotal);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || measureUnitSnapshot != null) {
+      map['measure_unit_snapshot'] = Variable<String>(measureUnitSnapshot);
+    }
     return map;
   }
 
@@ -8441,6 +8685,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       discountAmount: Value(discountAmount),
       lineTotal: Value(lineTotal),
       createdAt: Value(createdAt),
+      measureUnitSnapshot: measureUnitSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(measureUnitSnapshot),
     );
   }
 
@@ -8464,6 +8711,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       discountAmount: serializer.fromJson<int>(json['discountAmount']),
       lineTotal: serializer.fromJson<int>(json['lineTotal']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      measureUnitSnapshot: serializer.fromJson<String?>(
+        json['measureUnitSnapshot'],
+      ),
     );
   }
   @override
@@ -8482,6 +8732,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
       'discountAmount': serializer.toJson<int>(discountAmount),
       'lineTotal': serializer.toJson<int>(lineTotal),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'measureUnitSnapshot': serializer.toJson<String?>(measureUnitSnapshot),
     };
   }
 
@@ -8498,6 +8749,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     int? discountAmount,
     int? lineTotal,
     DateTime? createdAt,
+    Value<String?> measureUnitSnapshot = const Value.absent(),
   }) => SaleItem(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -8513,6 +8765,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     discountAmount: discountAmount ?? this.discountAmount,
     lineTotal: lineTotal ?? this.lineTotal,
     createdAt: createdAt ?? this.createdAt,
+    measureUnitSnapshot: measureUnitSnapshot.present
+        ? measureUnitSnapshot.value
+        : this.measureUnitSnapshot,
   );
   SaleItem copyWithCompanion(SaleItemsCompanion data) {
     return SaleItem(
@@ -8538,6 +8793,9 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           : this.discountAmount,
       lineTotal: data.lineTotal.present ? data.lineTotal.value : this.lineTotal,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      measureUnitSnapshot: data.measureUnitSnapshot.present
+          ? data.measureUnitSnapshot.value
+          : this.measureUnitSnapshot,
     );
   }
 
@@ -8555,7 +8813,8 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           ..write('salePriceSnapshot: $salePriceSnapshot, ')
           ..write('discountAmount: $discountAmount, ')
           ..write('lineTotal: $lineTotal, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('measureUnitSnapshot: $measureUnitSnapshot')
           ..write(')'))
         .toString();
   }
@@ -8574,6 +8833,7 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
     discountAmount,
     lineTotal,
     createdAt,
+    measureUnitSnapshot,
   );
   @override
   bool operator ==(Object other) =>
@@ -8590,7 +8850,8 @@ class SaleItem extends DataClass implements Insertable<SaleItem> {
           other.salePriceSnapshot == this.salePriceSnapshot &&
           other.discountAmount == this.discountAmount &&
           other.lineTotal == this.lineTotal &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.measureUnitSnapshot == this.measureUnitSnapshot);
 }
 
 class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
@@ -8606,6 +8867,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
   final Value<int> discountAmount;
   final Value<int> lineTotal;
   final Value<DateTime> createdAt;
+  final Value<String?> measureUnitSnapshot;
   final Value<int> rowid;
   const SaleItemsCompanion({
     this.id = const Value.absent(),
@@ -8620,6 +8882,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     this.discountAmount = const Value.absent(),
     this.lineTotal = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.measureUnitSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SaleItemsCompanion.insert({
@@ -8635,6 +8898,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     required int discountAmount,
     required int lineTotal,
     required DateTime createdAt,
+    this.measureUnitSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -8660,6 +8924,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     Expression<int>? discountAmount,
     Expression<int>? lineTotal,
     Expression<DateTime>? createdAt,
+    Expression<String>? measureUnitSnapshot,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -8676,6 +8941,8 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
       if (discountAmount != null) 'discount_amount': discountAmount,
       if (lineTotal != null) 'line_total': lineTotal,
       if (createdAt != null) 'created_at': createdAt,
+      if (measureUnitSnapshot != null)
+        'measure_unit_snapshot': measureUnitSnapshot,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -8693,6 +8960,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     Value<int>? discountAmount,
     Value<int>? lineTotal,
     Value<DateTime>? createdAt,
+    Value<String?>? measureUnitSnapshot,
     Value<int>? rowid,
   }) {
     return SaleItemsCompanion(
@@ -8708,6 +8976,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
       discountAmount: discountAmount ?? this.discountAmount,
       lineTotal: lineTotal ?? this.lineTotal,
       createdAt: createdAt ?? this.createdAt,
+      measureUnitSnapshot: measureUnitSnapshot ?? this.measureUnitSnapshot,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -8753,6 +9022,11 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (measureUnitSnapshot.present) {
+      map['measure_unit_snapshot'] = Variable<String>(
+        measureUnitSnapshot.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -8774,6 +9048,7 @@ class SaleItemsCompanion extends UpdateCompanion<SaleItem> {
           ..write('discountAmount: $discountAmount, ')
           ..write('lineTotal: $lineTotal, ')
           ..write('createdAt: $createdAt, ')
+          ..write('measureUnitSnapshot: $measureUnitSnapshot, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -16432,6 +16707,85 @@ class $SyncOperationsTable extends SyncOperations
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _errorClassMeta = const VerificationMeta(
+    'errorClass',
+  );
+  @override
+  late final GeneratedColumn<String> errorClass = GeneratedColumn<String>(
+    'error_class',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorCodeMeta = const VerificationMeta(
+    'errorCode',
+  );
+  @override
+  late final GeneratedColumn<String> errorCode = GeneratedColumn<String>(
+    'error_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attentionReasonMeta = const VerificationMeta(
+    'attentionReason',
+  );
+  @override
+  late final GeneratedColumn<String> attentionReason = GeneratedColumn<String>(
+    'attention_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attentionAtMeta = const VerificationMeta(
+    'attentionAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> attentionAt = GeneratedColumn<DateTime>(
+    'attention_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _firstErrorAtMeta = const VerificationMeta(
+    'firstErrorAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstErrorAt = GeneratedColumn<DateTime>(
+    'first_error_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _unknownErrorCountMeta = const VerificationMeta(
+    'unknownErrorCount',
+  );
+  @override
+  late final GeneratedColumn<int> unknownErrorCount = GeneratedColumn<int>(
+    'unknown_error_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _acknowledgedAtMeta = const VerificationMeta(
+    'acknowledgedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> acknowledgedAt =
+      GeneratedColumn<DateTime>(
+        'acknowledged_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -16452,6 +16806,13 @@ class $SyncOperationsTable extends SyncOperations
     createdAt,
     updatedAt,
     syncedAt,
+    errorClass,
+    errorCode,
+    attentionReason,
+    attentionAt,
+    firstErrorAt,
+    unknownErrorCount,
+    acknowledgedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -16586,6 +16947,63 @@ class $SyncOperationsTable extends SyncOperations
         syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
       );
     }
+    if (data.containsKey('error_class')) {
+      context.handle(
+        _errorClassMeta,
+        errorClass.isAcceptableOrUnknown(data['error_class']!, _errorClassMeta),
+      );
+    }
+    if (data.containsKey('error_code')) {
+      context.handle(
+        _errorCodeMeta,
+        errorCode.isAcceptableOrUnknown(data['error_code']!, _errorCodeMeta),
+      );
+    }
+    if (data.containsKey('attention_reason')) {
+      context.handle(
+        _attentionReasonMeta,
+        attentionReason.isAcceptableOrUnknown(
+          data['attention_reason']!,
+          _attentionReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attention_at')) {
+      context.handle(
+        _attentionAtMeta,
+        attentionAt.isAcceptableOrUnknown(
+          data['attention_at']!,
+          _attentionAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('first_error_at')) {
+      context.handle(
+        _firstErrorAtMeta,
+        firstErrorAt.isAcceptableOrUnknown(
+          data['first_error_at']!,
+          _firstErrorAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('unknown_error_count')) {
+      context.handle(
+        _unknownErrorCountMeta,
+        unknownErrorCount.isAcceptableOrUnknown(
+          data['unknown_error_count']!,
+          _unknownErrorCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('acknowledged_at')) {
+      context.handle(
+        _acknowledgedAtMeta,
+        acknowledgedAt.isAcceptableOrUnknown(
+          data['acknowledged_at']!,
+          _acknowledgedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -16671,6 +17089,34 @@ class $SyncOperationsTable extends SyncOperations
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
       ),
+      errorClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_class'],
+      ),
+      errorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_code'],
+      ),
+      attentionReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attention_reason'],
+      ),
+      attentionAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}attention_at'],
+      ),
+      firstErrorAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_error_at'],
+      ),
+      unknownErrorCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unknown_error_count'],
+      )!,
+      acknowledgedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}acknowledged_at'],
+      ),
     );
   }
 
@@ -16706,6 +17152,19 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? syncedAt;
+  final String? errorClass;
+
+  /// Stable code (`DPV01`, `credit_limit_exceeded`, ...); never English text.
+  final String? errorCode;
+
+  /// Safe, owner-facing reason; [lastError] keeps the technical detail.
+  final String? attentionReason;
+  final DateTime? attentionAt;
+  final DateTime? firstErrorAt;
+  final int unknownErrorCount;
+
+  /// Owner has seen a server flag. Never means resolved for a failed op.
+  final DateTime? acknowledgedAt;
   const SyncOperation({
     required this.id,
     required this.shopId,
@@ -16725,6 +17184,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     required this.createdAt,
     required this.updatedAt,
     this.syncedAt,
+    this.errorClass,
+    this.errorCode,
+    this.attentionReason,
+    this.attentionAt,
+    this.firstErrorAt,
+    required this.unknownErrorCount,
+    this.acknowledgedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -16769,6 +17235,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     if (!nullToAbsent || syncedAt != null) {
       map['synced_at'] = Variable<DateTime>(syncedAt);
     }
+    if (!nullToAbsent || errorClass != null) {
+      map['error_class'] = Variable<String>(errorClass);
+    }
+    if (!nullToAbsent || errorCode != null) {
+      map['error_code'] = Variable<String>(errorCode);
+    }
+    if (!nullToAbsent || attentionReason != null) {
+      map['attention_reason'] = Variable<String>(attentionReason);
+    }
+    if (!nullToAbsent || attentionAt != null) {
+      map['attention_at'] = Variable<DateTime>(attentionAt);
+    }
+    if (!nullToAbsent || firstErrorAt != null) {
+      map['first_error_at'] = Variable<DateTime>(firstErrorAt);
+    }
+    map['unknown_error_count'] = Variable<int>(unknownErrorCount);
+    if (!nullToAbsent || acknowledgedAt != null) {
+      map['acknowledged_at'] = Variable<DateTime>(acknowledgedAt);
+    }
     return map;
   }
 
@@ -16806,6 +17291,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(syncedAt),
+      errorClass: errorClass == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorClass),
+      errorCode: errorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorCode),
+      attentionReason: attentionReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attentionReason),
+      attentionAt: attentionAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attentionAt),
+      firstErrorAt: firstErrorAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstErrorAt),
+      unknownErrorCount: Value(unknownErrorCount),
+      acknowledgedAt: acknowledgedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(acknowledgedAt),
     );
   }
 
@@ -16839,6 +17343,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      errorClass: serializer.fromJson<String?>(json['errorClass']),
+      errorCode: serializer.fromJson<String?>(json['errorCode']),
+      attentionReason: serializer.fromJson<String?>(json['attentionReason']),
+      attentionAt: serializer.fromJson<DateTime?>(json['attentionAt']),
+      firstErrorAt: serializer.fromJson<DateTime?>(json['firstErrorAt']),
+      unknownErrorCount: serializer.fromJson<int>(json['unknownErrorCount']),
+      acknowledgedAt: serializer.fromJson<DateTime?>(json['acknowledgedAt']),
     );
   }
   @override
@@ -16867,6 +17378,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'errorClass': serializer.toJson<String?>(errorClass),
+      'errorCode': serializer.toJson<String?>(errorCode),
+      'attentionReason': serializer.toJson<String?>(attentionReason),
+      'attentionAt': serializer.toJson<DateTime?>(attentionAt),
+      'firstErrorAt': serializer.toJson<DateTime?>(firstErrorAt),
+      'unknownErrorCount': serializer.toJson<int>(unknownErrorCount),
+      'acknowledgedAt': serializer.toJson<DateTime?>(acknowledgedAt),
     };
   }
 
@@ -16889,6 +17407,13 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> syncedAt = const Value.absent(),
+    Value<String?> errorClass = const Value.absent(),
+    Value<String?> errorCode = const Value.absent(),
+    Value<String?> attentionReason = const Value.absent(),
+    Value<DateTime?> attentionAt = const Value.absent(),
+    Value<DateTime?> firstErrorAt = const Value.absent(),
+    int? unknownErrorCount,
+    Value<DateTime?> acknowledgedAt = const Value.absent(),
   }) => SyncOperation(
     id: id ?? this.id,
     shopId: shopId ?? this.shopId,
@@ -16916,6 +17441,17 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    errorClass: errorClass.present ? errorClass.value : this.errorClass,
+    errorCode: errorCode.present ? errorCode.value : this.errorCode,
+    attentionReason: attentionReason.present
+        ? attentionReason.value
+        : this.attentionReason,
+    attentionAt: attentionAt.present ? attentionAt.value : this.attentionAt,
+    firstErrorAt: firstErrorAt.present ? firstErrorAt.value : this.firstErrorAt,
+    unknownErrorCount: unknownErrorCount ?? this.unknownErrorCount,
+    acknowledgedAt: acknowledgedAt.present
+        ? acknowledgedAt.value
+        : this.acknowledgedAt,
   );
   SyncOperation copyWithCompanion(SyncOperationsCompanion data) {
     return SyncOperation(
@@ -16953,6 +17489,25 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      errorClass: data.errorClass.present
+          ? data.errorClass.value
+          : this.errorClass,
+      errorCode: data.errorCode.present ? data.errorCode.value : this.errorCode,
+      attentionReason: data.attentionReason.present
+          ? data.attentionReason.value
+          : this.attentionReason,
+      attentionAt: data.attentionAt.present
+          ? data.attentionAt.value
+          : this.attentionAt,
+      firstErrorAt: data.firstErrorAt.present
+          ? data.firstErrorAt.value
+          : this.firstErrorAt,
+      unknownErrorCount: data.unknownErrorCount.present
+          ? data.unknownErrorCount.value
+          : this.unknownErrorCount,
+      acknowledgedAt: data.acknowledgedAt.present
+          ? data.acknowledgedAt.value
+          : this.acknowledgedAt,
     );
   }
 
@@ -16976,13 +17531,20 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
           ..write('dependsOnOperationId: $dependsOnOperationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('errorClass: $errorClass, ')
+          ..write('errorCode: $errorCode, ')
+          ..write('attentionReason: $attentionReason, ')
+          ..write('attentionAt: $attentionAt, ')
+          ..write('firstErrorAt: $firstErrorAt, ')
+          ..write('unknownErrorCount: $unknownErrorCount, ')
+          ..write('acknowledgedAt: $acknowledgedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     shopId,
     deviceId,
@@ -17001,7 +17563,14 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
     createdAt,
     updatedAt,
     syncedAt,
-  );
+    errorClass,
+    errorCode,
+    attentionReason,
+    attentionAt,
+    firstErrorAt,
+    unknownErrorCount,
+    acknowledgedAt,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17023,7 +17592,14 @@ class SyncOperation extends DataClass implements Insertable<SyncOperation> {
           other.dependsOnOperationId == this.dependsOnOperationId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.errorClass == this.errorClass &&
+          other.errorCode == this.errorCode &&
+          other.attentionReason == this.attentionReason &&
+          other.attentionAt == this.attentionAt &&
+          other.firstErrorAt == this.firstErrorAt &&
+          other.unknownErrorCount == this.unknownErrorCount &&
+          other.acknowledgedAt == this.acknowledgedAt);
 }
 
 class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
@@ -17045,6 +17621,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> syncedAt;
+  final Value<String?> errorClass;
+  final Value<String?> errorCode;
+  final Value<String?> attentionReason;
+  final Value<DateTime?> attentionAt;
+  final Value<DateTime?> firstErrorAt;
+  final Value<int> unknownErrorCount;
+  final Value<DateTime?> acknowledgedAt;
   final Value<int> rowid;
   const SyncOperationsCompanion({
     this.id = const Value.absent(),
@@ -17065,6 +17648,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.errorClass = const Value.absent(),
+    this.errorCode = const Value.absent(),
+    this.attentionReason = const Value.absent(),
+    this.attentionAt = const Value.absent(),
+    this.firstErrorAt = const Value.absent(),
+    this.unknownErrorCount = const Value.absent(),
+    this.acknowledgedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncOperationsCompanion.insert({
@@ -17086,6 +17676,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     required DateTime createdAt,
     required DateTime updatedAt,
     this.syncedAt = const Value.absent(),
+    this.errorClass = const Value.absent(),
+    this.errorCode = const Value.absent(),
+    this.attentionReason = const Value.absent(),
+    this.attentionAt = const Value.absent(),
+    this.firstErrorAt = const Value.absent(),
+    this.unknownErrorCount = const Value.absent(),
+    this.acknowledgedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        shopId = Value(shopId),
@@ -17115,6 +17712,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? syncedAt,
+    Expression<String>? errorClass,
+    Expression<String>? errorCode,
+    Expression<String>? attentionReason,
+    Expression<DateTime>? attentionAt,
+    Expression<DateTime>? firstErrorAt,
+    Expression<int>? unknownErrorCount,
+    Expression<DateTime>? acknowledgedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17137,6 +17741,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (errorClass != null) 'error_class': errorClass,
+      if (errorCode != null) 'error_code': errorCode,
+      if (attentionReason != null) 'attention_reason': attentionReason,
+      if (attentionAt != null) 'attention_at': attentionAt,
+      if (firstErrorAt != null) 'first_error_at': firstErrorAt,
+      if (unknownErrorCount != null) 'unknown_error_count': unknownErrorCount,
+      if (acknowledgedAt != null) 'acknowledged_at': acknowledgedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17160,6 +17771,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? syncedAt,
+    Value<String?>? errorClass,
+    Value<String?>? errorCode,
+    Value<String?>? attentionReason,
+    Value<DateTime?>? attentionAt,
+    Value<DateTime?>? firstErrorAt,
+    Value<int>? unknownErrorCount,
+    Value<DateTime?>? acknowledgedAt,
     Value<int>? rowid,
   }) {
     return SyncOperationsCompanion(
@@ -17181,6 +17799,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncedAt: syncedAt ?? this.syncedAt,
+      errorClass: errorClass ?? this.errorClass,
+      errorCode: errorCode ?? this.errorCode,
+      attentionReason: attentionReason ?? this.attentionReason,
+      attentionAt: attentionAt ?? this.attentionAt,
+      firstErrorAt: firstErrorAt ?? this.firstErrorAt,
+      unknownErrorCount: unknownErrorCount ?? this.unknownErrorCount,
+      acknowledgedAt: acknowledgedAt ?? this.acknowledgedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17248,6 +17873,27 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
+    if (errorClass.present) {
+      map['error_class'] = Variable<String>(errorClass.value);
+    }
+    if (errorCode.present) {
+      map['error_code'] = Variable<String>(errorCode.value);
+    }
+    if (attentionReason.present) {
+      map['attention_reason'] = Variable<String>(attentionReason.value);
+    }
+    if (attentionAt.present) {
+      map['attention_at'] = Variable<DateTime>(attentionAt.value);
+    }
+    if (firstErrorAt.present) {
+      map['first_error_at'] = Variable<DateTime>(firstErrorAt.value);
+    }
+    if (unknownErrorCount.present) {
+      map['unknown_error_count'] = Variable<int>(unknownErrorCount.value);
+    }
+    if (acknowledgedAt.present) {
+      map['acknowledged_at'] = Variable<DateTime>(acknowledgedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17275,6 +17921,13 @@ class SyncOperationsCompanion extends UpdateCompanion<SyncOperation> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('errorClass: $errorClass, ')
+          ..write('errorCode: $errorCode, ')
+          ..write('attentionReason: $attentionReason, ')
+          ..write('attentionAt: $attentionAt, ')
+          ..write('firstErrorAt: $firstErrorAt, ')
+          ..write('unknownErrorCount: $unknownErrorCount, ')
+          ..write('acknowledgedAt: $acknowledgedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -17332,12 +17985,24 @@ class $SyncCursorsTable extends SyncCursors
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _serverSeqMeta = const VerificationMeta(
+    'serverSeq',
+  );
+  @override
+  late final GeneratedColumn<int> serverSeq = GeneratedColumn<int>(
+    'server_seq',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     shopId,
     entityType,
     updatedAt,
     entityId,
+    serverSeq,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -17383,6 +18048,12 @@ class $SyncCursorsTable extends SyncCursors
     } else if (isInserting) {
       context.missing(_entityIdMeta);
     }
+    if (data.containsKey('server_seq')) {
+      context.handle(
+        _serverSeqMeta,
+        serverSeq.isAcceptableOrUnknown(data['server_seq']!, _serverSeqMeta),
+      );
+    }
     return context;
   }
 
@@ -17408,6 +18079,10 @@ class $SyncCursorsTable extends SyncCursors
         DriftSqlType.string,
         data['${effectivePrefix}entity_id'],
       )!,
+      serverSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_seq'],
+      ),
     );
   }
 
@@ -17422,11 +18097,16 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
   final String entityType;
   final DateTime updatedAt;
   final String entityId;
+
+  /// Server-assigned sync position of the last applied row (v11, R1.4).
+  /// Null for a cursor written before v11, which is not a safe position.
+  final int? serverSeq;
   const SyncCursor({
     required this.shopId,
     required this.entityType,
     required this.updatedAt,
     required this.entityId,
+    this.serverSeq,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -17435,6 +18115,9 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
     map['entity_type'] = Variable<String>(entityType);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['entity_id'] = Variable<String>(entityId);
+    if (!nullToAbsent || serverSeq != null) {
+      map['server_seq'] = Variable<int>(serverSeq);
+    }
     return map;
   }
 
@@ -17444,6 +18127,9 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       entityType: Value(entityType),
       updatedAt: Value(updatedAt),
       entityId: Value(entityId),
+      serverSeq: serverSeq == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverSeq),
     );
   }
 
@@ -17457,6 +18143,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       entityType: serializer.fromJson<String>(json['entityType']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       entityId: serializer.fromJson<String>(json['entityId']),
+      serverSeq: serializer.fromJson<int?>(json['serverSeq']),
     );
   }
   @override
@@ -17467,6 +18154,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
       'entityType': serializer.toJson<String>(entityType),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'entityId': serializer.toJson<String>(entityId),
+      'serverSeq': serializer.toJson<int?>(serverSeq),
     };
   }
 
@@ -17475,11 +18163,13 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
     String? entityType,
     DateTime? updatedAt,
     String? entityId,
+    Value<int?> serverSeq = const Value.absent(),
   }) => SyncCursor(
     shopId: shopId ?? this.shopId,
     entityType: entityType ?? this.entityType,
     updatedAt: updatedAt ?? this.updatedAt,
     entityId: entityId ?? this.entityId,
+    serverSeq: serverSeq.present ? serverSeq.value : this.serverSeq,
   );
   SyncCursor copyWithCompanion(SyncCursorsCompanion data) {
     return SyncCursor(
@@ -17489,6 +18179,7 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           : this.entityType,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      serverSeq: data.serverSeq.present ? data.serverSeq.value : this.serverSeq,
     );
   }
 
@@ -17498,13 +18189,15 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           ..write('shopId: $shopId, ')
           ..write('entityType: $entityType, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('entityId: $entityId')
+          ..write('entityId: $entityId, ')
+          ..write('serverSeq: $serverSeq')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(shopId, entityType, updatedAt, entityId);
+  int get hashCode =>
+      Object.hash(shopId, entityType, updatedAt, entityId, serverSeq);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17512,7 +18205,8 @@ class SyncCursor extends DataClass implements Insertable<SyncCursor> {
           other.shopId == this.shopId &&
           other.entityType == this.entityType &&
           other.updatedAt == this.updatedAt &&
-          other.entityId == this.entityId);
+          other.entityId == this.entityId &&
+          other.serverSeq == this.serverSeq);
 }
 
 class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
@@ -17520,12 +18214,14 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
   final Value<String> entityType;
   final Value<DateTime> updatedAt;
   final Value<String> entityId;
+  final Value<int?> serverSeq;
   final Value<int> rowid;
   const SyncCursorsCompanion({
     this.shopId = const Value.absent(),
     this.entityType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.entityId = const Value.absent(),
+    this.serverSeq = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncCursorsCompanion.insert({
@@ -17533,6 +18229,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     required String entityType,
     required DateTime updatedAt,
     required String entityId,
+    this.serverSeq = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : shopId = Value(shopId),
        entityType = Value(entityType),
@@ -17543,6 +18240,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     Expression<String>? entityType,
     Expression<DateTime>? updatedAt,
     Expression<String>? entityId,
+    Expression<int>? serverSeq,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17550,6 +18248,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
       if (entityType != null) 'entity_type': entityType,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (entityId != null) 'entity_id': entityId,
+      if (serverSeq != null) 'server_seq': serverSeq,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17559,6 +18258,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     Value<String>? entityType,
     Value<DateTime>? updatedAt,
     Value<String>? entityId,
+    Value<int?>? serverSeq,
     Value<int>? rowid,
   }) {
     return SyncCursorsCompanion(
@@ -17566,6 +18266,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
       entityType: entityType ?? this.entityType,
       updatedAt: updatedAt ?? this.updatedAt,
       entityId: entityId ?? this.entityId,
+      serverSeq: serverSeq ?? this.serverSeq,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17585,6 +18286,9 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
     if (entityId.present) {
       map['entity_id'] = Variable<String>(entityId.value);
     }
+    if (serverSeq.present) {
+      map['server_seq'] = Variable<int>(serverSeq.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17598,6 +18302,7 @@ class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
           ..write('entityType: $entityType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('entityId: $entityId, ')
+          ..write('serverSeq: $serverSeq, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -23668,6 +24373,10 @@ typedef $$ShopProductsTableCreateCompanionBuilder =
       Value<bool> isActive,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<String> sellMode,
+      Value<String?> familyId,
+      Value<String?> measurePresets,
+      Value<bool> allowCustomQuantity,
       Value<int> rowid,
     });
 typedef $$ShopProductsTableUpdateCompanionBuilder =
@@ -23688,6 +24397,10 @@ typedef $$ShopProductsTableUpdateCompanionBuilder =
       Value<bool> isActive,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String> sellMode,
+      Value<String?> familyId,
+      Value<String?> measurePresets,
+      Value<bool> allowCustomQuantity,
       Value<int> rowid,
     });
 
@@ -23896,6 +24609,26 @@ class $$ShopProductsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sellMode => $composableBuilder(
+    column: $table.sellMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24143,6 +24876,26 @@ class $$ShopProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sellMode => $composableBuilder(
+    column: $table.sellMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -24268,6 +25021,22 @@ class $$ShopProductsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sellMode =>
+      $composableBuilder(column: $table.sellMode, builder: (column) => column);
+
+  GeneratedColumn<String> get familyId =>
+      $composableBuilder(column: $table.familyId, builder: (column) => column);
+
+  GeneratedColumn<String> get measurePresets => $composableBuilder(
+    column: $table.measurePresets,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get allowCustomQuantity => $composableBuilder(
+    column: $table.allowCustomQuantity,
+    builder: (column) => column,
+  );
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -24492,6 +25261,10 @@ class $$ShopProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> sellMode = const Value.absent(),
+                Value<String?> familyId = const Value.absent(),
+                Value<String?> measurePresets = const Value.absent(),
+                Value<bool> allowCustomQuantity = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ShopProductsCompanion(
                 id: id,
@@ -24510,6 +25283,10 @@ class $$ShopProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sellMode: sellMode,
+                familyId: familyId,
+                measurePresets: measurePresets,
+                allowCustomQuantity: allowCustomQuantity,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -24530,6 +25307,10 @@ class $$ShopProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<String> sellMode = const Value.absent(),
+                Value<String?> familyId = const Value.absent(),
+                Value<String?> measurePresets = const Value.absent(),
+                Value<bool> allowCustomQuantity = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ShopProductsCompanion.insert(
                 id: id,
@@ -24548,6 +25329,10 @@ class $$ShopProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sellMode: sellMode,
+                familyId: familyId,
+                measurePresets: measurePresets,
+                allowCustomQuantity: allowCustomQuantity,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -28250,6 +29035,7 @@ typedef $$SaleItemsTableCreateCompanionBuilder =
       required int discountAmount,
       required int lineTotal,
       required DateTime createdAt,
+      Value<String?> measureUnitSnapshot,
       Value<int> rowid,
     });
 typedef $$SaleItemsTableUpdateCompanionBuilder =
@@ -28266,6 +29052,7 @@ typedef $$SaleItemsTableUpdateCompanionBuilder =
       Value<int> discountAmount,
       Value<int> lineTotal,
       Value<DateTime> createdAt,
+      Value<String?> measureUnitSnapshot,
       Value<int> rowid,
     });
 
@@ -28396,6 +29183,11 @@ class $$SaleItemsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -28548,6 +29340,11 @@ class $$SaleItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -28663,6 +29460,11 @@ class $$SaleItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get measureUnitSnapshot => $composableBuilder(
+    column: $table.measureUnitSnapshot,
+    builder: (column) => column,
+  );
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -28804,6 +29606,7 @@ class $$SaleItemsTableTableManager
                 Value<int> discountAmount = const Value.absent(),
                 Value<int> lineTotal = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> measureUnitSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SaleItemsCompanion(
                 id: id,
@@ -28818,6 +29621,7 @@ class $$SaleItemsTableTableManager
                 discountAmount: discountAmount,
                 lineTotal: lineTotal,
                 createdAt: createdAt,
+                measureUnitSnapshot: measureUnitSnapshot,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -28834,6 +29638,7 @@ class $$SaleItemsTableTableManager
                 required int discountAmount,
                 required int lineTotal,
                 required DateTime createdAt,
+                Value<String?> measureUnitSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SaleItemsCompanion.insert(
                 id: id,
@@ -28848,6 +29653,7 @@ class $$SaleItemsTableTableManager
                 discountAmount: discountAmount,
                 lineTotal: lineTotal,
                 createdAt: createdAt,
+                measureUnitSnapshot: measureUnitSnapshot,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -36202,6 +37008,13 @@ typedef $$SyncOperationsTableCreateCompanionBuilder =
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> syncedAt,
+      Value<String?> errorClass,
+      Value<String?> errorCode,
+      Value<String?> attentionReason,
+      Value<DateTime?> attentionAt,
+      Value<DateTime?> firstErrorAt,
+      Value<int> unknownErrorCount,
+      Value<DateTime?> acknowledgedAt,
       Value<int> rowid,
     });
 typedef $$SyncOperationsTableUpdateCompanionBuilder =
@@ -36224,6 +37037,13 @@ typedef $$SyncOperationsTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> syncedAt,
+      Value<String?> errorClass,
+      Value<String?> errorCode,
+      Value<String?> attentionReason,
+      Value<DateTime?> attentionAt,
+      Value<DateTime?> firstErrorAt,
+      Value<int> unknownErrorCount,
+      Value<DateTime?> acknowledgedAt,
       Value<int> rowid,
     });
 
@@ -36358,6 +37178,41 @@ class $$SyncOperationsTableFilterComposer
 
   ColumnFilters<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorCode => $composableBuilder(
+    column: $table.errorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36497,6 +37352,41 @@ class $$SyncOperationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorCode => $composableBuilder(
+    column: $table.errorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -36618,6 +37508,39 @@ class $$SyncOperationsTableAnnotationComposer
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 
+  GeneratedColumn<String> get errorClass => $composableBuilder(
+    column: $table.errorClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get errorCode =>
+      $composableBuilder(column: $table.errorCode, builder: (column) => column);
+
+  GeneratedColumn<String> get attentionReason => $composableBuilder(
+    column: $table.attentionReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get attentionAt => $composableBuilder(
+    column: $table.attentionAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get firstErrorAt => $composableBuilder(
+    column: $table.firstErrorAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get unknownErrorCount => $composableBuilder(
+    column: $table.unknownErrorCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get acknowledgedAt => $composableBuilder(
+    column: $table.acknowledgedAt,
+    builder: (column) => column,
+  );
+
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -36713,6 +37636,13 @@ class $$SyncOperationsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> errorClass = const Value.absent(),
+                Value<String?> errorCode = const Value.absent(),
+                Value<String?> attentionReason = const Value.absent(),
+                Value<DateTime?> attentionAt = const Value.absent(),
+                Value<DateTime?> firstErrorAt = const Value.absent(),
+                Value<int> unknownErrorCount = const Value.absent(),
+                Value<DateTime?> acknowledgedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncOperationsCompanion(
                 id: id,
@@ -36733,6 +37663,13 @@ class $$SyncOperationsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncedAt: syncedAt,
+                errorClass: errorClass,
+                errorCode: errorCode,
+                attentionReason: attentionReason,
+                attentionAt: attentionAt,
+                firstErrorAt: firstErrorAt,
+                unknownErrorCount: unknownErrorCount,
+                acknowledgedAt: acknowledgedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -36755,6 +37692,13 @@ class $$SyncOperationsTableTableManager
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<String?> errorClass = const Value.absent(),
+                Value<String?> errorCode = const Value.absent(),
+                Value<String?> attentionReason = const Value.absent(),
+                Value<DateTime?> attentionAt = const Value.absent(),
+                Value<DateTime?> firstErrorAt = const Value.absent(),
+                Value<int> unknownErrorCount = const Value.absent(),
+                Value<DateTime?> acknowledgedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncOperationsCompanion.insert(
                 id: id,
@@ -36775,6 +37719,13 @@ class $$SyncOperationsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 syncedAt: syncedAt,
+                errorClass: errorClass,
+                errorCode: errorCode,
+                attentionReason: attentionReason,
+                attentionAt: attentionAt,
+                firstErrorAt: firstErrorAt,
+                unknownErrorCount: unknownErrorCount,
+                acknowledgedAt: acknowledgedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -36865,6 +37816,7 @@ typedef $$SyncCursorsTableCreateCompanionBuilder =
       required String entityType,
       required DateTime updatedAt,
       required String entityId,
+      Value<int?> serverSeq,
       Value<int> rowid,
     });
 typedef $$SyncCursorsTableUpdateCompanionBuilder =
@@ -36873,6 +37825,7 @@ typedef $$SyncCursorsTableUpdateCompanionBuilder =
       Value<String> entityType,
       Value<DateTime> updatedAt,
       Value<String> entityId,
+      Value<int?> serverSeq,
       Value<int> rowid,
     });
 
@@ -36919,6 +37872,11 @@ class $$SyncCursorsTableFilterComposer
 
   ColumnFilters<String> get entityId => $composableBuilder(
     column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverSeq => $composableBuilder(
+    column: $table.serverSeq,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36970,6 +37928,11 @@ class $$SyncCursorsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get serverSeq => $composableBuilder(
+    column: $table.serverSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ShopsTableOrderingComposer get shopId {
     final $$ShopsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -37013,6 +37976,9 @@ class $$SyncCursorsTableAnnotationComposer
 
   GeneratedColumn<String> get entityId =>
       $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<int> get serverSeq =>
+      $composableBuilder(column: $table.serverSeq, builder: (column) => column);
 
   $$ShopsTableAnnotationComposer get shopId {
     final $$ShopsTableAnnotationComposer composer = $composerBuilder(
@@ -37070,12 +38036,14 @@ class $$SyncCursorsTableTableManager
                 Value<String> entityType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> entityId = const Value.absent(),
+                Value<int?> serverSeq = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncCursorsCompanion(
                 shopId: shopId,
                 entityType: entityType,
                 updatedAt: updatedAt,
                 entityId: entityId,
+                serverSeq: serverSeq,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -37084,12 +38052,14 @@ class $$SyncCursorsTableTableManager
                 required String entityType,
                 required DateTime updatedAt,
                 required String entityId,
+                Value<int?> serverSeq = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncCursorsCompanion.insert(
                 shopId: shopId,
                 entityType: entityType,
                 updatedAt: updatedAt,
                 entityId: entityId,
+                serverSeq: serverSeq,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

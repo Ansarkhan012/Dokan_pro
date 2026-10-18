@@ -1,0 +1,780 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/domain/enums.dart';
+import '../../core/errors/safe_error_message.dart';
+import '../../core/format/measure_format.dart';
+import '../../core/ids/id_generator.dart';
+import '../../core/images/product_image_processing.dart';
+import '../../core/ui/pos_ui.dart';
+import '../pos/pos_state.dart' show parseMoneyMinor;
+import 'measure_preset_editor.dart';
+import 'pack_family_editor.dart';
+import 'product_image_picker.dart';
+import 'product_management_models.dart';
+import 'product_management_native.dart' show parseQuantity;
+import 'product_management_service.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
+
+/// What the Create Custom Product dialog returns: the synced product input
+/// plus an optional, already-compressed local thumbnail.
+final class CustomProductDraft {
+  const CustomProductDraft({required this.input, this.image, this.family});
+
+  /// The product. For a packaged family (U3) it describes the family itself
+  /// (name, category, pack unit); each pack size is in [family].
+  final CustomProductInput input;
+  final Uint8List? image;
+
+  /// U3: set for Packaged Variants; [image] is then shared by every size.
+  final ProductFamilyDraft? family;
+}
+
+/// How a new custom product is sold (U3 adds packaged families).
+enum SellingType { piece, loose, packaged }
+
+typedef ProductImagePreparer = Future<Uint8List> Function(Uint8List source);
+
+/// Persists a validated draft. While it runs the dialog stays open and
+/// locked; if it throws, the dialog shows the error and keeps everything the
+/// shopkeeper entered, including the chosen image.
+typedef CustomProductSubmitter = Future<void> Function(CustomProductDraft);
+
+/// Thrown by a [CustomProductSubmitter] when the owner chose to go back and
+/// edit (for example after a duplicate warning): the dialog simply unlocks.
+final class CustomProductSubmitCancelled implements Exception {
+  const CustomProductSubmitCancelled();
+}
+
+class CustomProductDialog extends StatefulWidget {
+  const CustomProductDialog({
+    super.key,
+    required this.categories,
+    this.picker = const GalleryProductImagePicker(),
+    this.prepareImage = prepareProductThumbnailInBackground,
+    this.onSubmit,
+    this.ids = const UuidV7Generator(),
+    this.existingBarcodes = const {},
+  });
+
+  final List<ProductCategory> categories;
+  final ProductImagePicker picker;
+  final ProductImagePreparer prepareImage;
+  final CustomProductSubmitter? onSubmit;
+
+  /// Mints the family and pack-size ids once per draft (U3).
+  final IdGenerator ids;
+
+  /// Barcodes already used in the shop, checked before sending (U3).
+  final Set<String> existingBarcodes;
+
+  @override
+  State<CustomProductDialog> createState() => _CustomProductDialogState();
+}
+
+class _CustomProductDialogState extends State<CustomProductDialog> {
+  final name = TextEditingController(),
+      barcode = TextEditingController(),
+      pack = TextEditingController(),
+      purchase = TextEditingController(),
+      sale = TextEditingController(),
+      opening = TextEditingController(text: '0'),
+      low = TextEditingController(text: '0');
+  String? categoryId;
+  ProductUnit unit = ProductUnit.piece;
+
+  // U2: a loose product is sold by weight or volume, priced per kg / L.
+  // U3: a packaged family is one piece product per pack size.
+  SellingType type = SellingType.piece;
+  MeasureUnit measure = MeasureUnit.kg;
+  List<int> presets = [...defaultMeasurePresets];
+  bool allowCustomQuantity = true;
+  bool get loose => type == SellingType.loose;
+  bool get packaged => type == SellingType.packaged;
+  late final String familyId = widget.ids.next();
+  late final List<PackRowController> packs = [PackRowController(widget.ids)];
+  Uint8List? image;
+  bool processingImage = false;
+  bool saving = false;
+  String? imageError;
+  String? error;
+
+  @override
+  void dispose() {
+    for (final c in [name, barcode, pack, purchase, sale, opening, low]) {
+      c.dispose();
+    }
+    for (final row in packs) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _chooseImage() async {
+    if (processingImage || saving) return;
+    setState(() {
+      processingImage = true;
+      imageError = null;
+    });
+    try {
+      final picked = await widget.picker.pick();
+      if (picked == null) return;
+      final prepared = await widget.prepareImage(picked);
+      if (mounted) setState(() => image = prepared);
+    } on ProductImageException catch (e) {
+      if (mounted) setState(() => imageError = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => imageError = 'Could not open that image. Try another.');
+      }
+    } finally {
+      if (mounted) setState(() => processingImage = false);
+    }
+  }
+
+  void _removeImage() => setState(() {
+    image = null;
+    imageError = null;
+  });
+
+  Future<void> _submit() async {
+    if (saving || processingImage) return;
+    if (packaged) return _submitFamily();
+    final p = parseMoneyMinor(purchase.text),
+        s = parseMoneyMinor(sale.text),
+        o = parseQuantity(opening.text),
+        l = parseQuantity(low.text);
+    if (name.text.trim().isEmpty ||
+        categoryId == null ||
+        p == null ||
+        s == null ||
+        o == null ||
+        l == null) {
+      setState(() => error = 'Complete all required fields with valid values.');
+      return;
+    }
+    final draft = CustomProductDraft(
+      input: CustomProductInput(
+        name: name.text.trim(),
+        categoryId: categoryId!,
+        unit: loose
+            ? (measure == MeasureUnit.kg ? ProductUnit.kg : ProductUnit.liter)
+            : unit,
+        barcode: barcode.text.trim().isEmpty ? null : barcode.text.trim(),
+        packLabel: loose || pack.text.trim().isEmpty ? null : pack.text.trim(),
+        purchasePriceMinor: p,
+        salePriceMinor: s,
+        openingQuantity: o,
+        lowStockLevel: l,
+        sellMode: loose ? SellMode.measured : SellMode.piece,
+        measurePresets: loose ? presets : null,
+        allowCustomQuantity: loose ? allowCustomQuantity : true,
+      ),
+      image: image,
+    );
+    await _send(draft);
+  }
+
+  /// U3: every pack size of the family, validated as a whole first.
+  Future<void> _submitFamily() async {
+    final variants = <PackVariantDraft>[];
+    for (final row in packs) {
+      final sale = parseMoneyMinor(row.sale.text);
+      final cost = row.purchase.text.trim().isEmpty
+          ? 0
+          : parseMoneyMinor(row.purchase.text);
+      final opening = parseWholePacks(row.opening.text);
+      final low = parseWholePacks(row.low.text);
+      if (sale == null || cost == null || opening == null || low == null) {
+        setState(
+          () => error =
+              'Pack ${row.label.text.trim().isEmpty ? variants.length + 1 : row.label.text.trim()}: '
+              'enter a sale price and whole-pack stock.',
+        );
+        return;
+      }
+      variants.add(
+        PackVariantDraft(
+          productId: row.productId,
+          movementId: row.movementId,
+          packLabel: row.label.text.trim(),
+          barcode: row.barcode.text.trim().isEmpty
+              ? null
+              : row.barcode.text.trim(),
+          purchasePriceMinor: cost,
+          salePriceMinor: sale,
+          openingQuantity: opening,
+          lowStockLevel: low,
+        ),
+      );
+    }
+    final family = ProductFamilyDraft(
+      familyId: familyId,
+      name: name.text.trim(),
+      categoryId: categoryId ?? '',
+      variants: variants,
+    );
+    try {
+      ProductManagementService.validateFamily(
+        family,
+        // Sizes already saved by an earlier attempt keep their barcodes.
+        existingBarcodes: widget.existingBarcodes.difference({
+          for (final row in packs)
+            if (row.created) row.barcode.text.trim(),
+        }),
+      );
+    } on ProductValidationException catch (e) {
+      setState(() => error = e.message);
+      return;
+    }
+    await _send(
+      CustomProductDraft(
+        input: CustomProductInput(
+          name: family.name,
+          categoryId: family.categoryId,
+          unit: ProductUnit.pack,
+          familyId: familyId,
+          purchasePriceMinor: 0,
+          salePriceMinor: variants.first.salePriceMinor,
+          openingQuantity: 0,
+          lowStockLevel: 0,
+        ),
+        family: family,
+        image: image,
+      ),
+    );
+  }
+
+  Future<void> _send(CustomProductDraft draft) async {
+    final submit = widget.onSubmit;
+    if (submit != null) {
+      setState(() {
+        saving = true;
+        error = null;
+      });
+      try {
+        await submit(draft);
+      } on CustomProductSubmitCancelled {
+        if (mounted) setState(() => saving = false);
+        return;
+      } on FamilyCreationIncomplete catch (e) {
+        // Sizes that now exist are locked; a retry re-sends their ids and
+        // the server answers already_exists, so nothing is duplicated.
+        if (mounted) {
+          setState(() {
+            saving = false;
+            for (final row in packs) {
+              if (e.created.contains(row.productId)) row.created = true;
+            }
+            error = e.toString();
+          });
+        }
+        return;
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            saving = false;
+            error = safeUserMessage(
+              e,
+              fallback: 'Could not create the product. Please try again.',
+            );
+          });
+        }
+        return;
+      }
+    }
+    if (mounted) Navigator.pop(context, draft);
+  }
+
+  @override
+  Widget build(BuildContext context) => PosFormDialog(
+    title: context.l10n.productsCreateCustom,
+    subtitle: context.l10n.customSubtitle,
+    locked: saving,
+    // Errors are kept as their English source and translated here, so a
+    // language switch re-translates a message already on screen.
+    message: formFooterMessage(
+      context,
+      error == null ? null : localizedMessage(context.l10n, error!),
+    ),
+    body: (context, wide) => _body(wide),
+    actions: [
+      TextButton(
+        onPressed: saving ? null : () => Navigator.pop(context),
+        child: Text(context.l10n.commonCancel),
+      ),
+      FilledButton(
+        key: const ValueKey('custom-product-create'),
+        onPressed: processingImage || saving ? null : _submit,
+        child: Text(
+          saving ? context.l10n.customCreating : context.l10n.customCreate,
+        ),
+      ),
+    ],
+  );
+
+  Widget _body(bool wide) {
+    final bytes = image;
+    final imageCard = ProductImagePickerCard(
+      image: bytes == null ? null : MemoryImage(bytes),
+      busy: processingImage,
+      error: imageError,
+      onChoose: _chooseImage,
+      onRemove: _removeImage,
+    );
+    final fields = _fields();
+    if (wide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 220, child: imageCard),
+          const SizedBox(width: 24),
+          Expanded(child: fields),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(child: SizedBox(width: 200, child: imageCard)),
+        const SizedBox(height: 20),
+        fields,
+      ],
+    );
+  }
+
+  Widget _fields() {
+    final l10n = context.l10n;
+    final unitLabel = localizedWholeUnit(l10n, measure);
+    final barcodeField = TextField(
+      key: const ValueKey('custom-product-barcode'),
+      controller: barcode,
+      inputFormatters: const [AsciiDigitsFormatter()],
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: l10n.fieldBarcode,
+        hintText: l10n.commonOptional,
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FormSectionLabel(l10n.customProductDetails),
+        SegmentedButton<SellingType>(
+          key: const ValueKey('custom-product-selling-type'),
+          segments: [
+            ButtonSegment(
+              value: SellingType.piece,
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: Text(
+                l10n.sellingPiece,
+                key: const ValueKey('selling-piece'),
+              ),
+            ),
+            ButtonSegment(
+              value: SellingType.loose,
+              icon: const Icon(Icons.scale_outlined),
+              label: Text(
+                l10n.sellingLoose,
+                key: const ValueKey('selling-loose'),
+              ),
+            ),
+            ButtonSegment(
+              value: SellingType.packaged,
+              icon: const Icon(Icons.layers_outlined),
+              label: Text(
+                l10n.sellingPackaged,
+                key: const ValueKey('selling-packaged'),
+              ),
+            ),
+          ],
+          selected: {type},
+          onSelectionChanged: saving || packs.any((row) => row.created)
+              ? null
+              : (value) => setState(() => type = value.single),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const ValueKey('custom-product-name'),
+          controller: name,
+          readOnly: packs.any((row) => row.created),
+          textInputAction: TextInputAction.next,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: packaged
+                ? l10n.customFamilyName
+                : l10n.customProductName,
+            hintText: packaged ? l10n.customFamilyHint : null,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (packaged) ...[
+          _categoryField(),
+          const SizedBox(height: 24),
+          FormSectionLabel(l10n.customPackSizes),
+          PackFamilyEditor(
+            key: const ValueKey('custom-product-packs'),
+            rows: packs,
+            locked: saving,
+            onAdd: () =>
+                setState(() => packs.add(PackRowController(widget.ids))),
+            onRemove: (row) => setState(() {
+              packs.remove(row);
+              row.dispose();
+            }),
+          ),
+        ] else ...[
+          FieldPair(
+            DropdownButtonFormField<String>(
+              key: const ValueKey('custom-product-category'),
+              initialValue: categoryId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: l10n.customCategoryRequired,
+              ),
+              items: widget.categories
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c.id,
+                      child: Text(
+                        _category(context, c),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => categoryId = v),
+            ),
+            loose
+                ? SegmentedButton<MeasureUnit>(
+                    key: const ValueKey('custom-product-measure'),
+                    showSelectedIcon: false,
+                    segments: [
+                      ButtonSegment(
+                        value: MeasureUnit.kg,
+                        label: Text(
+                          l10n.measureWeightKg,
+                          key: const ValueKey('measure-kg'),
+                        ),
+                      ),
+                      ButtonSegment(
+                        value: MeasureUnit.liter,
+                        label: Text(
+                          l10n.measureVolumeL,
+                          key: const ValueKey('measure-liter'),
+                        ),
+                      ),
+                    ],
+                    selected: {measure},
+                    onSelectionChanged: (value) =>
+                        setState(() => measure = value.single),
+                  )
+                : DropdownButtonFormField<ProductUnit>(
+                    initialValue: unit,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.customUnitRequired,
+                    ),
+                    items: ProductUnit.values
+                        .map(
+                          (u) => DropdownMenuItem(
+                            value: u,
+                            child: Text(l10n.unitName(u.name, u.label)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => unit = v!),
+                  ),
+          ),
+          const SizedBox(height: 12),
+          if (loose)
+            barcodeField
+          else
+            FieldPair(
+              barcodeField,
+              TextField(
+                controller: pack,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: l10n.customPackLabel,
+                  hintText: l10n.customPackLabelHint,
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+          FormSectionLabel(l10n.customPricingStock),
+          FieldPair(
+            moneyField(
+              purchase,
+              '${loose ? l10n.fieldPurchasePricePer(unitLabel) : l10n.fieldPurchasePrice} *',
+              key: const ValueKey('custom-product-purchase'),
+            ),
+            moneyField(
+              sale,
+              '${loose ? l10n.fieldSalePricePer(unitLabel) : l10n.fieldSalePrice} *',
+              key: const ValueKey('custom-product-sale'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FieldPair(
+            quantityField(
+              opening,
+              loose
+                  ? l10n.fieldOpeningStockIn(unitLabel)
+                  : l10n.fieldOpeningStock,
+              key: const ValueKey('custom-product-opening'),
+            ),
+            quantityField(
+              low,
+              loose
+                  ? l10n.fieldLowStockAlertIn(unitLabel)
+                  : l10n.fieldLowStockAlert,
+              key: const ValueKey('custom-product-low'),
+              onSubmitted: loose ? null : _submit,
+            ),
+          ),
+          if (loose) ...[
+            const SizedBox(height: 24),
+            FormSectionLabel(l10n.customQuickQuantities),
+            MeasurePresetEditor(
+              key: const ValueKey('custom-product-presets'),
+              unit: measure,
+              presets: presets,
+              onChanged: (value) => setState(() => presets = value),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              key: const ValueKey('custom-product-allow-custom'),
+              contentPadding: EdgeInsets.zero,
+              value: allowCustomQuantity,
+              onChanged: (value) => setState(() => allowCustomQuantity = value),
+              title: Text(l10n.customAllowCustom),
+              subtitle: Text(l10n.customAllowCustomHint),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _categoryField() => DropdownButtonFormField<String>(
+    key: const ValueKey('custom-product-category'),
+    initialValue: categoryId,
+    isExpanded: true,
+    decoration: InputDecoration(labelText: context.l10n.customCategoryRequired),
+    items: widget.categories
+        .map(
+          (c) => DropdownMenuItem(
+            value: c.id,
+            child: Text(_category(context, c), overflow: TextOverflow.ellipsis),
+          ),
+        )
+        .toList(),
+    onChanged: packs.any((row) => row.created)
+        ? null
+        : (v) => setState(() => categoryId = v),
+  );
+}
+
+/// A category option: built-ins translated by id, shop categories as entered.
+String _category(BuildContext context, ProductCategory category) => bidiName(
+  context,
+  localizedCategoryName(context.l10n, category.id, category.name),
+);
+
+/// Numeric money input shared by Create and Edit product.
+Widget moneyField(
+  TextEditingController controller,
+  String label, {
+  Key? key,
+  VoidCallback? onSubmitted,
+}) => _numberField(
+  controller,
+  label,
+  key: key,
+  prefix: 'Rs ',
+  onSubmitted: onSubmitted,
+);
+
+/// Numeric quantity input shared by Create and Edit product.
+Widget quantityField(
+  TextEditingController controller,
+  String label, {
+  Key? key,
+  VoidCallback? onSubmitted,
+}) => _numberField(controller, label, key: key, onSubmitted: onSubmitted);
+
+Widget _numberField(
+  TextEditingController controller,
+  String label, {
+  Key? key,
+  String? prefix,
+  VoidCallback? onSubmitted,
+}) => TextField(
+  key: key,
+  controller: controller,
+  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+  inputFormatters: [
+    const AsciiDigitsFormatter(),
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+  ],
+  textInputAction: onSubmitted == null
+      ? TextInputAction.next
+      : TextInputAction.done,
+  onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
+  decoration: InputDecoration(labelText: label, prefixText: prefix),
+);
+
+/// Square product photo card: empty state invites a choice; once chosen it
+/// previews the image with Change / Remove. Never shows a path or URL.
+class ProductImagePickerCard extends StatelessWidget {
+  const ProductImagePickerCard({
+    super.key,
+    required this.image,
+    required this.busy,
+    required this.onChoose,
+    required this.onRemove,
+    this.error,
+  });
+
+  final ImageProvider? image;
+  final bool busy;
+  final String? error;
+  final VoidCallback onChoose;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final bytes = image;
+    final frame = Semantics(
+      button: true,
+      label: bytes == null ? null : context.l10n.imageChangeSemantics,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Material(
+          color: scheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: const ValueKey('product-image-choose'),
+            onTap: busy ? null : onChoose,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (bytes != null)
+                  Image(
+                    image: bytes,
+                    key: const ValueKey('product-image-preview'),
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    semanticLabel: context.l10n.imagePreviewSemantics,
+                    errorBuilder: (_, _, _) => const _EmptyImageHint(),
+                  )
+                else
+                  const _EmptyImageHint(),
+                if (busy)
+                  ColoredBox(
+                    color: scheme.surface.withValues(alpha: 0.7),
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.l10n.imageSection,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: scheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        frame,
+        const SizedBox(height: 10),
+        if (bytes == null)
+          Text(
+            context.l10n.imageFormats,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('product-image-change'),
+                onPressed: busy ? null : onChoose,
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: Text(context.l10n.imageChange),
+              ),
+              TextButton.icon(
+                key: const ValueKey('product-image-remove'),
+                onPressed: busy ? null : onRemove,
+                style: TextButton.styleFrom(foregroundColor: scheme.error),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: Text(context.l10n.commonRemove),
+              ),
+            ],
+          ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              localizedMessage(context.l10n, error!),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.error),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EmptyImageHint extends StatelessWidget {
+  const _EmptyImageHint();
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              size: 44,
+              color: scheme.primary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              context.l10n.imageChoose,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

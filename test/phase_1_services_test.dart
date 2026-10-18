@@ -31,7 +31,7 @@ void main() {
       final gateway = _FakeBootstrap();
       expect(
         await ShopBootstrapService(gateway).resolve(),
-        isA<NeedsShopCreation>(),
+        isA<NoShopAssigned>(),
       );
       gateway.rows.add(
         const ShopMembership(
@@ -107,6 +107,9 @@ void main() {
               shopId: 'shop-a',
               customName: const Value('Coke'),
               barcode: const Value('999'),
+              // Service tests, not stock tests: untracked, so sales never
+              // depend on stock (sales never oversell).
+              stockTrackingEnabled: const Value(false),
               purchasePrice: 15000,
               salePrice: 18000,
               createdAt: now,
@@ -291,13 +294,6 @@ final class _FakeBootstrap implements ShopBootstrapGateway {
   final rows = <ShopMembership>[];
   @override
   Future<List<ShopMembership>> memberships() async => rows;
-  @override
-  Future<ShopMembership> createOwnerShop({
-    required String name,
-    required String phone,
-    required String address,
-  }) async =>
-      ShopMembership(shopId: 'created', shopName: name, role: ShopRole.owner);
 }
 
 final class _MemoryDeviceStore implements DeviceIdStore {

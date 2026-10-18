@@ -12,7 +12,11 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late AppDatabase db;
   late _Ids ids;
-  final now = DateTime(2026, 9, 14, 12);
+  // DriftExpenseRepository totals "this month" from the real clock, so the
+  // fixture date is day 14 of the month captured when the suite starts (a
+  // fixed 2026-09-14 stopped being "this month" on 2026-10-01).
+  final month = DateTime.now();
+  final now = DateTime(month.year, month.month, 14, 12);
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     ids = _Ids();
@@ -119,7 +123,10 @@ void main() {
       (await repo.query(search: 'delivery')).rows.single.category,
       'Transport',
     );
-    expect((await repo.query(from: DateTime(2026, 9, 15))).rows, isEmpty);
+    expect(
+      (await repo.query(from: DateTime(now.year, now.month, 15))).rows,
+      isEmpty,
+    );
   });
   test('expense persists after database restart', () async {
     await db.close();

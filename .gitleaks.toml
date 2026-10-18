@@ -10,6 +10,9 @@ regexes = [
   # Local-only password for disposable users created by tool/development_entitlement_e2e.dart
   # against the ephemeral local stack. Never a real account.
   '''Development-only-123!''',
+  # Password for throwaway owners created by test_r1/support/http_stack.dart on
+  # the disposable local stack only (guarded against hosted targets).
+  '''R1-local-only-pass-123!''',
   # Fake cashier tokens used as fixtures in test/phase_2a_sync_security_test.dart.
   '''(sensitive|raw-once)-token''',
   # supabase/config.toml indirections to environment variables (values are not in the repo).

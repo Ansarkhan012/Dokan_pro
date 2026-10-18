@@ -23,9 +23,13 @@ final class SupabaseDeviceRegistrationGateway
       },
     );
     final row = (result as List<dynamic>).single as Map<String, dynamic>;
+    final isActive = row['is_active']! as bool;
     return RegisteredDevice(
       id: row['device_id']! as String,
-      isActive: row['is_active']! as bool,
+      isActive: isActive,
+      approvalStatus:
+          row['approval_status'] as String? ??
+          (isActive ? 'approved' : 'revoked'),
     );
   }
 
@@ -34,16 +38,28 @@ final class SupabaseDeviceRegistrationGateway
     required String shopId,
     required String identifier,
   }) async {
-    final row = await client
+    Future<Map<String, dynamic>?> select(String columns) => client
         .from('devices')
-        .select('id,is_active')
+        .select(columns)
         .eq('shop_id', shopId)
         .eq('device_identifier', identifier)
         .maybeSingle();
+    Map<String, dynamic>? row;
+    try {
+      row = await select('id,is_active,approval_status');
+    } on PostgrestException catch (e) {
+      // 42703: a server without migration 202610140001 has no such column.
+      if (e.code != '42703') rethrow;
+      row = await select('id,is_active');
+    }
     if (row == null) return null;
+    final isActive = row['is_active']! as bool;
     return RegisteredDevice(
       id: row['id']! as String,
-      isActive: row['is_active']! as bool,
+      isActive: isActive,
+      approvalStatus:
+          row['approval_status'] as String? ??
+          (isActive ? 'approved' : 'revoked'),
     );
   }
 }

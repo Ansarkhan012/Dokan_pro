@@ -1,3 +1,5 @@
+import '../../core/domain/enums.dart';
+
 enum ReceiptPaperWidth { mm58, mm80 }
 
 final class ReceiptLine {
@@ -6,9 +8,13 @@ final class ReceiptLine {
     required this.quantity,
     required this.unitPrice,
     required this.total,
+    this.measureUnit,
   });
   final String name;
+
+  /// Thousandths; a count unless [measureUnit] is set (U1 snapshot).
   final int quantity, unitPrice, total;
+  final MeasureUnit? measureUnit;
 }
 
 /// Immutable, transport-neutral receipt snapshot. Historical instances are
@@ -28,6 +34,7 @@ final class ReceiptModel {
     this.customer,
     this.received,
     this.change = 0,
+    this.discount = 0,
     this.returned = 0,
     this.status = 'Completed',
     this.footer,
@@ -37,6 +44,9 @@ final class ReceiptModel {
   final DateTime dateTime;
   final List<ReceiptLine> lines;
   final int subtotal, total, change, returned;
+
+  /// The sale's stored `discount_total`; zero shows no discount line.
+  final int discount;
   final int? received;
   final Map<String, int> payments;
   int get netTotal => total - returned;

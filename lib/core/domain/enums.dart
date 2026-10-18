@@ -16,6 +16,26 @@ enum InventoryMovementType {
   stockCorrection,
 }
 
+/// How a product is sold (U1). Stored by name; never changes after creation.
+enum SellMode { piece, measured }
+
+/// Unit of a measured product. The stored quantity is thousandths of it:
+/// grams for [kg], millilitres for [liter].
+enum MeasureUnit {
+  kg('kg', 'g'),
+  liter('L', 'ml');
+
+  const MeasureUnit(this.wholeLabel, this.fractionLabel);
+  final String wholeLabel;
+  final String fractionLabel;
+
+  static MeasureUnit? tryParse(String? value) => switch (value) {
+    'kg' => MeasureUnit.kg,
+    'liter' => MeasureUnit.liter,
+    _ => null,
+  };
+}
+
 enum PaymentMethod { cash, digital, credit, other }
 
 enum PaymentStatus { unpaid, partiallyPaid, paid, refunded }
@@ -40,7 +60,18 @@ enum SupplierLedgerType {
 
 enum ShiftStatus { open, closed }
 
-enum SyncStatus { pending, syncing, synced, failed }
+/// Outbox states (design §H). `failed` is the retry-wait state: the operation
+/// is retried after its backoff. `needsAttention` (permanent rejection or
+/// exhausted unknown errors) and `blockedAuth` (device/cashier no longer
+/// authorised) are never retried automatically; the owner retries them.
+enum SyncStatus {
+  pending,
+  syncing,
+  synced,
+  failed,
+  needsAttention,
+  blockedAuth,
+}
 
 enum SyncOperationType { create, update, delete }
 

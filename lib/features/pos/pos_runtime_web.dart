@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
 
 class PosRuntime extends StatelessWidget {
   const PosRuntime({
@@ -23,7 +25,9 @@ class PosRuntime extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('$shopName • POS preview')),
+    appBar: AppBar(
+      title: Text(context.l10n.posPreviewTitle(bidiName(context, shopName))),
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -40,20 +44,21 @@ class PosRuntime extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Cashier authentication successful',
+                  context.l10n.posPreviewAuthenticated,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                Text('$cashierName is signed in.'),
-                const SizedBox(height: 12),
-                const Text(
-                  'The offline POS database is available on Android and Windows. Chrome remains an auth and onboarding preview target.',
-                  textAlign: TextAlign.center,
+                Text(
+                  context.l10n.posPreviewSignedIn(
+                    bidiName(context, cashierName),
+                  ),
                 ),
+                const SizedBox(height: 12),
+                Text(context.l10n.posPreviewNote, textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 OutlinedButton(
                   onPressed: onExit,
-                  child: const Text('End preview session'),
+                  child: Text(context.l10n.posPreviewEnd),
                 ),
               ],
             ),

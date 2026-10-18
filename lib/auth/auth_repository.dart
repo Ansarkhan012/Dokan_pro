@@ -4,10 +4,9 @@ abstract interface class AuthRepository {
   AppAuthState get current;
   Stream<AppAuthState> get changes;
   Future<void> signIn({required String email, required String password});
-  Future<void> signUp({
-    required String email,
-    required String password,
-    required String fullName,
-  });
+
+  /// Shops and owner accounts are created by Dokan Pro Support; there is no
+  /// self-registration. An owner who forgot their password gets a reset link.
+  Future<void> sendPasswordReset({required String email});
   Future<void> signOut();
 }

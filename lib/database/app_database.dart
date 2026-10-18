@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 13;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async => m.createAll(),
@@ -134,13 +134,66 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(shops, shops.receiptShowAddress);
         await m.addColumn(shops, shops.notificationsEnabled);
       }
+      if (from < 11) {
+        // R1.4: cursors become server positions. Existing cursors and every
+        // local row are kept; a cursor without a position re-pulls once.
+        await m.addColumn(syncCursors, syncCursors.serverSeq);
+      }
+      if (from < 12) {
+        // R1.5: failure classification. Existing operations keep their
+        // status; a `failed` one is still a retry-wait operation.
+        for (final column in [
+          syncOperations.errorClass,
+          syncOperations.errorCode,
+          syncOperations.attentionReason,
+          syncOperations.attentionAt,
+          syncOperations.firstErrorAt,
+          syncOperations.unknownErrorCount,
+          syncOperations.acknowledgedAt,
+        ]) {
+          await m.addColumn(syncOperations, column);
+        }
+      }
+      if (from < 13) {
+        // U1: product units and pack variants. Every existing product
+        // becomes a piece product and every existing sale line a count.
+        await m.addColumn(shopProducts, shopProducts.sellMode);
+        await m.addColumn(shopProducts, shopProducts.familyId);
+        await m.addColumn(shopProducts, shopProducts.measurePresets);
+        await m.addColumn(shopProducts, shopProducts.allowCustomQuantity);
+        await m.addColumn(saleItems, saleItems.measureUnitSnapshot);
+        // Rows pulled before v13 lack the new fields. Re-pull only these two
+        // entities from the start (a cursor without a position, as in v11);
+        // every other cursor keeps its position.
+        await customStatement(
+          'UPDATE sync_cursors SET server_seq = NULL '
+          "WHERE entity_type IN ('shopProducts', 'saleItems')",
+        );
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
+      // One batch, one round trip to the database isolate. The four v9
+      // indexes: v9 created those tables with createTable, which does not
+      // create indexes, so a device upgraded from v7/v8 lacked them. Each
+      // statement is idempotent, so this also repairs devices that already
+      // upgraded.
       await customStatement(
-        'CREATE UNIQUE INDEX IF NOT EXISTS shop_products_unique_master '
-        'ON shop_products(shop_id, master_product_id) '
-        'WHERE master_product_id IS NOT NULL',
+        [
+          'CREATE UNIQUE INDEX IF NOT EXISTS shop_products_unique_master '
+              'ON shop_products(shop_id, master_product_id) '
+              'WHERE master_product_id IS NOT NULL',
+          for (final index in [
+            saleReturnsOriginal,
+            saleReturnItemsReturn,
+            saleReturnItemsOriginalItem,
+            saleVoidsOriginal,
+          ])
+            index.createStatementsByDialect[SqlDialect.sqlite]!.replaceFirst(
+              'CREATE INDEX ',
+              'CREATE INDEX IF NOT EXISTS ',
+            ),
+        ].join(';\n'),
       );
     },
   );

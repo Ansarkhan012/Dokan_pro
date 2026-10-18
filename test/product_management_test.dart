@@ -61,6 +61,30 @@ void main() {
       );
     });
 
+    test('keeps the catalog name unless the shop renames it', () async {
+      const input = AddProductInput(
+        purchasePriceMinor: 0,
+        salePriceMinor: 95000,
+        openingQuantity: 0,
+        lowStockLevel: 0,
+      );
+      Future<String?> add(String? name) async {
+        await ProductManagementService(gateway, _Ids()).addMaster(
+          shopId: 'shop',
+          deviceId: 'device',
+          product: gateway.master,
+          input: input,
+          name: name,
+        );
+        return gateway.lastCustomName;
+      }
+
+      expect(await add(null), equals(null));
+      expect(await add('  '), equals(null));
+      expect(await add(' ${gateway.master.name} '), equals(null));
+      expect(await add('  Surf Excel Bara  '), 'Surf Excel Bara');
+    });
+
     test('creates shop-only custom product and validates prices', () async {
       final id = await service.createCustom(
         shopId: 'shop',
@@ -203,6 +227,7 @@ final class _Gateway implements ProductManagementGateway {
     alreadyAdded: false,
   );
   int? lastOpeningQuantity;
+  String? lastCustomName;
   String? lastShopProductId;
   String? lastMovementId;
   CustomProductInput? createdCustom;
@@ -211,6 +236,7 @@ final class _Gateway implements ProductManagementGateway {
   Future<List<MasterCatalogItem>> searchMasterCatalog({
     required String shopId,
     required String query,
+    int offset = 0,
   }) async => query.toLowerCase().contains('surf') || query == master.barcode
       ? [master]
       : [];
@@ -222,8 +248,10 @@ final class _Gateway implements ProductManagementGateway {
     required String movementId,
     required String masterProductId,
     required AddProductInput input,
+    String? customName,
   }) async {
     lastOpeningQuantity = input.openingQuantity;
+    lastCustomName = customName;
     lastShopProductId = shopProductId;
     lastMovementId = movementId;
     return shopProductId;
@@ -249,5 +277,7 @@ final class _Gateway implements ProductManagementGateway {
     required int salePriceMinor,
     required int lowStockLevel,
     required bool isActive,
+    List<int>? measurePresets,
+    bool? allowCustomQuantity,
   }) async {}
 }

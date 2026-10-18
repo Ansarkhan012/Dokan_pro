@@ -31,9 +31,16 @@ final class SaleDraft {
     required this.deviceId,
     required this.lines,
     required this.payments,
+    this.saleId,
     this.customerId,
     this.invoiceNumber,
   });
+
+  /// The checkout attempt id, minted before the local transaction and used
+  /// as the sale id. Committing the same id again returns the committed sale
+  /// when the content is the same and throws [CheckoutConflict] otherwise.
+  /// Null only for callers without an attempt identity (a fresh id is used).
+  final String? saleId;
   final String shopId;
   final String cashierId;
   final String deviceId;
@@ -59,4 +66,38 @@ final class SaleValidationException implements Exception {
   final String message;
   @override
   String toString() => 'SaleValidationException: $message';
+}
+
+/// A sale line asks for more tracked stock than the product has (repeated
+/// lines of one product count together). Nothing was written. [message] stays
+/// `Insufficient stock` for logs and callers that only read the message.
+final class InsufficientStockException extends SaleValidationException {
+  const InsufficientStockException({
+    required this.productName,
+    required this.availableQuantity,
+    required this.requestedQuantity,
+    this.measureUnitName,
+  }) : super('Insufficient stock');
+
+  final String productName;
+
+  /// Thousandths on hand before this sale; negative when earlier sales
+  /// already took stock below zero.
+  final int availableQuantity;
+
+  /// Thousandths this sale asks for, all lines of the product together.
+  final int requestedQuantity;
+
+  /// `kg` or `liter` for a measured product; null for a count.
+  final String? measureUnitName;
+}
+
+/// The checkout id is already committed with different content. Nothing was
+/// written; the committed sale is unchanged.
+final class CheckoutConflict implements Exception {
+  const CheckoutConflict(this.saleId);
+  final String saleId;
+  @override
+  String toString() =>
+      'CheckoutConflict: sale $saleId is already saved with different content';
 }

@@ -21,22 +21,4 @@ final class SupabaseShopBootstrapGateway implements ShopBootstrapGateway {
       );
     }).toList();
   }
-
-  @override
-  Future<ShopMembership> createOwnerShop({
-    required String name,
-    required String phone,
-    required String address,
-  }) async {
-    final result = await client.rpc(
-      'create_owner_shop',
-      params: {'p_name': name, 'p_phone': phone, 'p_address': address},
-    );
-    final row = (result as List<dynamic>).single as Map<String, dynamic>;
-    return ShopMembership(
-      shopId: row['shop_id']! as String,
-      shopName: row['shop_name']! as String,
-      role: ShopRole.owner,
-    );
-  }
 }

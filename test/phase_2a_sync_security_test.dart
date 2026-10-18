@@ -14,22 +14,34 @@ import 'package:dukaan_pro/sync/sale_payload_codec.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('legacy queued sale timestamps normalize to UTC ISO-8601', () {
-    final normalized = normalizeSalePayloadForCloud({
-      'sale': {'createdAt': 1789275188000, 'grandTotal': 19000},
-      'sale_items': [
-        {'createdAt': '2026-09-13T04:53:08.000'},
-      ],
-    });
-    final sale = normalized['sale']! as Map<String, dynamic>;
-    final items = normalized['sale_items']! as List<dynamic>;
-    expect(sale['createdAt'], '2026-09-13T04:53:08.000Z');
-    expect(
-      (items.single as Map<String, dynamic>)['createdAt'],
-      equals(sale['createdAt']),
-    );
-    expect(sale['grandTotal'], 19000);
-  });
+  // R1.2 (T-1): an offset-less string is a device wall clock, not UTC, so it
+  // is refused instead of being relabelled with 'Z' (which shifted every sale
+  // by the device offset). Epoch and explicit-offset forms keep their instant.
+  test(
+    'legacy queued sale timestamps: unambiguous forms normalize to UTC ISO-8601, offset-less text is refused',
+    () {
+      final normalized = normalizeSalePayloadForCloud({
+        'sale': {'createdAt': 1789275188000, 'grandTotal': 19000},
+        'sale_items': [
+          {'createdAt': '2026-09-13T09:53:08.000+05:00'},
+        ],
+      });
+      final sale = normalized['sale']! as Map<String, dynamic>;
+      final items = normalized['sale_items']! as List<dynamic>;
+      expect(sale['createdAt'], '2026-09-13T04:53:08.000Z');
+      expect(
+        (items.single as Map<String, dynamic>)['createdAt'],
+        equals(sale['createdAt']),
+      );
+      expect(sale['grandTotal'], 19000);
+      expect(
+        () => normalizeSalePayloadForCloud({
+          'sale': {'createdAt': '2026-09-13T04:53:08.000', 'grandTotal': 19000},
+        }),
+        throwsA(isA<AmbiguousTimestampPayload>()),
+      );
+    },
+  );
 
   group('cashier local session policy', () {
     final now = DateTime.utc(2026, 9, 12, 12);

@@ -2,53 +2,96 @@ import 'package:flutter/material.dart';
 import '../pos/pos_state.dart';
 import 'receipt_model.dart';
 import 'receipt_printer.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 class ReceiptView extends StatelessWidget {
   const ReceiptView({super.key, required this.receipt});
   final ReceiptModel receipt;
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(
-        receipt.shopName,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      if (receipt.phone != null)
-        Text(receipt.phone!, textAlign: TextAlign.center),
-      if (receipt.address != null)
-        Text(receipt.address!, textAlign: TextAlign.center),
-      Text(receipt.reference),
-      Text('${receipt.dateTime.toLocal()} • ${receipt.cashier}'),
-      if (receipt.customer != null) Text('Customer: ${receipt.customer}'),
-      if (receipt.status != 'Completed')
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    String money(int minor) => bidiMoney(context, formatPkr(minor));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Text(
-          receipt.status,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          bidiName(context, receipt.shopName),
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge,
         ),
-      const Divider(),
-      for (final line in receipt.lines)
+        if (receipt.phone != null)
+          Text(bidiId(context, receipt.phone!), textAlign: TextAlign.center),
+        if (receipt.address != null)
+          Text(
+            bidiName(context, receipt.address!),
+            textAlign: TextAlign.center,
+          ),
+        Text(bidiId(context, receipt.reference)),
         Text(
-          '${line.quantity / quantityScale} × ${line.name}  ${formatPkr(line.total)}',
+          l10n.receiptDateCashier(
+            localizedDateTime(l10n, receipt.dateTime),
+            bidiName(context, receipt.cashier),
+          ),
         ),
-      const Divider(),
-      Text('Subtotal ${formatPkr(receipt.subtotal)}'),
-      Text('Total ${formatPkr(receipt.total)}'),
-      if (receipt.returned > 0) Text('Returned ${formatPkr(receipt.returned)}'),
-      if (receipt.returned > 0) Text('Net ${formatPkr(receipt.netTotal)}'),
-      for (final row in receipt.payments.entries)
-        Text('${row.key}: ${formatPkr(row.value)}'),
-      if (receipt.received != null)
-        Text('Received ${formatPkr(receipt.received!)}'),
-      if (receipt.change > 0) Text('Change ${formatPkr(receipt.change)}'),
-      if (receipt.footer?.isNotEmpty == true) ...[
+        if (receipt.customer != null)
+          Text(l10n.receiptCustomer(bidiName(context, receipt.customer!))),
+        if (receipt.status != 'Completed')
+          Text(
+            localizedSaleStatus(l10n, receipt.status),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
         const Divider(),
-        Text(receipt.footer!, textAlign: TextAlign.center),
+        for (final line in receipt.lines) ...[
+          Text(
+            l10n.receiptLine(
+              bidiQuantity(
+                context,
+                localizedLineQuantity(l10n, line.quantity, line.measureUnit),
+              ),
+              productDisplayName(context, line.name),
+              money(line.total),
+            ),
+          ),
+          Text(
+            '  ${l10n.receiptAtPrice(line.measureUnit == null ? l10n.receiptEach(money(line.unitPrice)) : localizedUnitPrice(l10n, money(line.unitPrice), line.measureUnit!))}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const Divider(),
+        Text(l10n.receiptSubtotal(money(receipt.subtotal))),
+        if (receipt.discount > 0)
+          Text(
+            l10n.receiptDiscount(
+              bidiMoney(context, '-${formatPkr(receipt.discount)}'),
+            ),
+          ),
+        Text(l10n.receiptTotal(money(receipt.total))),
+        if (receipt.returned > 0)
+          Text(l10n.receiptReturned(money(receipt.returned))),
+        if (receipt.returned > 0)
+          Text(l10n.receiptNet(money(receipt.netTotal))),
+        for (final row in receipt.payments.entries)
+          Text(
+            l10n.receiptPayment(
+              localizedPaymentMethod(l10n, row.key),
+              money(row.value),
+            ),
+          ),
+        if (receipt.received != null)
+          Text(l10n.receiptReceived(money(receipt.received!))),
+        if (receipt.change > 0) Text(l10n.receiptChange(money(receipt.change))),
+        if (receipt.footer?.isNotEmpty == true) ...[
+          const Divider(),
+          Text(bidiName(context, receipt.footer!), textAlign: TextAlign.center),
+        ],
       ],
-    ],
-  );
+    );
+  }
 }
 
 Future<void> showPrintableReceipt(
@@ -59,24 +102,26 @@ Future<void> showPrintableReceipt(
 }) => showDialog<void>(
   context: context,
   builder: (dialogContext) => AlertDialog(
-    title: const Text('Receipt'),
+    title: Text(context.l10n.receiptTitle),
     content: SingleChildScrollView(child: ReceiptView(receipt: receipt)),
     actions: [
       OutlinedButton.icon(
         icon: const Icon(Icons.print_outlined),
-        label: const Text('Print / Reprint'),
+        label: Text(context.l10n.receiptPrint),
         onPressed: () async {
           final result = await printer.print(receipt, paperWidth: width);
           if (dialogContext.mounted) {
-            ScaffoldMessenger.of(
-              dialogContext,
-            ).showSnackBar(SnackBar(content: Text(result.message)));
+            ScaffoldMessenger.of(dialogContext).showSnackBar(
+              SnackBar(
+                content: Text(localizedMessage(context.l10n, result.message)),
+              ),
+            );
           }
         },
       ),
       FilledButton(
         onPressed: () => Navigator.pop(dialogContext),
-        child: const Text('Close'),
+        child: Text(context.l10n.commonClose),
       ),
     ],
   ),

@@ -1,0 +1,4 @@
+# Expected-red R1 recovery tests (run under TZ=Asia/Karachi).
+# Each line is an exact test name. When a substage fixes a defect, move the
+# test to the green suite and delete its line here in the same change.
+# Empty since R1.5 + R1.6: every accepted R1 finding has a green test.

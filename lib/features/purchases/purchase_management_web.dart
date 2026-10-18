@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/l10n/l10n.dart';
+
 class PurchaseManagementScreen extends StatelessWidget {
   const PurchaseManagementScreen({
     super.key,
@@ -12,9 +14,9 @@ class PurchaseManagementScreen extends StatelessWidget {
   final String shopId, deviceId;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Suppliers & Purchases')),
-    body: const Center(
-      child: Text('Purchasing is available on Android and Windows.'),
+    appBar: AppBar(title: Text(context.l10n.ownerNavPurchases)),
+    body: Center(
+      child: Text(context.l10n.purchasesWebOnly, textAlign: TextAlign.center),
     ),
   );
 }

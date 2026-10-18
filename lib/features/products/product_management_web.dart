@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/l10n/l10n.dart';
 
 class ProductManagementScreen extends StatelessWidget {
   const ProductManagementScreen({
@@ -14,14 +15,11 @@ class ProductManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Products')),
-    body: const Center(
+    appBar: AppBar(title: Text(context.l10n.productsTitle)),
+    body: Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'Product management uses the native Drift catalog. Open Dukaan Pro on Windows or Android.',
-          textAlign: TextAlign.center,
-        ),
+        padding: const EdgeInsets.all(24),
+        child: Text(context.l10n.productsWebOnly, textAlign: TextAlign.center),
       ),
     ),
   );

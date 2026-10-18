@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../../../core/domain/enums.dart';
+import '../../../core/format/measure_format.dart';
 import '../../../core/ids/id_generator.dart';
 import '../../../database/app_database.dart';
 import '../../../subscription/entitlement_policy.dart';
+import '../../../sync/sync_time.dart';
 import '../domain/sale_draft.dart';
+import '../domain/stock_policy.dart';
 
 final class LocalSaleService {
   LocalSaleService(
@@ -21,6 +24,12 @@ final class LocalSaleService {
   Future<CreatedSale> createSale(SaleDraft draft) async {
     await _authorizer.authorize(shopId: draft.shopId, deviceId: draft.deviceId);
     return db.transaction(() async {
+      // Replay of a committed checkout id: return it or refuse it, never
+      // write a second aggregate (first statement, inside the transaction).
+      if (draft.saleId case final checkoutId?) {
+        final existing = await _existingCheckout(checkoutId, draft);
+        if (existing != null) return existing;
+      }
       final now = _clock().toUtc();
       final shop = await (db.select(
         db.shops,
@@ -49,15 +58,19 @@ final class LocalSaleService {
       if (draft.lines.isEmpty) {
         throw const SaleValidationException('Cart must not be empty');
       }
-      if (draft.payments.isEmpty ||
-          draft.payments.any((p) => p.amountMinor < 0)) {
-        throw const SaleValidationException('Payments must be non-negative');
+      // Every payment row is a real tender (> 0). A zero-total sale has no
+      // payment rows; the total check below rejects an empty list otherwise.
+      if (draft.payments.any((p) => p.amountMinor <= 0)) {
+        throw const SaleValidationException(
+          'Payment amounts must be greater than zero',
+        );
       }
 
-      final saleId = ids.next();
+      final saleId = draft.saleId ?? ids.next();
       final itemRows = <Map<String, Object?>>[];
       var subtotal = 0;
       var discountTotal = 0;
+      final requestedStock = <String, int>{};
       for (final line in draft.lines) {
         if (line.quantity <= 0) {
           throw const SaleValidationException(
@@ -85,6 +98,21 @@ final class LocalSaleService {
             'Product prices cannot be negative',
           );
         }
+        // U1: a count sells in whole units; a measured line keeps its unit
+        // (the server enforces the same rules at sync).
+        final measureUnit = product.sellMode == SellMode.measured.name
+            ? MeasureUnit.tryParse(product.unit)
+            : null;
+        if (product.sellMode == SellMode.measured.name && measureUnit == null) {
+          throw const SaleValidationException(
+            'Measured product requires kg or liter',
+          );
+        }
+        if (measureUnit == null && line.quantity % 1000 != 0) {
+          throw const SaleValidationException(
+            'Piece products are sold in whole units',
+          );
+        }
         final gross = _scaledPrice(product.salePrice, line.quantity);
         if (line.discountMinor > gross) {
           throw const SaleValidationException('Discount exceeds line value');
@@ -103,15 +131,32 @@ final class LocalSaleService {
           'sale_price_snapshot': product.salePrice,
           'discount_amount': line.discountMinor,
           'line_total': lineTotal,
+          'measure_unit_snapshot': measureUnit?.name,
         });
-        if (!shop.allowNegativeStock && product.stockTrackingEnabled) {
+        if (product.stockTrackingEnabled &&
+            !salesMayOversell(
+              shopAllowsNegativeStock: shop.allowNegativeStock,
+            )) {
+          // INV-1: repeated lines of one product draw on the same stock. The
+          // check and the stock movements below share this transaction, so
+          // two checkouts can never both take the last unit.
+          final requested = requestedStock[product.id] =
+              (requestedStock[product.id] ?? 0) + line.quantity;
           final stock = await _stock(draft.shopId, product.id);
-          if (stock < line.quantity) {
-            throw const SaleValidationException('Insufficient stock');
+          if (stock < requested) {
+            throw InsufficientStockException(
+              productName: name,
+              availableQuantity: stock,
+              requestedQuantity: requested,
+              measureUnitName: measureUnit?.name,
+            );
           }
         }
       }
       final grandTotal = subtotal - discountTotal;
+      if (grandTotal < 0) {
+        throw const SaleValidationException('Sale total cannot be negative');
+      }
       final paid = draft.payments.fold(0, (sum, p) => sum + p.amountMinor);
       if (paid != grandTotal) {
         throw const SaleValidationException(
@@ -196,6 +241,9 @@ final class LocalSaleService {
                 discountAmount: row['discount_amount']! as int,
                 lineTotal: row['line_total']! as int,
                 createdAt: now,
+                measureUnitSnapshot: Value(
+                  row['measure_unit_snapshot'] as String?,
+                ),
               ),
             );
         await db
@@ -287,6 +335,94 @@ final class LocalSaleService {
     });
   }
 
+  /// The committed sale for [checkoutId], if any. Same checkout content →
+  /// that sale (idempotent); different content → [CheckoutConflict].
+  Future<CreatedSale?> _existingCheckout(
+    String checkoutId,
+    SaleDraft draft,
+  ) async {
+    final sale = await (db.select(
+      db.sales,
+    )..where((t) => t.id.equals(checkoutId))).getSingleOrNull();
+    if (sale == null) return null;
+    if (sale.shopId != draft.shopId) throw CheckoutConflict(checkoutId);
+    final items = await (db.select(
+      db.saleItems,
+    )..where((t) => t.saleId.equals(checkoutId))).get();
+    final payments = await (db.select(
+      db.salePayments,
+    )..where((t) => t.saleId.equals(checkoutId))).get();
+    final committed = _canonicalCheckout(
+      shopId: sale.shopId,
+      cashierId: sale.cashierId,
+      deviceId: sale.deviceId,
+      customerId: sale.customerId,
+      invoiceNumber: sale.invoiceNumber,
+      lines: [
+        for (final item in items)
+          [item.productId, item.quantity, item.discountAmount],
+      ],
+      payments: [
+        for (final payment in payments)
+          [payment.paymentMethod.name, payment.amount, payment.reference],
+      ],
+    );
+    final requested = _canonicalCheckout(
+      shopId: draft.shopId,
+      cashierId: draft.cashierId,
+      deviceId: draft.deviceId,
+      customerId: draft.customerId,
+      invoiceNumber: draft.invoiceNumber,
+      lines: [
+        for (final line in draft.lines)
+          [line.productId, line.quantity, line.discountMinor],
+      ],
+      payments: [
+        for (final payment in draft.payments)
+          [payment.method.name, payment.amountMinor, payment.reference],
+      ],
+    );
+    if (committed != requested) throw CheckoutConflict(checkoutId);
+    final operation =
+        await (db.select(db.syncOperations)..where(
+              (t) =>
+                  t.entityType.equals('sale_aggregate') &
+                  t.entityId.equals(checkoutId),
+            ))
+            .getSingleOrNull();
+    return CreatedSale(
+      saleId: checkoutId,
+      syncOperationId: operation?.id ?? '',
+      grandTotalMinor: sale.grandTotal,
+    );
+  }
+
+  /// Order-independent form of everything a [SaleDraft] carries. Each draft
+  /// line is stored as one sale item and each payment as one payment row, so
+  /// the committed rows reproduce it exactly; prices are not part of it (they
+  /// come from the product at commit time and are snapshotted then).
+  String _canonicalCheckout({
+    required String shopId,
+    required String cashierId,
+    required String deviceId,
+    required String? customerId,
+    required String? invoiceNumber,
+    required List<List<Object?>> lines,
+    required List<List<Object?>> payments,
+  }) {
+    List<String> sorted(List<List<Object?>> rows) =>
+        rows.map(jsonEncode).toList()..sort();
+    return jsonEncode({
+      'shop': shopId,
+      'cashier': cashierId,
+      'device': deviceId,
+      'customer': customerId,
+      'invoice': invoiceNumber,
+      'lines': sorted(lines),
+      'payments': sorted(payments),
+    });
+  }
+
   int _scaledPrice(int unitPrice, int quantity) =>
       (unitPrice * quantity + 500) ~/ 1000;
   Future<bool> _isActiveActor(String shopId, String actorId) async {
@@ -310,27 +446,32 @@ final class LocalSaleService {
   }
 
   Future<String> _productName(ShopProduct product) async {
-    if (product.customName case final name?) return name;
-    if (product.masterProductId case final id?) {
+    String? name = product.customName;
+    if (name == null && product.masterProductId != null) {
       final master = await (db.select(
         db.masterProducts,
-      )..where((t) => t.id.equals(id))).getSingleOrNull();
-      if (master != null) return master.name;
+      )..where((t) => t.id.equals(product.masterProductId!))).getSingleOrNull();
+      name = master?.name;
     }
-    throw const SaleValidationException('Product requires a display name');
+    if (name == null) {
+      throw const SaleValidationException('Product requires a display name');
+    }
+    return sellableName(name, product.packLabel, familyId: product.familyId);
   }
 
+  /// Summed in SQL: a product's movement history grows with every sale and
+  /// must not be loaded row by row on each checkout.
   Future<int> _stock(String shopId, String productId) async {
-    final rows =
-        await (db.select(db.inventoryMovements)..where(
-              (t) => t.shopId.equals(shopId) & t.productId.equals(productId),
-            ))
-            .get();
-    var total = 0;
-    for (final row in rows) {
-      total += row.quantity;
-    }
-    return total;
+    final total = db.inventoryMovements.quantity.sum();
+    final row =
+        await (db.selectOnly(db.inventoryMovements)
+              ..addColumns([total])
+              ..where(
+                db.inventoryMovements.shopId.equals(shopId) &
+                    db.inventoryMovements.productId.equals(productId),
+              ))
+            .getSingle();
+    return row.read(total) ?? 0;
   }
 
   Future<Map<String, Object?>> _aggregatePayload(
@@ -355,9 +496,8 @@ final class LocalSaleService {
     final ledger = await (db.select(
       db.customerLedgerEntries,
     )..where((t) => t.saleId.equals(saleId) & t.shopId.equals(shopId))).get();
-    const serializer = ValueSerializer.defaults(
-      serializeDateTimeValuesAsString: true,
-    );
+    // Instants leave the device as UTC ('Z'), never as a local wall clock.
+    const serializer = SyncTime.payloadSerializer;
     return {
       'version': 1,
       'operation': 'sync_sale_transaction',
