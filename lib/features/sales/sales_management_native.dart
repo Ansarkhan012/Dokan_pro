@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +17,10 @@ import 'application/local_sale_return_service.dart';
 import 'application/local_sale_void_service.dart';
 import 'domain/sale_return.dart';
 import 'sales_history.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
 
 class SalesManagementScreen extends StatefulWidget {
   const SalesManagementScreen({
@@ -60,12 +66,12 @@ class _State extends State<SalesManagementScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Sales & Returns')),
+    appBar: AppBar(title: Text(context.l10n.ownerNavSalesReturns)),
     body: FutureBuilder<AppDatabase>(
       future: ready,
       builder: (context, s) {
         if (s.hasError) {
-          return const Center(child: Text('Sales could not be opened.'));
+          return Center(child: Text(context.l10n.salesOpenFailed));
         }
         if (!s.hasData) return const Center(child: CircularProgressIndicator());
         return SalesHistoryView(
@@ -124,23 +130,27 @@ class _State extends State<SalesManagementScreen> {
           ],
         ),
       );
-      await _sync();
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Return saved locally.')));
+        ).showSnackBar(SnackBar(content: Text(context.l10n.returnFailed)));
       }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Return could not be saved. Check quantities and try again.',
-            ),
-          ),
-        );
-      }
+      return;
     }
+    // Unmounted: the change stays queued and uploads on the next sync.
+    if (!mounted) return;
+    _savedLocally(context.l10n.returnSaved);
+  }
+
+  /// The change is committed locally: say so at once and upload in the
+  /// background. Waiting for the network first left the owner without an
+  /// answer for as long as the upload took, inviting a second entry.
+  void _savedLocally(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+    unawaited(_sync());
   }
 
   Future<void> _void(SaleHistoryDetail detail) async {
@@ -148,19 +158,21 @@ class _State extends State<SalesManagementScreen> {
     final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Void sale'),
+        title: Text(context.l10n.voidTitle),
         content: TextField(
           controller: c,
-          decoration: const InputDecoration(labelText: 'Reason *'),
+          decoration: InputDecoration(
+            labelText: context.l10n.commonReasonRequired,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, c.text.trim()),
-            child: const Text('Void Sale'),
+            child: Text(context.l10n.voidConfirm),
           ),
         ],
       ),
@@ -179,23 +191,17 @@ class _State extends State<SalesManagementScreen> {
         deviceId: widget.deviceId,
         reason: reason,
       );
-      await _sync();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sale void recorded locally.')),
-        );
-      }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Void is allowed only for an owner within 15 minutes and before any return.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.voidRefused)));
       }
+      return;
     }
+    // Unmounted: the change stays queued and uploads on the next sync.
+    if (!mounted) return;
+    _savedLocally(context.l10n.voidSaved);
   }
 }
 
@@ -223,7 +229,7 @@ class _ReturnDialogState extends State<_ReturnDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Return items'),
+    title: Text(context.l10n.billReturnItems),
     content: SizedBox(
       width: 460,
       child: ListView(
@@ -232,30 +238,43 @@ class _ReturnDialogState extends State<_ReturnDialog> {
           for (var i = 0; i < widget.detail.lines.length; i++)
             TextField(
               controller: quantities[i],
+              inputFormatters: const [AsciiDigitsFormatter()],
               decoration: InputDecoration(
-                labelText:
-                    '${widget.detail.lines[i].name} (sold ${quantityToInput(widget.detail.lines[i].quantity)})',
+                labelText: context.l10n.returnLineLabel(
+                  productDisplayName(context, widget.detail.lines[i].name),
+                  bidiQuantity(
+                    context,
+                    quantityToInput(widget.detail.lines[i].quantity),
+                  ),
+                ),
               ),
             ),
           DropdownButtonFormField<PaymentMethod>(
             initialValue: method,
-            decoration: const InputDecoration(labelText: 'Refund method'),
-            items: const [
-              DropdownMenuItem(value: PaymentMethod.cash, child: Text('Cash')),
+            decoration: InputDecoration(
+              labelText: context.l10n.returnRefundMethod,
+            ),
+            items: [
+              DropdownMenuItem(
+                value: PaymentMethod.cash,
+                child: Text(context.l10n.paymentCash),
+              ),
               DropdownMenuItem(
                 value: PaymentMethod.digital,
-                child: Text('Digital'),
+                child: Text(context.l10n.paymentDigital),
               ),
               DropdownMenuItem(
                 value: PaymentMethod.credit,
-                child: Text('Udhaar adjustment'),
+                child: Text(context.l10n.returnUdhaarAdjustment),
               ),
             ],
             onChanged: (v) => setState(() => method = v!),
           ),
           TextField(
             controller: reason,
-            decoration: const InputDecoration(labelText: 'Reason *'),
+            decoration: InputDecoration(
+              labelText: context.l10n.commonReasonRequired,
+            ),
           ),
         ],
       ),
@@ -263,7 +282,7 @@ class _ReturnDialogState extends State<_ReturnDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: () {
@@ -278,7 +297,7 @@ class _ReturnDialogState extends State<_ReturnDialog> {
             _ReturnInput(q.cast<int>(), method, reason.text.trim()),
           );
         },
-        child: const Text('Save Return'),
+        child: Text(context.l10n.returnSave),
       ),
     ],
   );

@@ -8,6 +8,9 @@ import '../../sync/supabase_sale_upload_gateway.dart';
 import '../../sync/sync_health.dart';
 import '../../sync/sync_worker_runner.dart';
 import '../sales/domain/bill_reference.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/messages.dart';
 
 /// Owner-only list of outbox operations that need attention (R1.5).
 class SyncAttentionScreen extends StatefulWidget {
@@ -34,14 +37,14 @@ class _SyncAttentionScreenState extends State<SyncAttentionScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Sync issues')),
+    appBar: AppBar(title: Text(context.l10n.syncIssuesTitle)),
     body: FutureBuilder<AppDatabase>(
       future: db,
       builder: (context, snapshot) {
         final database = snapshot.data;
         if (database == null) {
           return snapshot.hasError
-              ? const Center(child: Text('Could not open local data.'))
+              ? Center(child: Text(context.l10n.commonLocalDataUnavailable))
               : const Center(child: CircularProgressIndicator());
         }
         final queue = SyncQueueRepository(database, shopId: widget.shopId);
@@ -75,15 +78,12 @@ class SyncAttentionView extends StatelessWidget {
         return const Center(child: CircularProgressIndicator());
       }
       if (items.isEmpty) {
-        return const Center(child: Text('No sync issues.'));
+        return Center(child: Text(context.l10n.syncNoIssues));
       }
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'Nothing here was deleted. Records stay on this device until '
-            'they sync.',
-          ),
+          Text(context.l10n.syncNothingDeleted),
           const SizedBox(height: 8),
           for (final operation in items) _tile(context, operation),
         ],
@@ -93,6 +93,7 @@ class SyncAttentionView extends StatelessWidget {
 
   Widget _tile(BuildContext context, SyncOperation operation) {
     final flagged = operation.status == SyncStatus.synced;
+    final l10n = context.l10n;
     final at = (operation.attentionAt ?? operation.updatedAt).toLocal();
     return Card(
       child: ListTile(
@@ -101,20 +102,28 @@ class SyncAttentionView extends StatelessWidget {
           flagged ? Icons.flag_outlined : Icons.sync_problem,
           color: flagged ? Colors.orange : Theme.of(context).colorScheme.error,
         ),
-        title: Text(_title(operation)),
+        title: Text(_title(context, operation)),
         subtitle: Text(
           [
-            operation.attentionReason ?? 'This record could not sync.',
-            'Code: ${operation.errorCode ?? 'unknown_error'} • '
-                '${flagged ? 'Synced, flagged' : _state(operation.status)} • '
-                '${_time(at)} • attempts ${operation.retryCount}',
+            // The stored reason stays in English for diagnostics; known
+            // reasons are translated for display.
+            switch (operation.attentionReason) {
+              final reason? => localizedSyncReason(l10n, reason),
+              null => l10n.syncReasonFallback,
+            },
+            l10n.syncAttentionDetails(
+              bidiId(context, operation.errorCode ?? 'unknown_error'),
+              flagged ? l10n.syncStateFlagged : _state(l10n, operation.status),
+              bidiId(context, _time(at)),
+              '${operation.retryCount}',
+            ),
           ].join('\n'),
         ),
         trailing: flagged
             ? TextButton(
                 onPressed: () =>
                     queue.acknowledgeFlag(operation.id, DateTime.now().toUtc()),
-                child: const Text('Acknowledge'),
+                child: Text(l10n.syncAcknowledge),
               )
             : TextButton(
                 onPressed: () async {
@@ -124,30 +133,34 @@ class SyncAttentionView extends StatelessWidget {
                   );
                   onRetried?.call();
                 },
-                child: const Text('Retry'),
+                child: Text(l10n.commonRetry),
               ),
       ),
     );
   }
 
-  static String _title(SyncOperation operation) =>
-      switch (operation.entityType) {
-        'sale_aggregate' ||
-        'sale' => 'Sale • ${billReference(operation.entityId)}',
-        'sale_void' => 'Bill void',
-        'sale_return' => 'Bill return',
-        'customer_payment' => 'Customer payment',
-        'purchase_aggregate' || 'purchase' => 'Purchase',
-        'supplier_payment' => 'Supplier payment',
-        'expense' => 'Expense',
-        'inventory_movement' => 'Stock adjustment',
-        final other => other,
-      };
+  static String _title(BuildContext context, SyncOperation operation) {
+    final l10n = context.l10n;
+    return switch (operation.entityType) {
+      'sale_aggregate' || 'sale' => l10n.syncEntitySale(
+        bidiId(context, billReference(operation.entityId)),
+      ),
+      'sale_void' => l10n.syncEntityVoid,
+      'sale_return' => l10n.syncEntityReturn,
+      'customer_payment' => l10n.syncEntityCustomerPayment,
+      'purchase_aggregate' || 'purchase' => l10n.syncEntityPurchase,
+      'supplier_payment' => l10n.syncEntitySupplierPayment,
+      'expense' => l10n.syncEntityExpense,
+      'inventory_movement' => l10n.syncEntityStockAdjustment,
+      final other => other,
+    };
+  }
 
-  static String _state(SyncStatus status) => switch (status) {
-    SyncStatus.blockedAuth => 'Waiting for authorisation',
-    _ => 'Needs attention',
-  };
+  static String _state(AppLocalizations l10n, SyncStatus status) =>
+      switch (status) {
+        SyncStatus.blockedAuth => l10n.syncStateWaitingAuthorisation,
+        _ => l10n.syncStatusNeedsAttention,
+      };
 
   static String _time(DateTime at) =>
       '${at.day.toString().padLeft(2, '0')}/${at.month.toString().padLeft(2, '0')} '

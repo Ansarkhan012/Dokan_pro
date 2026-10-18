@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/l10n.dart';
 
 /// Shared tablet presentation pieces so owner screens and dialogs speak the
 /// same visual language as New Sale and Create Product: outlined fields,
@@ -246,7 +247,7 @@ class PosFormDialog extends StatelessWidget {
                 children: [
                   hint,
                   const SizedBox(height: 8),
-                  Align(alignment: Alignment.centerRight, child: bar),
+                  Align(alignment: AlignmentDirectional.centerEnd, child: bar),
                 ],
               ),
       ),
@@ -274,7 +275,7 @@ Widget formFooterMessage(BuildContext context, String? error) {
   final theme = Theme.of(context);
   return error == null
       ? Text(
-          '* Required',
+          context.l10n.commonRequiredHint,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

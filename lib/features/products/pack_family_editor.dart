@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/ui/pos_ui.dart';
 import 'custom_product_dialog.dart' show moneyField;
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
 
 /// One editable pack size in the family editor (U3). The product and opening
 /// movement ids are minted when the row is added and never change, so a
@@ -32,7 +34,7 @@ final class PackRowController {
 /// Whole packs as typed (`24` → 24000 thousandths); null when not a whole,
 /// non-negative number. An empty field means zero.
 int? parseWholePacks(String input) {
-  final text = input.trim();
+  final text = normalizeDigits(input).trim();
   if (text.isEmpty) return 0;
   if (!RegExp(r'^\d{1,7}$').hasMatch(text)) return null;
   return int.parse(text) * 1000;
@@ -57,6 +59,7 @@ class PackFamilyEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -65,14 +68,14 @@ class PackFamilyEditor extends StatelessWidget {
             key: ValueKey('pack-row-$i'),
             margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
                     children: [
                       Text(
-                        'Pack size ${i + 1}',
+                        l10n.packRowTitle('${i + 1}'),
                         style: TextStyle(
                           color: scheme.primary,
                           fontWeight: FontWeight.w700,
@@ -81,7 +84,7 @@ class PackFamilyEditor extends StatelessWidget {
                       if (rows[i].created) ...[
                         const SizedBox(width: 8),
                         Text(
-                          'Saved',
+                          l10n.packRowSaved,
                           key: ValueKey('pack-row-$i-saved'),
                           style: const TextStyle(color: Color(0xff067647)),
                         ),
@@ -89,7 +92,7 @@ class PackFamilyEditor extends StatelessWidget {
                       const Spacer(),
                       IconButton(
                         key: ValueKey('pack-row-$i-remove'),
-                        tooltip: 'Remove pack size',
+                        tooltip: l10n.packRemove,
                         onPressed: locked || rows[i].created || rows.length == 1
                             ? null
                             : () => onRemove(rows[i]),
@@ -100,17 +103,20 @@ class PackFamilyEditor extends StatelessWidget {
                   FieldPair(
                     _text(
                       rows[i].label,
-                      'Pack size *',
-                      'e.g. 250 g',
+                      '${l10n.fieldPackSize} *',
+                      l10n.packSizeHint,
                       'pack-row-$i-label',
                       rows[i].created || locked,
                     ),
                     _text(
                       rows[i].barcode,
-                      'Barcode',
-                      'Optional',
+                      l10n.fieldBarcode,
+                      l10n.commonOptional,
                       'pack-row-$i-barcode',
                       rows[i].created || locked,
+                      // Urdu-keyboard digits become ASCII; the pack label
+                      // above stays exactly as typed.
+                      asciiDigits: true,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -119,7 +125,7 @@ class PackFamilyEditor extends StatelessWidget {
                       rows[i].created || locked,
                       moneyField(
                         rows[i].sale,
-                        'Sale price *',
+                        '${l10n.fieldSalePrice} *',
                         key: ValueKey('pack-row-$i-sale'),
                       ),
                     ),
@@ -127,7 +133,7 @@ class PackFamilyEditor extends StatelessWidget {
                       rows[i].created || locked,
                       moneyField(
                         rows[i].purchase,
-                        'Purchase cost',
+                        l10n.fieldPurchaseCost,
                         key: ValueKey('pack-row-$i-purchase'),
                       ),
                     ),
@@ -136,13 +142,13 @@ class PackFamilyEditor extends StatelessWidget {
                   FieldPair(
                     _packs(
                       rows[i].opening,
-                      'Opening stock (packs)',
+                      l10n.packOpeningStock,
                       'pack-row-$i-opening',
                       rows[i].created || locked,
                     ),
                     _packs(
                       rows[i].low,
-                      'Low-stock alert (packs)',
+                      l10n.packLowStock,
                       'pack-row-$i-low',
                       rows[i].created || locked,
                     ),
@@ -152,12 +158,12 @@ class PackFamilyEditor extends StatelessWidget {
             ),
           ),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton.icon(
             key: const ValueKey('pack-add-row'),
             onPressed: locked ? null : onAdd,
             icon: const Icon(Icons.add),
-            label: const Text('Add pack size'),
+            label: Text(l10n.packAdd),
           ),
         ),
       ],
@@ -169,11 +175,13 @@ class PackFamilyEditor extends StatelessWidget {
     String label,
     String hint,
     String key,
-    bool readOnly,
-  ) => TextField(
+    bool readOnly, {
+    bool asciiDigits = false,
+  }) => TextField(
     key: ValueKey(key),
     controller: controller,
     readOnly: readOnly,
+    inputFormatters: asciiDigits ? const [AsciiDigitsFormatter()] : null,
     textInputAction: TextInputAction.next,
     decoration: InputDecoration(labelText: label, hintText: hint),
   );
@@ -188,7 +196,10 @@ class PackFamilyEditor extends StatelessWidget {
     controller: controller,
     readOnly: readOnly,
     keyboardType: TextInputType.number,
-    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    inputFormatters: [
+      const AsciiDigitsFormatter(),
+      FilteringTextInputFormatter.digitsOnly,
+    ],
     textInputAction: TextInputAction.next,
     decoration: InputDecoration(labelText: label),
   );

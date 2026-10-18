@@ -8,6 +8,9 @@ import '../auth/supabase_cashier_auth_gateway.dart';
 import '../features/shop/cashier_admin_gateway.dart';
 import '../features/shop/supabase_cashier_admin_gateway.dart';
 import 'owner_cashier_setup_panel.dart';
+import '../core/l10n/digits.dart';
+import '../core/l10n/bidi.dart';
+import '../core/l10n/l10n.dart';
 
 class CashierLoginPanel extends StatefulWidget {
   const CashierLoginPanel({
@@ -49,7 +52,9 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
   late Future<List<CashierMetadata>> cashiers = _load();
   final pin = TextEditingController();
   String? selected;
-  String? message;
+
+  /// Resolved when shown, so a language switch also translates it.
+  String Function(AppLocalizations)? message;
   bool showManagement = false;
   bool isLoggingIn = false;
 
@@ -74,7 +79,7 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
     final rawPin = pin.text;
     pin.clear();
     if (!RegExp(r'^\d{4,8}$').hasMatch(rawPin)) {
-      setState(() => message = 'Enter the cashier’s 4 to 8 digit PIN.');
+      setState(() => message = (l10n) => l10n.cashierErrPinFormat);
       return;
     }
     setState(() {
@@ -95,15 +100,14 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
       if (!mounted) return;
       setState(() {
         isLoggingIn = false;
-        message =
-            'Cashier authenticated. Offline billing remains available until local expiry.';
+        message = (l10n) => l10n.cashierAuthenticated;
       });
       widget.onAuthenticated(session, cashierName);
     } catch (_) {
       if (!mounted) return;
       setState(() {
         isLoggingIn = false;
-        message = 'Login failed or temporarily locked.';
+        message = (l10n) => l10n.cashierLoginFailed;
       });
     }
   }
@@ -125,12 +129,16 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Could not load cashiers. Please try again.'),
-            OutlinedButton(onPressed: _refresh, child: const Text('Retry')),
+            Text(context.l10n.cashierLoadFailed),
+            OutlinedButton(
+              onPressed: _refresh,
+              child: Text(context.l10n.commonRetry),
+            ),
           ],
         );
       }
 
+      final l10n = context.l10n;
       final allCashiers = snapshot.data ?? const <CashierMetadata>[];
       final activeCashiers = allCashiers
           .where((cashier) => cashier.isActive)
@@ -139,37 +147,39 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Dukaan Pro — ${widget.shopName}',
+            l10n.cashierLoginHeading(bidiName(context, widget.shopName)),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (activeCashiers.isEmpty) ...[
             Text(
               allCashiers.isEmpty
-                  ? 'No cashier has been created yet.'
-                  : 'No active cashier is available.',
+                  ? l10n.cashierNoneCreated
+                  : l10n.cashierNoneActive,
             ),
-            if (!widget.allowManagement)
-              const Text('Ask the owner to sign in and add a cashier.'),
-            if (widget.allowManagement) FilledButton.icon(
-              onPressed: () => setState(() => showManagement = true),
-              icon: Icon(
-                allCashiers.isEmpty ? Icons.person_add : Icons.manage_accounts,
+            if (!widget.allowManagement) Text(l10n.cashierAskOwner),
+            if (widget.allowManagement)
+              FilledButton.icon(
+                onPressed: () => setState(() => showManagement = true),
+                icon: Icon(
+                  allCashiers.isEmpty
+                      ? Icons.person_add
+                      : Icons.manage_accounts,
+                ),
+                label: Text(
+                  allCashiers.isEmpty
+                      ? l10n.cashierCreateFirst
+                      : l10n.cashierManage,
+                ),
               ),
-              label: Text(
-                allCashiers.isEmpty
-                    ? 'Create first cashier'
-                    : 'Manage cashiers',
-              ),
-            ),
           ] else ...[
             DropdownButtonFormField<String>(
               initialValue: selected,
-              decoration: const InputDecoration(labelText: 'Select cashier'),
+              decoration: InputDecoration(labelText: l10n.cashierSelect),
               items: activeCashiers
                   .map(
                     (cashier) => DropdownMenuItem(
                       value: cashier.id,
-                      child: Text(cashier.displayName),
+                      child: Text(bidiName(context, cashier.displayName)),
                     ),
                   )
                   .toList(),
@@ -182,20 +192,25 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
               enabled: !isLoggingIn,
               obscureText: true,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'PIN'),
+              inputFormatters: [
+                const AsciiDigitsFormatter(),
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(labelText: l10n.cashierPin),
             ),
             FilledButton(
               onPressed: selected == null || isLoggingIn ? null : login,
-              child: Text(isLoggingIn ? 'Signing in…' : 'Start Shift / Login'),
+              child: Text(
+                isLoggingIn ? l10n.cashierSigningIn : l10n.cashierStartShift,
+              ),
             ),
           ],
           if (widget.allowManagement)
             TextButton(
-              onPressed: () =>
-                  setState(() => showManagement = !showManagement),
+              onPressed: () => setState(() => showManagement = !showManagement),
               child: Text(
-                showManagement ? 'Hide cashier setup' : 'Manage cashiers',
+                showManagement ? l10n.cashierHideSetup : l10n.cashierManage,
               ),
             ),
           if (widget.allowManagement && showManagement)
@@ -206,7 +221,7 @@ class _CashierLoginPanelState extends State<CashierLoginPanel> {
               onChanged: _refresh,
               startWithCreateForm: allCashiers.isEmpty,
             ),
-          if (message != null) Text(message!),
+          if (message case final message?) Text(message(l10n)),
         ],
       );
     },

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../domain/enums.dart';
 import 'display_format.dart';
+import '../l10n/digits.dart';
 
 /// A measured quantity (thousandths of [unit]) for display, in integers only:
 /// `250` → `250 g`, `1000` → `1 kg`, `1250` → `1.25 kg`; `750` of a liter
@@ -44,7 +45,7 @@ const int maxMeasurePresets = 8;
 /// reads kilograms / litres with at most three decimals (`1.25` → 1250).
 /// Returns null for anything else (signs, letters, excess precision).
 int? parseMeasureInput(String input, {required bool fractionUnit}) {
-  final text = input.trim();
+  final text = normalizeDigits(input).trim();
   if (fractionUnit) {
     if (!RegExp(r'^\d{1,9}$').hasMatch(text)) return null;
     return int.parse(text);
@@ -68,7 +69,9 @@ String? measureQuantityError(int? thousandths) {
 List<int>? decodeMeasurePresets(String? stored) {
   if (stored == null || stored.isEmpty) return null;
   try {
-    final values = (jsonDecode(stored) as List).map((v) => (v as num).toInt()).toList();
+    final values = (jsonDecode(stored) as List)
+        .map((v) => (v as num).toInt())
+        .toList();
     return values.isEmpty ? null : values;
   } catch (_) {
     return null;

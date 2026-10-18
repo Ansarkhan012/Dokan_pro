@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/format/display_format.dart';
 import '../../core/ui/pos_ui.dart';
 import 'pos_state.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
 
 /// Whether one more pack of [variant] may be added (U3), mirroring checkout:
 /// a tracked size without stock is refused only when the shop does not allow
@@ -21,6 +24,14 @@ String packCountLabel(int thousandths) {
   return '$count ${thousandths == quantityScale ? 'pack' : 'packs'}';
 }
 
+/// [packCountLabel] in the UI language (`24 packs` / `24 پیک`).
+String localizedPackCount(AppLocalizations l10n, int thousandths) {
+  final count = formatDisplayQuantity(thousandths);
+  return thousandths == quantityScale
+      ? l10n.posPackOne(count)
+      : l10n.posPackMany(count);
+}
+
 /// Lets the cashier pick one size of a pack family. Returns the chosen
 /// variant (the caller adds exactly one pack of it) or null when cancelled.
 Future<PosProduct?> showPackSelector(
@@ -34,7 +45,11 @@ Future<PosProduct?> showPackSelector(
   builder: (dialogContext) => Theme(
     data: posFormTheme(Theme.of(dialogContext)),
     child: AlertDialog(
-      title: Text(familyName, maxLines: 2, overflow: TextOverflow.ellipsis),
+      title: Text(
+        productDisplayName(dialogContext, familyName),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -58,7 +73,7 @@ Future<PosProduct?> showPackSelector(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
       ],
     ),
@@ -78,8 +93,14 @@ class _PackRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stock = variant.stockTrackingEnabled
-        ? packCountLabel(variant.stockQuantity < 0 ? 0 : variant.stockQuantity)
-        : 'Stock not tracked';
+        ? bidiQuantity(
+            context,
+            localizedPackCount(
+              context.l10n,
+              variant.stockQuantity < 0 ? 0 : variant.stockQuantity,
+            ),
+          )
+        : context.l10n.posStockNotTracked;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -89,14 +110,20 @@ class _PackRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  variant.packLabel ?? variant.name,
+                  variant.packLabel == null
+                      ? productDisplayName(
+                          context,
+                          variant.name,
+                          productId: variant.id,
+                        )
+                      : bidiName(context, variant.packLabel!),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  '${formatPkr(variant.salePriceMinor)} • $stock',
+                  '${bidiMoney(context, formatPkr(variant.salePriceMinor))} • $stock',
                   key: ValueKey('pack-info-${variant.id}'),
                   style: TextStyle(
                     color: variant.isLowStock
@@ -113,7 +140,7 @@ class _PackRow extends StatelessWidget {
             child: FilledButton(
               key: ValueKey('pack-pick-${variant.id}'),
               onPressed: enabled ? onPick : null,
-              child: const Text('Add'),
+              child: Text(context.l10n.posAdd),
             ),
           ),
         ],

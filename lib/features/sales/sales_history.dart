@@ -7,9 +7,13 @@ import '../receipts/receipt_model.dart';
 import '../receipts/receipt_view.dart';
 import '../../core/domain/enums.dart';
 import '../../core/format/display_format.dart';
-import '../../core/format/measure_format.dart';
 import '../../core/ui/pos_ui.dart';
 import 'domain/bill_reference.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 enum SaleHistoryPeriod { today, yesterday, week, custom }
 
@@ -84,9 +88,14 @@ final class SaleHistoryDetail {
     this.subtotal,
     this.discount,
     this.returns,
-    this.voidReason,
-  );
+    this.voidReason, {
+    this.returnEntries = const [],
+  });
   final SaleHistoryRow sale;
+
+  /// The same returns as [returns], unformatted, so screens can show their
+  /// date and amount in the UI language. Display only.
+  final List<({DateTime at, String reason, int refund})> returnEntries;
   final List<SaleDetailLine> lines;
   final Map<String, int> payments;
   final int subtotal, discount;
@@ -118,6 +127,7 @@ final class SaleHistoryDetail {
         ),
     ],
     subtotal: subtotal,
+    discount: discount,
     total: sale.total,
     returned: sale.returnedAmount,
     status: sale.status,
@@ -367,6 +377,10 @@ final class DriftSalesHistoryRepository {
           '${formatDisplayDateTime(row.createdAt)} • ${row.reason} • ${formatPkr(row.refundAmount)}',
       ],
       voided?.reason,
+      returnEntries: [
+        for (final row in returned)
+          (at: row.createdAt, reason: row.reason, refund: row.refundAmount),
+      ],
     );
   }
 
@@ -441,6 +455,7 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
       });
     } catch (_) {
       if (mounted && request == generation) {
+        // Translated on screen (localizedMessage).
         setState(() => error = 'Sales could not be loaded. Please try again.');
       }
     } finally {
@@ -547,18 +562,23 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
               sliver: SliverToBoxAdapter(
                 child: Row(
                   children: [
-                    Expanded(child: Text(error!)),
-                    TextButton(onPressed: _reset, child: const Text('Retry')),
+                    Expanded(
+                      child: Text(localizedMessage(context.l10n, error!)),
+                    ),
+                    TextButton(
+                      onPressed: _reset,
+                      child: Text(context.l10n.commonRetry),
+                    ),
                   ],
                 ),
               ),
             ),
           if (rows.isEmpty && !loading)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No sales match these filters.')),
+                padding: const EdgeInsets.all(24),
+                child: Center(child: Text(context.l10n.billsNoMatch)),
               ),
             )
           else
@@ -578,7 +598,11 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                 child: Center(
                   child: OutlinedButton(
                     onPressed: loading ? null : _load,
-                    child: Text(loading ? 'Loading…' : 'Load more'),
+                    child: Text(
+                      loading
+                          ? context.l10n.commonLoading
+                          : context.l10n.productsLoadMore,
+                    ),
                   ),
                 ),
               ),
@@ -609,10 +633,10 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _reset(),
                   decoration: InputDecoration(
-                    labelText: 'Bill #, customer name or phone',
+                    labelText: context.l10n.billsSearchLabel,
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
-                      tooltip: 'Search',
+                      tooltip: context.l10n.commonSearch,
                       onPressed: _reset,
                       icon: const Icon(Icons.arrow_forward),
                     ),
@@ -627,18 +651,20 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                       DropdownButtonFormField<String?>(
                         initialValue: cashierId,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Cashier'),
+                        decoration: InputDecoration(
+                          labelText: context.l10n.billsCashier,
+                        ),
                         items: [
-                          const DropdownMenuItem(
+                          DropdownMenuItem(
                             value: null,
-                            child: Text('All cashiers'),
+                            child: Text(context.l10n.billsAllCashiers),
                           ),
                           for (final cashier
                               in snapshot.data ?? const <(String, String)>[])
                             DropdownMenuItem(
                               value: cashier.$1,
                               child: Text(
-                                cashier.$2,
+                                bidiName(context, cashier.$2),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -661,11 +687,14 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
               for (final value in SaleHistoryPeriod.values)
                 ChoiceChip(
                   label: Text(switch (value) {
-                    SaleHistoryPeriod.today => 'Today',
-                    SaleHistoryPeriod.yesterday => 'Yesterday',
-                    SaleHistoryPeriod.week => 'This Week',
+                    SaleHistoryPeriod.today => context.l10n.billsToday,
+                    SaleHistoryPeriod.yesterday => context.l10n.billsYesterday,
+                    SaleHistoryPeriod.week => context.l10n.billsThisWeek,
+                    // A chosen range's label is always `Custom`.
                     SaleHistoryPeriod.custom =>
-                      customRange == null ? 'Custom dates' : customRange!.label,
+                      customRange == null
+                          ? context.l10n.billsCustomDates
+                          : context.l10n.billsCustom,
                   }),
                   selected: period == value,
                   onSelected: (_) => _selectPeriod(value),
@@ -674,11 +703,11 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
               for (final value in SalePaymentFilter.values)
                 FilterChip(
                   label: Text(switch (value) {
-                    SalePaymentFilter.all => 'All payments',
-                    SalePaymentFilter.cash => 'Cash',
-                    SalePaymentFilter.digital => 'Digital',
-                    SalePaymentFilter.credit => 'Udhaar',
-                    SalePaymentFilter.split => 'Split',
+                    SalePaymentFilter.all => context.l10n.billsAllPayments,
+                    SalePaymentFilter.cash => context.l10n.paymentCash,
+                    SalePaymentFilter.digital => context.l10n.paymentDigital,
+                    SalePaymentFilter.credit => context.l10n.paymentUdhaar,
+                    SalePaymentFilter.split => context.l10n.paymentSplit,
                   }),
                   selected: payment == value,
                   onSelected: (_) {
@@ -698,21 +727,27 @@ class _TodaySummary extends StatelessWidget {
   const _TodaySummary(this.summary);
   final SalesTodaySummary summary;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: [
-      _SummaryTile(
-        label: "Today's sales",
-        value: formatPkr(summary.total),
-        detail: '${summary.bills} ${summary.bills == 1 ? 'bill' : 'bills'}',
-        prominent: true,
-      ),
-      _SummaryTile(label: 'Cash', value: formatPkr(summary.cash)),
-      _SummaryTile(label: 'Digital', value: formatPkr(summary.digital)),
-      _SummaryTile(label: 'Udhaar', value: formatPkr(summary.credit)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    String money(int minor) => bidiMoney(context, formatPkr(minor));
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _SummaryTile(
+          label: l10n.billsTodaySales,
+          value: money(summary.total),
+          detail: summary.bills == 1
+              ? l10n.billsCountOne('${summary.bills}')
+              : l10n.billsCountMany('${summary.bills}'),
+          prominent: true,
+        ),
+        _SummaryTile(label: l10n.paymentCash, value: money(summary.cash)),
+        _SummaryTile(label: l10n.paymentDigital, value: money(summary.digital)),
+        _SummaryTile(label: l10n.paymentUdhaar, value: money(summary.credit)),
+      ],
+    );
+  }
 }
 
 class _SummaryTile extends StatelessWidget {
@@ -756,8 +791,8 @@ class _SummaryTile extends StatelessWidget {
 }
 
 /// Bill status as computed by the history query, shown as a pill.
-StatusPill saleStatusPill(String status) => StatusPill(
-  status,
+StatusPill saleStatusPill(BuildContext context, String status) => StatusPill(
+  localizedSaleStatus(context.l10n, status),
   tone: switch (status) {
     'Completed' => StatusTone.success,
     'Voided' => StatusTone.danger,
@@ -766,19 +801,19 @@ StatusPill saleStatusPill(String status) => StatusPill(
 );
 
 /// Sync state as computed by the history query, in plain wording.
-StatusPill saleSyncPill(String sync) => switch (sync) {
-  'Synced' => const StatusPill(
-    'Synced',
+StatusPill saleSyncPill(BuildContext context, String sync) => switch (sync) {
+  'Synced' => StatusPill(
+    context.l10n.syncStatusSynced,
     tone: StatusTone.success,
     icon: Icons.cloud_done_outlined,
   ),
-  'Needs attention' => const StatusPill(
-    'Needs attention',
+  'Needs attention' => StatusPill(
+    context.l10n.syncStatusNeedsAttention,
     tone: StatusTone.danger,
     icon: Icons.sync_problem,
   ),
-  _ => const StatusPill(
-    'Waiting to sync',
+  _ => StatusPill(
+    context.l10n.billWaitingToSync,
     tone: StatusTone.info,
     icon: Icons.cloud_queue,
   ),
@@ -790,59 +825,71 @@ class _BillRow extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final details = [
-      formatDisplayDateTime(row.at),
-      paymentMethodLabel(row.method),
-      row.cashier,
-      if (row.customer != null) row.customer!,
+      localizedDateTime(l10n, row.at),
+      localizedPaymentMethod(l10n, row.method),
+      bidiName(context, row.cashier),
+      if (row.customer != null) bidiName(context, row.customer!),
     ].join(' • ');
     return PosCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  row.reference,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+      // The amount and pills keep their natural width, but never more than
+      // 55% of the row: on a narrow phone at a large text size the pills
+      // wrap instead of overflowing.
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bidiId(context, row.reference),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  details,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: posMuted, fontSize: 13),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    details,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: posMuted, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatPkr(row.total),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
+            const SizedBox(width: 12),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: box.maxWidth * .55),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    bidiMoney(context, formatPkr(row.total)),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      saleStatusPill(context, row.status),
+                      saleSyncPill(context, row.sync),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                alignment: WrapAlignment.end,
-                children: [saleStatusPill(row.status), saleSyncPill(row.sync)],
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -862,120 +909,139 @@ class _SaleDetailDialog extends StatelessWidget {
   final Future<void> Function(SaleHistoryDetail detail)? onReturn;
   final Future<void> Function(SaleHistoryDetail detail)? onVoid;
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Row(
-      children: [
-        Expanded(child: Text(detail.sale.reference)),
-        saleStatusPill(detail.sale.status),
-      ],
-    ),
-    content: SizedBox(
-      width: 480,
-      child: ListView(
-        shrinkWrap: true,
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    Widget amount(String label, int minor, {bool strong = false}) =>
+        _amountRow(label, bidiMoney(context, formatPkr(minor)), strong: strong);
+    return AlertDialog(
+      title: Row(
         children: [
-          Text(
-            '$shop • ${formatDisplayDateTime(detail.sale.at)}',
-            style: const TextStyle(color: posMuted),
-          ),
-          Text(
-            'Cashier: ${detail.sale.cashier}',
-            style: const TextStyle(color: posMuted),
-          ),
-          if (detail.sale.customer != null)
+          Expanded(child: Text(bidiId(context, detail.sale.reference))),
+          saleStatusPill(context, detail.sale.status),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
             Text(
-              'Customer: ${detail.sale.customer}',
+              '${bidiName(context, shop)} • ${localizedDateTime(l10n, detail.sale.at)}',
               style: const TextStyle(color: posMuted),
             ),
-          const Divider(height: 20),
-          for (final l in detail.lines)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${l.name}\n${formatLineQuantity(l.quantity, l.measureUnit)} × ${formatPkr(l.unitPrice)}',
-                    ),
-                  ),
-                  Text(
-                    formatPkr(l.total),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ],
+            Text(
+              l10n.billCashier(bidiName(context, detail.sale.cashier)),
+              style: const TextStyle(color: posMuted),
+            ),
+            if (detail.sale.customer != null)
+              Text(
+                l10n.receiptCustomer(bidiName(context, detail.sale.customer!)),
+                style: const TextStyle(color: posMuted),
               ),
+            const Divider(height: 20),
+            for (final l in detail.lines)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${productDisplayName(context, l.name)}\n'
+                        '${bidiQuantity(context, localizedLineQuantity(l10n, l.quantity, l.measureUnit))} × '
+                        '${bidiMoney(context, formatPkr(l.unitPrice))}',
+                      ),
+                    ),
+                    Text(
+                      bidiMoney(context, formatPkr(l.total)),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            const Divider(height: 20),
+            amount(l10n.posSubtotal, detail.subtotal),
+            if (detail.discount > 0) amount(l10n.posDiscount, detail.discount),
+            amount(l10n.posTotal, detail.sale.total, strong: true),
+            if (detail.sale.returnedAmount > 0) ...[
+              amount(l10n.billReturned, detail.sale.returnedAmount),
+              amount(l10n.billNet, detail.sale.effectiveTotal, strong: true),
+            ],
+            for (final p in detail.payments.entries)
+              amount(
+                l10n.billPaidBy(localizedPaymentMethod(l10n, p.key)),
+                p.value,
+              ),
+            for (final r in detail.returnEntries)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  l10n.billReturnLine(
+                    localizedDateTime(l10n, r.at),
+                    bidiName(context, r.reason),
+                    bidiMoney(context, formatPkr(r.refund)),
+                  ),
+                ),
+              ),
+            if (detail.voidReason != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  l10n.billVoidReason(bidiName(context, detail.voidReason!)),
+                ),
+              ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: saleSyncPill(context, detail.sale.sync),
             ),
-          const Divider(height: 20),
-          _amountRow('Subtotal', detail.subtotal),
-          if (detail.discount > 0) _amountRow('Discount', detail.discount),
-          _amountRow('Total', detail.sale.total, strong: true),
-          if (detail.sale.returnedAmount > 0) ...[
-            _amountRow('Returned', detail.sale.returnedAmount),
-            _amountRow('Net', detail.sale.effectiveTotal, strong: true),
           ],
-          for (final p in detail.payments.entries)
-            _amountRow('Paid by ${paymentMethodLabel(p.key)}', p.value),
-          for (final value in detail.returns)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text('Return: $value'),
-            ),
-          if (detail.voidReason != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text('Void reason: ${detail.voidReason}'),
-            ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: saleSyncPill(detail.sale.sync),
+        ),
+      ),
+      actions: [
+        if (onVoid != null)
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await onVoid!(detail);
+            },
+            child: Text(l10n.billVoid),
+          ),
+        if (onReturn != null)
+          OutlinedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await onReturn!(detail);
+            },
+            child: Text(l10n.billReturnItems),
+          ),
+        TextButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            showPrintableReceipt(context, receipt);
+          },
+          icon: const Icon(Icons.receipt_long_outlined),
+          label: Text(l10n.posViewReprint),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.commonClose),
+        ),
+      ],
+    );
+  }
+}
+
+Widget _amountRow(String label, String amount, {bool strong = false}) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          Text(
+            amount,
+            style: TextStyle(fontWeight: strong ? FontWeight.w800 : null),
           ),
         ],
       ),
-    ),
-    actions: [
-      if (onVoid != null)
-        TextButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            await onVoid!(detail);
-          },
-          child: const Text('Void'),
-        ),
-      if (onReturn != null)
-        OutlinedButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            await onReturn!(detail);
-          },
-          child: const Text('Return items'),
-        ),
-      TextButton.icon(
-        onPressed: () {
-          Navigator.pop(context);
-          showPrintableReceipt(context, receipt);
-        },
-        icon: const Icon(Icons.receipt_long_outlined),
-        label: const Text('View / Reprint'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Close'),
-      ),
-    ],
-  );
-}
-
-Widget _amountRow(String label, int amount, {bool strong = false}) => Padding(
-  padding: const EdgeInsets.symmetric(vertical: 2),
-  child: Row(
-    children: [
-      Expanded(child: Text(label)),
-      Text(
-        formatPkr(amount),
-        style: TextStyle(fontWeight: strong ? FontWeight.w800 : null),
-      ),
-    ],
-  ),
-);
+    );

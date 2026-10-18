@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/billing_activity.dart';
 import '../../core/domain/enums.dart';
-import '../../core/format/display_format.dart';
+import '../../core/l10n/language_switcher.dart';
 import '../../core/format/measure_format.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/ui/pos_ui.dart';
 import '../../subscription/entitlement_policy.dart';
+import '../../sync/pull/remote_refresh.dart';
 import '../../sync/sync_health.dart';
 import '../sales/domain/sale_draft.dart';
 import '../sales/sales_history.dart';
@@ -18,6 +21,12 @@ import 'pack_selector.dart';
 import 'pos_catalog.dart';
 import 'pos_state.dart';
 import 'product_thumbnail.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 abstract interface class PosSaleCommitter implements CustomerKhataActions {
   /// Commits checkout [checkoutId] in one local transaction. Completes once it
@@ -50,6 +59,8 @@ class PosWorkspace extends StatefulWidget {
     this.entitlement,
     this.checkoutIds = const UuidV7Generator(),
     this.lastSavedSale,
+    this.catalogRefresh,
+    this.remoteRefresh,
   });
 
   final String shopName;
@@ -68,6 +79,15 @@ class PosWorkspace extends StatefulWidget {
   /// A sale committed on this device shortly before the app last closed.
   final SaleHistoryRow? lastSavedSale;
 
+  /// Completes when a background pull that started with this screen has
+  /// applied; the catalog (prices, stock, products) is then reloaded.
+  final Future<void>? catalogRefresh;
+
+  /// B-4: fetches other devices' changes on resume and when connectivity
+  /// returns (guarded against overlap and repetition); null in tests and the
+  /// web preview, where only the local catalog is reloaded.
+  final RemoteRefresh? remoteRefresh;
+
   @override
   State<PosWorkspace> createState() => _PosWorkspaceState();
 }
@@ -76,6 +96,15 @@ class _PosWorkspaceState extends State<PosWorkspace>
     with WidgetsBindingObserver {
   final cart = PosCart();
   final search = TextEditingController();
+
+  /// The search field takes focus (and the soft keyboard opens) only when the
+  /// cashier taps it.
+  final searchFocus = FocusNode(debugLabel: 'pos-search');
+
+  /// Holds focus on the Sale screen while the search field does not, so a
+  /// hardware barcode scanner (a keyboard device) keeps working without the
+  /// soft keyboard: it is not a text input, so it never shows the keyboard.
+  final scanFocus = FocusNode(debugLabel: 'pos-hardware-scan');
   late PosCatalogSnapshot catalog = widget.initialCatalog;
   String? categoryId;
   int destination = 0;
@@ -92,6 +121,15 @@ class _PosWorkspaceState extends State<PosWorkspace>
   StreamSubscription<SyncHealth>? syncStatusSubscription;
   Timer? retryTimer;
 
+  /// Cart lines whose price changed after they were added, by product id;
+  /// the old price is the one the cart first showed (B-4).
+  final priceChanges = <String, PosPriceChange>{};
+
+  /// Changes for lines still in the cart, in cart order.
+  List<PosPriceChange> get visiblePriceChanges => [
+    for (final line in cart.lines) ?priceChanges[line.product.id],
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -105,10 +143,12 @@ class _PosWorkspaceState extends State<PosWorkspace>
         if (health == SyncHealth.synced) isOffline = false;
       });
     });
-    retryTimer = Timer.periodic(
-      const Duration(minutes: 2),
-      (_) => _retrySync(),
-    );
+    retryTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      _retrySync();
+      // Only while the last pull failed: waiting for connectivity to return.
+      _pullThenReload(widget.remoteRefresh?.onTick);
+    });
+    widget.catalogRefresh?.then((_) => _reloadCatalog(), onError: (_) {});
   }
 
   Future<void> _retrySync() async {
@@ -126,11 +166,30 @@ class _PosWorkspaceState extends State<PosWorkspace>
       }
       if (synced) isOffline = false;
     });
+    // An upload got through: if pulls were failing, connectivity is back.
+    if (synced) _pullThenReload(widget.remoteRefresh?.onUploadSucceeded);
+  }
+
+  /// Runs one guarded pull and reloads the catalog when it applied. Without
+  /// a [pull] (tests, web) only the local catalog is reloaded. Never throws;
+  /// offline the POS keeps selling from its cached catalog.
+  Future<void> _pullThenReload(Future<bool> Function()? pull) async {
+    if (pull == null) return _reloadCatalog();
+    final applied = await pull();
+    if (!mounted) return;
+    final waiting = widget.remoteRefresh?.waitingForConnectivity ?? false;
+    if (isOffline != waiting && (applied || waiting)) {
+      setState(() => isOffline = waiting);
+    }
+    if (applied) await _reloadCatalog();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _retrySync();
+    if (state == AppLifecycleState.resumed) {
+      _retrySync();
+      unawaited(_pullThenReload(widget.remoteRefresh?.onResume));
+    }
   }
 
   List<PosProduct> get filteredProducts => catalog.products
@@ -147,6 +206,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
   /// U3: the cashier picks one size; exactly one pack of it is added, on
   /// that size's own bill line.
   Future<void> _addFromFamily(PosCatalogEntry family) async {
+    _releaseSearchFocus();
     final variant = await showPackSelector(
       context,
       familyName: family.name,
@@ -161,7 +221,14 @@ class _PosWorkspaceState extends State<PosWorkspace>
   /// A piece product adds one unit at once; a measured product (U2) asks for
   /// its quantity first and adds it to the product's single bill line.
   Future<void> addProduct(PosProduct product) async {
+    _releaseSearchFocus();
     if (!product.isMeasured) {
+      if (_refuseOversell(
+        product,
+        cart.quantityOf(product.id) + quantityScale,
+      )) {
+        return;
+      }
       setState(() => cart.add(product));
       return;
     }
@@ -180,6 +247,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
     PosCartLine line, [
     StateSetter? updateParent,
   ]) async {
+    _releaseSearchFocus();
     final quantity = await showMeasuredQuantityPicker(
       context,
       product: line.product,
@@ -193,6 +261,72 @@ class _PosWorkspaceState extends State<PosWorkspace>
     );
   }
 
+  /// True (and the cashier is told why) when [requested] thousandths of
+  /// [product] would sell more tracked stock than the shop has. Checkout
+  /// checks the same rule again inside its transaction.
+  bool _refuseOversell(PosProduct product, int requested) {
+    if (catalog.allowNegativeStock ||
+        !product.stockTrackingEnabled ||
+        requested <= product.stockQuantity) {
+      return false;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            insufficientStockMessage(
+              context,
+              productName: product.name,
+              available: product.stockQuantity,
+              unit: product.measureUnit,
+            ),
+          ),
+        ),
+      );
+    return true;
+  }
+
+  /// Moves focus from the search field to the Sale screen: the soft keyboard
+  /// closes and hardware-scanner input keeps arriving.
+  void _releaseSearchFocus() {
+    if (searchFocus.hasFocus) scanFocus.requestFocus();
+  }
+
+  /// Hardware keyboard / barcode-scanner input while the Sale screen itself
+  /// holds focus (the search field is not focused): printable characters go
+  /// into the search text, Backspace edits it, Enter submits it as a barcode,
+  /// exactly as when the old auto-focused field received them. Everything
+  /// else (Tab, arrows, shortcuts) passes through untouched.
+  KeyEventResult _onScanKey(FocusNode node, KeyEvent event) {
+    if (!node.hasPrimaryFocus || event is KeyUpEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (search.text.trim().isEmpty) return KeyEventResult.ignored;
+      submitBarcode(search.text);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.backspace) {
+      if (search.text.isEmpty) return KeyEventResult.ignored;
+      setState(
+        () => search.text = search.text.substring(0, search.text.length - 1),
+      );
+      return KeyEventResult.handled;
+    }
+    final character = event.character;
+    if (character == null ||
+        character.isEmpty ||
+        character.codeUnitAt(0) < 0x20 ||
+        character.codeUnitAt(0) == 0x7f) {
+      return KeyEventResult.ignored;
+    }
+    setState(() => search.text += character);
+    return KeyEventResult.handled;
+  }
+
   void submitBarcode(String value) {
     final code = value.trim();
     if (code.isEmpty) return;
@@ -204,9 +338,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
       }
     }
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No product matches that barcode.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.posNoBarcodeMatch)));
   }
 
   /// The checkout id for the current cart: minted once when payment
@@ -226,6 +360,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
   }
 
   Future<void> checkout() async {
+    _releaseSearchFocus();
     if (cart.isEmpty ||
         completing ||
         paymentOpen ||
@@ -241,6 +376,8 @@ class _PosWorkspaceState extends State<PosWorkspace>
         builder: (_) => PaymentDialog(
           totalMinor: cart.subtotalMinor,
           customers: catalog.customers,
+          activeCustomerCount: catalog.activeCustomerCount,
+          priceChanges: visiblePriceChanges,
         ),
       );
     } finally {
@@ -260,12 +397,29 @@ class _PosWorkspaceState extends State<PosWorkspace>
       // Only reachable when the local transaction did not commit.
       if (!mounted) return;
       setState(() => completing = false);
+      // Checkout prices lines from the database. If a price, stock figure or
+      // product changed since the catalog was loaded (a background pull),
+      // the cart is refreshed so the next attempt shows what will be charged.
+      if (error is SaleValidationException) unawaited(_reloadCatalog());
+      final l10n = context.l10n;
       final message = switch (error) {
-        SaleValidationException(:final message) => message,
-        SubscriptionMutationBlocked(:final message) => message,
-        CheckoutConflict() =>
-          'This sale was already saved with different details. Nothing new was recorded.',
-        _ => 'Sale could not be completed. Nothing was charged.',
+        InsufficientStockException() => insufficientStockMessage(
+          context,
+          productName: error.productName,
+          available: error.availableQuantity,
+          unit: MeasureUnit.tryParse(error.measureUnitName),
+        ),
+        SaleValidationException(:final message) => localizedSaleError(
+          l10n,
+          message,
+        ),
+        // The policy's refusal stands; only its wording is translated.
+        SubscriptionMutationBlocked(:final message) => localizedMessage(
+          l10n,
+          message,
+        ),
+        CheckoutConflict() => l10n.saleCheckoutConflict,
+        _ => l10n.saleFailed,
       };
       ScaffoldMessenger.of(
         context,
@@ -275,6 +429,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
     // Committed locally: the checkout is complete and nothing below (sync,
     // catalog refresh) can turn it into a failure.
     checkoutAttempt = null;
+    priceChanges.clear();
     if (!mounted) return;
     setState(() {
       completing = false;
@@ -320,6 +475,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
         customer: stored.customer,
         lines: stored.lines,
         subtotal: stored.subtotal,
+        discount: stored.discount,
         total: stored.total,
         returned: stored.returned,
         status: stored.status,
@@ -335,7 +491,33 @@ class _PosWorkspaceState extends State<PosWorkspace>
   Future<void> _reloadCatalog() async {
     try {
       final refreshed = await widget.committer.reloadCatalog();
-      if (mounted) setState(() => catalog = refreshed);
+      if (!mounted) return;
+      var changed = const <PosPriceChange>[];
+      setState(() {
+        catalog = refreshed;
+        changed = cart.refreshProducts(refreshed.products);
+        for (final change in changed) {
+          final first = priceChanges[change.productId];
+          final oldPrice = first?.oldPriceMinor ?? change.oldPriceMinor;
+          if (oldPrice == change.newPriceMinor) {
+            priceChanges.remove(change.productId); // Back where it started.
+          } else {
+            priceChanges[change.productId] = PosPriceChange(
+              productId: change.productId,
+              productName: change.productName,
+              oldPriceMinor: oldPrice,
+              newPriceMinor: change.newPriceMinor,
+            );
+          }
+        }
+      });
+      if (changed.isNotEmpty && visiblePriceChanges.isNotEmpty) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(context.l10n.posPricesChangedTitle)),
+          );
+      }
     } catch (_) {
       // Stock figures refresh on the next load; the sale is already saved.
     }
@@ -350,29 +532,33 @@ class _PosWorkspaceState extends State<PosWorkspace>
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('The receipt could not be opened. Find it in Bills.'),
-        ),
+        SnackBar(content: Text(context.l10n.posReceiptUnavailable)),
       );
     }
   }
 
   @override
   void dispose() {
+    BillingActivity.report(this, busy: false);
     WidgetsBinding.instance.removeObserver(this);
     retryTimer?.cancel();
     syncStatusSubscription?.cancel();
     search.dispose();
+    searchFocus.dispose();
+    scanFocus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const destinations = [
-      ('Sale', Icons.point_of_sale),
-      ('Products', Icons.inventory_2_outlined),
-      ('Bills', Icons.receipt_long_outlined),
-      ('Khata', Icons.people_outline),
+    // Lets the update prompt wait until the cart is empty.
+    BillingActivity.report(this, busy: !cart.isEmpty);
+    final l10n = context.l10n;
+    final destinations = [
+      (l10n.navSale, Icons.point_of_sale),
+      (l10n.navProducts, Icons.inventory_2_outlined),
+      (l10n.navBills, Icons.receipt_long_outlined),
+      (l10n.navKhata, Icons.people_outline),
     ];
     // The soft keyboard overlays the shell instead of resizing it: the header,
     // sidebar, product grid and Current Bill keep their geometry, and the
@@ -398,7 +584,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
                         ? Icons.warning_amber
                         : Icons.lock_outline,
                   ),
-                  title: Text(entitlement.message),
+                  title: Text(
+                    localizedMessage(context.l10n, entitlement.message),
+                  ),
                 ),
               ),
             if (lastSavedSale case final last?) _lastSavedSaleBanner(last),
@@ -412,7 +600,13 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   ),
                   Expanded(
                     child: destination == 0
-                        ? _buildPos()
+                        ? Focus(
+                            key: const ValueKey('pos-sale-focus'),
+                            focusNode: scanFocus,
+                            autofocus: true,
+                            onKeyEvent: _onScanKey,
+                            child: _buildPos(),
+                          )
                         : destination == 1
                         ? _CashierProductLookup(catalog: catalog)
                         : destination == 2
@@ -432,25 +626,29 @@ class _PosWorkspaceState extends State<PosWorkspace>
   }
 
   Widget _lastSavedSaleBanner(SaleHistoryRow sale) {
-    final time = formatDisplayTime(sale.at);
+    final l10n = context.l10n;
+    final time = localizedTime(l10n, sale.at);
     return Material(
       color: const Color(0xffe7f4ee),
       child: ListTile(
         dense: true,
         leading: const Icon(Icons.check_circle, color: Color(0xff176b52)),
         title: Text(
-          'Last sale saved on this device: ${formatPkr(sale.total)} at $time',
+          l10n.posLastSaleSaved(
+            bidiMoney(context, formatPkr(sale.total)),
+            bidiId(context, time),
+          ),
         ),
         trailing: Wrap(
           spacing: 8,
           children: [
             TextButton(
               onPressed: () => _reprint(sale),
-              child: const Text('View / Reprint'),
+              child: Text(l10n.posViewReprint),
             ),
             TextButton(
               onPressed: () => setState(() => lastSavedSale = null),
-              child: const Text('Dismiss'),
+              child: Text(l10n.posDismiss),
             ),
           ],
         ),
@@ -505,8 +703,11 @@ class _PosWorkspaceState extends State<PosWorkspace>
               ),
               child: Text(
                 cart.isEmpty
-                    ? 'Open Current Bill'
-                    : 'Current Bill • ${cart.lines.length} • ${formatPkr(cart.subtotalMinor)}',
+                    ? context.l10n.posOpenCurrentBill
+                    : context.l10n.posCurrentBillSummary(
+                        '${cart.lines.length}',
+                        bidiMoney(context, formatPkr(cart.subtotalMinor)),
+                      ),
               ),
             ),
           ),
@@ -520,71 +721,90 @@ class _PosWorkspaceState extends State<PosWorkspace>
     height: 58,
     color: Colors.white,
     padding: const EdgeInsets.symmetric(horizontal: 18),
-    child: Row(
-      children: [
+    // On a phone held upright (under 480 px) the brand gives its room to the
+    // shop name, sync status and cashier; wider screens are unchanged.
+    child: LayoutBuilder(
+      builder: (context, constraints) =>
+          _topBarRow(compact: constraints.maxWidth < 480),
+    ),
+  );
+
+  Widget _topBarRow({required bool compact}) => Row(
+    children: [
+      if (!compact) ...[
         const Text(
           'Dukaan Pro',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
         ),
         const SizedBox(width: 28),
-        Expanded(
-          child: Text(
-            widget.shopName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xff6c7680), fontSize: 15),
-          ),
-        ),
-        // A problem the owner must see wins over Offline and never shows as
-        // Synced; cashiers get no technical detail.
-        Tooltip(
-          message: syncHealth == SyncHealth.needsAttention
-              ? 'Some records could not sync. The owner can review them.'
-              : '',
-          child: _StatusChip(
-            icon: syncHealth == SyncHealth.needsAttention
-                ? Icons.sync_problem
-                : isOffline
-                ? Icons.cloud_off
-                : syncHealth == SyncHealth.syncing
-                ? Icons.cloud_sync
-                : hasPendingSync
-                ? Icons.cloud_queue
-                : Icons.cloud_done,
-            label: syncHealth == SyncHealth.needsAttention
-                ? 'Needs attention'
-                : isOffline
-                ? 'Offline'
-                : syncHealth == SyncHealth.syncing
-                ? 'Syncing'
-                : hasPendingSync
-                ? 'Pending sync'
-                : 'Synced',
-            color: syncHealth == SyncHealth.needsAttention
-                ? const Color(0xffb3261e)
-                : isOffline
-                ? Colors.orange
-                : hasPendingSync
-                ? Colors.blueGrey
-                : const Color(0xff176b52),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          height: 40,
-          child: OutlinedButton.icon(
-            onPressed: widget.onLogout,
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: const Icon(Icons.person_outline, size: 18),
-            label: Text(widget.cashierName),
-          ),
-        ),
       ],
-    ),
+      Expanded(
+        child: Text(
+          widget.shopName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xff6c7680), fontSize: 15),
+        ),
+      ),
+      // A problem the owner must see wins over Offline and never shows as
+      // Synced; cashiers get no technical detail.
+      Tooltip(
+        message: syncHealth == SyncHealth.needsAttention
+            ? context.l10n.syncStatusNeedsAttentionHint
+            : '',
+        child: _StatusChip(
+          icon: syncHealth == SyncHealth.needsAttention
+              ? Icons.sync_problem
+              : isOffline
+              ? Icons.cloud_off
+              : syncHealth == SyncHealth.syncing
+              ? Icons.cloud_sync
+              : hasPendingSync
+              ? Icons.cloud_queue
+              : Icons.cloud_done,
+          label: syncHealth == SyncHealth.needsAttention
+              ? context.l10n.syncStatusNeedsAttention
+              : isOffline
+              ? context.l10n.syncStatusOffline
+              : syncHealth == SyncHealth.syncing
+              ? context.l10n.syncStatusSyncing
+              : hasPendingSync
+              ? context.l10n.syncStatusPending
+              : context.l10n.syncStatusSynced,
+          color: syncHealth == SyncHealth.needsAttention
+              ? const Color(0xffb3261e)
+              : isOffline
+              ? Colors.orange
+              : hasPendingSync
+              ? Colors.blueGrey
+              : const Color(0xff176b52),
+        ),
+      ),
+      const LanguageSwitcher(),
+      const SizedBox(width: 10),
+      SizedBox(
+        height: 40,
+        child: OutlinedButton.icon(
+          onPressed: widget.onLogout,
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          icon: const Icon(Icons.person_outline, size: 18),
+          label: compact
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 72),
+                  child: Text(
+                    widget.cashierName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              : Text(widget.cashierName),
+        ),
+      ),
+    ],
   );
 
   Widget _catalogPane() => LayoutBuilder(
@@ -600,16 +820,22 @@ class _PosWorkspaceState extends State<PosWorkspace>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showHeading) ...[
-              const Text(
-                'New Sale',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              Text(
+                context.l10n.posNewSaleHeading,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               StreamBuilder<SalesTodaySummary>(
                 stream: widget.salesHistory.watchToday(),
                 builder: (context, snapshot) {
                   final value = snapshot.data;
                   return Text(
-                    'Today: ${formatPkr(value?.total ?? 0)}  •  ${value?.bills ?? 0} bills',
+                    context.l10n.posTodaySummary(
+                      bidiMoney(context, formatPkr(value?.total ?? 0)),
+                      '${value?.bills ?? 0}',
+                    ),
                     style: const TextStyle(
                       color: Color(0xff6c7680),
                       fontSize: 13,
@@ -619,13 +845,31 @@ class _PosWorkspaceState extends State<PosWorkspace>
               ),
               const SizedBox(height: 12),
             ],
+            if (catalog.productsTruncated) ...[
+              _TruncationNotice(
+                key: const ValueKey('pos-catalog-truncated'),
+                message: context.l10n.posCatalogTruncated(
+                  '${catalog.products.length}',
+                  '${catalog.activeProductCount}',
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             TextField(
+              key: const ValueKey('pos-search-field'),
               controller: search,
-              autofocus: true,
+              focusNode: searchFocus,
+              inputFormatters: const [AsciiDigitsFormatter()],
+              textInputAction: TextInputAction.search,
               onChanged: (_) => setState(() {}),
-              onSubmitted: submitBarcode,
+              onSubmitted: (value) {
+                // Hand focus back to the Sale screen first: the keyboard
+                // closes and the next hardware scan is still received.
+                scanFocus.requestFocus();
+                submitBarcode(value);
+              },
               decoration: InputDecoration(
-                hintText: 'Search product or scan barcode',
+                hintText: context.l10n.posSearchHint,
                 filled: true,
                 fillColor: const Color(0xffffffff),
                 enabledBorder: OutlineInputBorder(
@@ -650,9 +894,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   scrollDirection: Axis.horizontal,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsetsDirectional.only(end: 8),
                       child: ChoiceChip(
-                        label: const Text('All'),
+                        label: Text(context.l10n.posCategoryAll),
                         selectedColor: const Color(0xff0d1b26),
                         labelStyle: TextStyle(
                           color: categoryId == null ? Colors.white : null,
@@ -661,14 +905,26 @@ class _PosWorkspaceState extends State<PosWorkspace>
                           borderRadius: BorderRadius.circular(7),
                         ),
                         selected: categoryId == null,
-                        onSelected: (_) => setState(() => categoryId = null),
+                        onSelected: (_) {
+                          _releaseSearchFocus();
+                          setState(() => categoryId = null);
+                        },
                       ),
                     ),
                     for (final category in catalog.categories)
                       Padding(
-                        padding: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsetsDirectional.only(end: 8),
                         child: ChoiceChip(
-                          label: Text(category.name),
+                          label: Text(
+                            bidiName(
+                              context,
+                              localizedCategoryName(
+                                context.l10n,
+                                category.id,
+                                category.name,
+                              ),
+                            ),
+                          ),
                           selectedColor: const Color(0xff0d1b26),
                           labelStyle: TextStyle(
                             color: categoryId == category.id
@@ -679,8 +935,10 @@ class _PosWorkspaceState extends State<PosWorkspace>
                             borderRadius: BorderRadius.circular(7),
                           ),
                           selected: categoryId == category.id,
-                          onSelected: (_) =>
-                              setState(() => categoryId = category.id),
+                          onSelected: (_) {
+                            _releaseSearchFocus();
+                            setState(() => categoryId = category.id);
+                          },
                         ),
                       ),
                   ],
@@ -689,9 +947,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
             ],
             const SizedBox(height: 10),
             if (entries.isEmpty)
-              const Expanded(
-                child: Center(child: Text('No local products found.')),
-              )
+              Expanded(child: Center(child: Text(context.l10n.posNoProducts)))
             else
               Expanded(
                 child: GridView.builder(
@@ -731,7 +987,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
 
   Widget _cartPane({StateSetter? updateParent}) => Container(
     key: const ValueKey('current-bill-panel'),
-    margin: const EdgeInsets.fromLTRB(0, 18, 12, 18),
+    margin: const EdgeInsetsDirectional.fromSTEB(0, 18, 12, 18),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: Colors.white,
@@ -742,30 +998,38 @@ class _PosWorkspaceState extends State<PosWorkspace>
       builder: (context, constraints) {
         final header = Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Current Bill',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                context.l10n.posCurrentBill,
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             Text(
-              '${cart.lines.length} items',
+              context.l10n.posItemCount('${cart.lines.length}'),
               style: const TextStyle(color: Color(0xff6c7680)),
             ),
           ],
         );
-        const empty = Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Center(child: Text('Tap a product to begin a sale.')),
+        final empty = Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: Text(context.l10n.posEmptyBill)),
         );
         final lines = [
           for (final line in cart.lines) _cartLine(line, updateParent),
         ];
         final totals = [
+          if (visiblePriceChanges.isNotEmpty)
+            PriceChangeNotice(
+              key: const ValueKey('cart-price-changes'),
+              changes: visiblePriceChanges,
+            ),
           const Divider(),
-          _totalRow('Subtotal', cart.subtotalMinor),
-          _totalRow('Discount', 0),
-          _totalRow('Total', cart.subtotalMinor, prominent: true),
+          _totalRow(context.l10n.posSubtotal, cart.subtotalMinor),
+          _totalRow(context.l10n.posDiscount, 0),
+          _totalRow(context.l10n.posTotal, cart.subtotalMinor, prominent: true),
         ];
         final pay = _payButton();
         final secondary = _secondaryCartActions(updateParent);
@@ -836,7 +1100,11 @@ class _PosWorkspaceState extends State<PosWorkspace>
         ? null
         : checkout,
     child: Text(
-      completing ? 'Completing…' : 'Pay ${formatPkr(cart.subtotalMinor)}',
+      completing
+          ? context.l10n.posCompleting
+          : context.l10n.posPay(
+              bidiMoney(context, formatPkr(cart.subtotalMinor)),
+            ),
       style: const TextStyle(
         color: Colors.white,
         fontSize: 17,
@@ -856,7 +1124,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
               borderRadius: BorderRadius.circular(7),
             ),
           ),
-          child: const Text('Hold Bill'),
+          child: Text(context.l10n.posHoldBill),
         ),
       ),
       const SizedBox(width: 8),
@@ -871,7 +1139,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
               borderRadius: BorderRadius.circular(7),
             ),
           ),
-          child: const Text('Clear'),
+          child: Text(context.l10n.commonClear),
         ),
       ),
     ],
@@ -886,19 +1154,24 @@ class _PosWorkspaceState extends State<PosWorkspace>
           children: [
             Expanded(
               child: Text(
-                line.product.name,
+                productDisplayName(
+                  context,
+                  line.product.name,
+                  productId: line.product.id,
+                ),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             Text(
-              formatPkr(line.totalMinor),
+              bidiMoney(context, formatPkr(line.totalMinor)),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ],
         ),
         if (line.product.familyId != null && line.product.measureUnit == null)
           Text(
-            '${packCountLabel(line.quantity)} × ${formatPkr(line.product.salePriceMinor)}',
+            '${bidiQuantity(context, localizedPackCount(context.l10n, line.quantity))} × '
+            '${bidiMoney(context, formatPkr(line.product.salePriceMinor))}',
             key: ValueKey('cart-packs-${line.product.id}'),
             style: const TextStyle(color: Color(0xff6c7680)),
           ),
@@ -914,12 +1187,17 @@ class _PosWorkspaceState extends State<PosWorkspace>
                     borderRadius: BorderRadius.circular(7),
                   ),
                 ),
-                child: Text(formatLineQuantity(line.quantity, unit)),
+                child: Text(
+                  bidiQuantity(
+                    context,
+                    localizedLineQuantity(context.l10n, line.quantity, unit),
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '× ${measureUnitPriceLabel(formatPkr(line.product.salePriceMinor), unit)}',
+                  '× ${localizedUnitPrice(context.l10n, bidiMoney(context, formatPkr(line.product.salePriceMinor)), unit)}',
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Color(0xff6c7680)),
                 ),
@@ -929,9 +1207,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   () => cart.remove(line.product.id),
                   updateParent,
                 ),
-                child: const Text(
-                  'Remove',
-                  style: TextStyle(color: Color(0xffd92d20)),
+                child: Text(
+                  context.l10n.commonRemove,
+                  style: const TextStyle(color: Color(0xffd92d20)),
                 ),
               ),
             ],
@@ -958,16 +1236,31 @@ class _PosWorkspaceState extends State<PosWorkspace>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
-                  formatLineQuantity(line.quantity, line.product.measureUnit),
+                  bidiQuantity(
+                    context,
+                    localizedLineQuantity(
+                      context.l10n,
+                      line.quantity,
+                      line.product.measureUnit,
+                    ),
+                  ),
                 ),
               ),
               SizedBox.square(
                 dimension: 44,
                 child: OutlinedButton(
-                  onPressed: () => _updateCart(
-                    () => cart.increment(line.product.id),
-                    updateParent,
-                  ),
+                  onPressed: () {
+                    if (_refuseOversell(
+                      line.product,
+                      line.quantity + quantityScale,
+                    )) {
+                      return;
+                    }
+                    _updateCart(
+                      () => cart.increment(line.product.id),
+                      updateParent,
+                    );
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     shape: RoundedRectangleBorder(
@@ -983,9 +1276,9 @@ class _PosWorkspaceState extends State<PosWorkspace>
                   () => cart.remove(line.product.id),
                   updateParent,
                 ),
-                child: const Text(
-                  'Remove',
-                  style: TextStyle(color: Color(0xffd92d20)),
+                child: Text(
+                  context.l10n.commonRemove,
+                  style: const TextStyle(color: Color(0xffd92d20)),
                 ),
               ),
             ],
@@ -1008,7 +1301,7 @@ class _PosWorkspaceState extends State<PosWorkspace>
               ),
             ),
             Text(
-              formatPkr(amount),
+              bidiMoney(context, formatPkr(amount)),
               style: prominent
                   ? Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -1026,9 +1319,18 @@ class PaymentDialog extends StatefulWidget {
     super.key,
     required this.totalMinor,
     required this.customers,
+    this.activeCustomerCount,
+    this.priceChanges = const [],
   });
   final int totalMinor;
   final List<PosCustomer> customers;
+
+  /// Cart prices that changed since their lines were added (B-4), shown
+  /// above the payment choice so the cashier confirms the new total.
+  final List<PosPriceChange> priceChanges;
+
+  /// All active customers when [customers] was cut at [posCustomerLimit].
+  final int? activeCustomerCount;
 
   @override
   State<PaymentDialog> createState() => _PaymentDialogState();
@@ -1116,17 +1418,14 @@ class _PaymentDialogState extends State<PaymentDialog> {
     }
     final validation = plan.validate(widget.totalMinor);
     if (validation != null) {
-      setState(() => error = validation);
+      setState(() => error = localizedSaleError(context.l10n, validation));
       return;
     }
     final customer = selectedCustomer;
     final limit = customer?.creditLimitMinor;
     if (creditAmount > 0 && limit != null) {
       if (customer!.balanceMinor + creditAmount > limit) {
-        setState(
-          () => error =
-              'Credit limit exceeded. Ask the owner to increase the limit.',
-        );
+        setState(() => error = context.l10n.payCreditLimitExceeded);
         return;
       }
     }
@@ -1146,27 +1445,39 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Widget build(BuildContext context) => Theme(
     data: posFormTheme(Theme.of(context)),
     child: AlertDialog(
-      title: Text('Payment • ${formatPkr(widget.totalMinor)}'),
+      title: Text(
+        context.l10n.payTitle(bidiMoney(context, formatPkr(widget.totalMinor))),
+      ),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.priceChanges.isNotEmpty) ...[
+                PriceChangeNotice(
+                  key: const ValueKey('payment-price-changes'),
+                  changes: widget.priceChanges,
+                ),
+                const SizedBox(height: 12),
+              ],
               SegmentedButton<PaymentMethod>(
-                segments: const [
-                  ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
+                segments: [
+                  ButtonSegment(
+                    value: PaymentMethod.cash,
+                    label: Text(context.l10n.paymentCash),
+                  ),
                   ButtonSegment(
                     value: PaymentMethod.digital,
-                    label: Text('Digital'),
+                    label: Text(context.l10n.paymentDigital),
                   ),
                   ButtonSegment(
                     value: PaymentMethod.credit,
-                    label: Text('Udhaar'),
+                    label: Text(context.l10n.paymentUdhaar),
                   ),
                   ButtonSegment(
                     value: PaymentMethod.other,
-                    label: Text('Split'),
+                    label: Text(context.l10n.paymentSplit),
                   ),
                 ],
                 selected: {mode},
@@ -1180,25 +1491,31 @@ class _PaymentDialogState extends State<PaymentDialog> {
               ),
               const SizedBox(height: 18),
               if (mode == PaymentMethod.cash)
-                _moneyField(cash, 'Cash received')
+                _moneyField(cash, context.l10n.payCashReceived)
               else if (mode == PaymentMethod.digital)
-                const Text(
-                  'Digital payment will be recorded without a gateway.',
-                )
+                Text(context.l10n.payDigitalNote)
               else if (mode == PaymentMethod.credit) ...[
                 _customerField(),
                 _creditProjection(),
               ] else ...[
-                _moneyField(cash, 'Cash amount'),
-                _moneyField(digital, 'Digital amount'),
-                _moneyField(credit, 'Udhaar amount'),
+                _moneyField(cash, context.l10n.payCashAmount),
+                _moneyField(digital, context.l10n.payDigitalAmount),
+                _moneyField(credit, context.l10n.payUdhaarAmount),
                 _customerField(),
                 _creditProjection(),
               ],
               if (mode == PaymentMethod.cash &&
                   parseMoneyMinor(cash.text) != null)
                 Text(
-                  'Change: ${formatPkr(((parseMoneyMinor(cash.text) ?? 0) - widget.totalMinor).clamp(0, 1 << 62))}',
+                  context.l10n.payChange(
+                    bidiMoney(
+                      context,
+                      formatPkr(
+                        ((parseMoneyMinor(cash.text) ?? 0) - widget.totalMinor)
+                            .clamp(0, 1 << 62),
+                      ),
+                    ),
+                  ),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -1222,9 +1539,9 @@ class _PaymentDialogState extends State<PaymentDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
-        FilledButton(onPressed: confirm, child: const Text('Complete Sale')),
+        FilledButton(onPressed: confirm, child: Text(context.l10n.payComplete)),
       ],
     ),
   );
@@ -1233,6 +1550,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
     padding: const EdgeInsets.only(bottom: 12),
     child: TextField(
       controller: controller,
+      inputFormatters: const [AsciiDigitsFormatter()],
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (_) => setState(() => error = null),
       decoration: InputDecoration(labelText: label, prefixText: 'Rs '),
@@ -1241,11 +1559,22 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
   Widget _customerField() => DropdownButtonFormField<String>(
     initialValue: customerId,
-    decoration: const InputDecoration(labelText: 'Udhaar customer'),
+    decoration: InputDecoration(
+      labelText: context.l10n.payUdhaarCustomer,
+      helperMaxLines: 3,
+      helperText: (widget.activeCustomerCount ?? 0) > widget.customers.length
+          ? context.l10n.posCustomersTruncated(
+              '${widget.customers.length}',
+              '${widget.activeCustomerCount}',
+            )
+          : null,
+    ),
     items: widget.customers
         .map(
-          (customer) =>
-              DropdownMenuItem(value: customer.id, child: Text(customer.name)),
+          (customer) => DropdownMenuItem(
+            value: customer.id,
+            child: Text(bidiName(context, customer.name)),
+          ),
         )
         .toList(),
     onChanged: (value) => setState(() => customerId = value),
@@ -1260,15 +1589,25 @@ class _PaymentDialogState extends State<PaymentDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Existing balance: ${formatPkr(customer.balanceMinor)}'),
-          Text('This sale on Udhaar: ${formatPkr(creditAmount)}'),
           Text(
-            'New balance: ${formatPkr(projected)}',
+            context.l10n.payExistingBalance(
+              bidiMoney(context, formatPkr(customer.balanceMinor)),
+            ),
+          ),
+          Text(
+            context.l10n.payThisSaleUdhaar(
+              bidiMoney(context, formatPkr(creditAmount)),
+            ),
+          ),
+          Text(
+            context.l10n.payNewBalance(
+              bidiMoney(context, formatPkr(projected)),
+            ),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           if (customer.creditLimitMinor case final limit?)
             Text(
-              'Credit limit: ${formatPkr(limit)}',
+              context.l10n.payCreditLimit(bidiMoney(context, formatPkr(limit))),
               style: TextStyle(color: projected > limit ? Colors.red : null),
             ),
         ],
@@ -1292,11 +1631,11 @@ class ReceiptDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Row(
+    title: Row(
       children: [
-        Icon(Icons.check_circle, color: Color(0xff176b52)),
-        SizedBox(width: 10),
-        Text('Sale completed'),
+        const Icon(Icons.check_circle, color: Color(0xff176b52)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(context.l10n.saleCompleted)),
       ],
     ),
     content: SizedBox(
@@ -1309,18 +1648,18 @@ class ReceiptDialog extends StatelessWidget {
             if (receipt case final receipt?)
               ReceiptView(receipt: receipt)
             else
-              const Text('The sale is saved. Open its receipt from Bills.'),
+              Text(context.l10n.saleSavedOpenFromBills),
             const SizedBox(height: 12),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: synced
-                  ? const StatusPill(
-                      'Saved on this tablet • Synced',
+                  ? StatusPill(
+                      context.l10n.saleSavedSynced,
                       tone: StatusTone.success,
                       icon: Icons.cloud_done_outlined,
                     )
-                  : const StatusPill(
-                      'Saved on this tablet • Waiting to sync',
+                  : StatusPill(
+                      context.l10n.saleSavedWaiting,
                       tone: StatusTone.info,
                       icon: Icons.cloud_queue,
                     ),
@@ -1335,11 +1674,11 @@ class ReceiptDialog extends StatelessWidget {
           Navigator.pop(context);
           onView();
         },
-        child: const Text('View receipt'),
+        child: Text(context.l10n.saleViewReceipt),
       ),
       FilledButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('New sale'),
+        child: Text(context.l10n.saleNew),
       ),
     ],
   );
@@ -1377,7 +1716,11 @@ class PosProductCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    product.name,
+                    productDisplayName(
+                      context,
+                      product.name,
+                      productId: product.id,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1399,9 +1742,9 @@ class PosProductCard extends StatelessWidget {
                       // Price never wraps on narrow cards; it scales down.
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: Text(
-                          productPriceLabel(product),
+                          localizedProductPrice(context, product),
                           maxLines: 1,
                           style: const TextStyle(
                             fontSize: 17,
@@ -1410,7 +1753,7 @@ class PosProductCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Stock ${productStockLabel(product)}${product.isLowStock ? ' • Low' : ''}',
+                        localizedProductStockLine(context, product),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1436,7 +1779,7 @@ class PosProductCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(7),
                       ),
                     ),
-                    child: const Text('Add'),
+                    child: Text(context.l10n.posAdd),
                   ),
                 ),
               ],
@@ -1484,7 +1827,7 @@ class PosFamilyCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      entry.name,
+                      productDisplayName(context, entry.name),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -1505,9 +1848,14 @@ class PosFamilyCard extends StatelessWidget {
                       children: [
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           child: Text(
-                            'From ${formatPkr(entry.fromPriceMinor)}',
+                            context.l10n.posFromPrice(
+                              bidiMoney(
+                                context,
+                                formatPkr(entry.fromPriceMinor),
+                              ),
+                            ),
                             maxLines: 1,
                             style: const TextStyle(
                               fontSize: 17,
@@ -1516,7 +1864,13 @@ class PosFamilyCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${entry.variants.length} pack sizes${low ? ' • Low' : ''}',
+                          low
+                              ? context.l10n.posPackSizesLow(
+                                  '${entry.variants.length}',
+                                )
+                              : context.l10n.posPackSizes(
+                                  '${entry.variants.length}',
+                                ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1542,7 +1896,7 @@ class PosFamilyCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(7),
                         ),
                       ),
-                      child: const Text('Add'),
+                      child: Text(context.l10n.posAdd),
                     ),
                   ),
                 ],
@@ -1553,6 +1907,80 @@ class PosFamilyCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lists cart prices that changed after their lines were added (B-4).
+class PriceChangeNotice extends StatelessWidget {
+  const PriceChangeNotice({super.key, required this.changes});
+  final List<PosPriceChange> changes;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.posPricesChangedTitle,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: scheme.onTertiaryContainer,
+            ),
+          ),
+          for (final change in changes)
+            Text(
+              context.l10n.posPriceChangeLine(
+                productDisplayName(context, change.productName),
+                bidiMoney(context, formatPkr(change.oldPriceMinor)),
+                bidiMoney(context, formatPkr(change.newPriceMinor)),
+              ),
+              style: TextStyle(color: scheme.onTertiaryContainer),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A plain warning strip: part of a list could not be loaded (B-2).
+class _TruncationNotice extends StatelessWidget {
+  const _TruncationNotice({super.key, required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.errorContainer,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.warning_amber_rounded,
+          size: 18,
+          color: Theme.of(context).colorScheme.onErrorContainer,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _CashierProductLookup extends StatelessWidget {
@@ -1578,19 +2006,39 @@ class _CashierProductLookup extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                product.name,
+                productDisplayName(
+                  context,
+                  product.name,
+                  productId: product.id,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const Spacer(),
-              Text(product.barcode ?? 'No barcode'),
               Text(
-                '${productPriceLabel(product)} • '
-                'Stock ${productStockLabel(product)}',
+                product.barcode == null
+                    ? context.l10n.posNoBarcode
+                    : bidiId(context, product.barcode!),
+              ),
+              Text(
+                context.l10n.posPriceAndStock(
+                  localizedProductPrice(context, product),
+                  bidiQuantity(
+                    context,
+                    localizedLineQuantity(
+                      context.l10n,
+                      product.stockQuantity,
+                      product.measureUnit,
+                    ),
+                  ),
+                ),
               ),
               if (product.isLowStock)
-                const Text('Low stock', style: TextStyle(color: Colors.orange)),
+                Text(
+                  context.l10n.posLowStock,
+                  style: const TextStyle(color: Colors.orange),
+                ),
             ],
           ),
         ),
@@ -1739,10 +2187,35 @@ class _StatusChip extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: color)),
+        Text(
+          label,
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(color: color),
+        ),
       ],
     ),
   );
+}
+
+/// Why a product cannot be sold: not enough stock, or stock already below
+/// zero from earlier sales. The name is shown as entered and the quantity
+/// keeps Western digits and its unit.
+String insufficientStockMessage(
+  BuildContext context, {
+  required String productName,
+  required int available,
+  MeasureUnit? unit,
+}) {
+  final l10n = context.l10n;
+  final name = productDisplayName(context, productName);
+  final quantity = bidiQuantity(
+    context,
+    localizedLineQuantity(l10n, available, unit),
+  );
+  return available < 0
+      ? l10n.saleErrStockBelowZero(name, quantity)
+      : l10n.saleErrNotEnoughStock(name, quantity);
 }
 
 String formatPkr(int minor) {
@@ -1768,3 +2241,27 @@ String productPriceLabel(PosProduct product) => switch (product.measureUnit) {
 /// `40 kg` / `750 g` for a measured product, a count otherwise.
 String productStockLabel(PosProduct product) =>
     formatLineQuantity(product.stockQuantity, product.measureUnit);
+
+/// [productPriceLabel] in the UI language, kept left to right in Urdu.
+String localizedProductPrice(BuildContext context, PosProduct product) {
+  final price = bidiMoney(context, formatPkr(product.salePriceMinor));
+  return switch (product.measureUnit) {
+    final unit? => localizedUnitPrice(context.l10n, price, unit),
+    null => price,
+  };
+}
+
+/// `Stock 40 kg`, or `Stock 2 • Low` when low, in the UI language.
+String localizedProductStockLine(BuildContext context, PosProduct product) {
+  final stock = bidiQuantity(
+    context,
+    localizedLineQuantity(
+      context.l10n,
+      product.stockQuantity,
+      product.measureUnit,
+    ),
+  );
+  return product.isLowStock
+      ? context.l10n.posStockLow(stock)
+      : context.l10n.posStock(stock);
+}

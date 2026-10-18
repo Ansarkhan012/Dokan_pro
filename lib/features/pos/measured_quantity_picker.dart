@@ -5,13 +5,23 @@ import '../../core/format/display_format.dart';
 import '../../core/format/measure_format.dart';
 import '../../core/ui/pos_ui.dart';
 import 'pos_state.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 /// Result of checking a measured quantity against the shop's rules (U2).
 /// [error] blocks the pick; [warning] allows it but tells the cashier.
 final class MeasuredPickCheck {
-  const MeasuredPickCheck({this.error, this.warning});
+  const MeasuredPickCheck({this.error, this.warning, this.available});
   final String? error;
   final String? warning;
+
+  /// Stock left (thousandths, never negative) when the quantity is beyond
+  /// it; lets the UI word the warning or refusal in the cashier's language.
+  final int? available;
   bool get allowed => error == null;
 }
 
@@ -31,10 +41,17 @@ MeasuredPickCheck checkMeasuredPick({
   if (product.stockTrackingEnabled &&
       alreadyInCart + quantity! > product.stockQuantity) {
     final left = product.stockQuantity - alreadyInCart;
-    final available = formatMeasureQuantity(left < 0 ? 0 : left, unit);
+    final remaining = left < 0 ? 0 : left;
+    final available = formatMeasureQuantity(remaining, unit);
     return allowNegativeStock
-        ? MeasuredPickCheck(warning: 'Only $available in stock.')
-        : MeasuredPickCheck(error: 'Only $available available.');
+        ? MeasuredPickCheck(
+            warning: 'Only $available in stock.',
+            available: remaining,
+          )
+        : MeasuredPickCheck(
+            error: 'Only $available available.',
+            available: remaining,
+          );
   }
   return const MeasuredPickCheck();
 }
@@ -118,13 +135,30 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
     final scheme = Theme.of(context).colorScheme;
     final quantity = typed;
     final typedCheck = custom.text.trim().isEmpty ? null : check(quantity);
+    final l10n = context.l10n;
+    String quantityText(int thousandths) => bidiQuantity(
+      context,
+      localizedMeasureQuantity(l10n, thousandths, unit),
+    );
     final available = product.stockTrackingEnabled
-        ? ' • Available ${formatMeasureQuantity(product.stockQuantity < 0 ? 0 : product.stockQuantity, unit)}'
+        ? ' • ${l10n.measureAvailable(quantityText(product.stockQuantity < 0 ? 0 : product.stockQuantity))}'
         : '';
+    final note = switch (typedCheck) {
+      MeasuredPickCheck(:final int available, :final allowed) =>
+        allowed
+            ? l10n.measureOnlyInStock(quantityText(available))
+            : l10n.measureOnlyAvailable(quantityText(available)),
+      MeasuredPickCheck(:final String error) => localizedMessage(l10n, error),
+      _ => null,
+    };
     return Theme(
       data: posFormTheme(Theme.of(context)),
       child: AlertDialog(
-        title: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+        title: Text(
+          productDisplayName(context, product.name, productId: product.id),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         content: SizedBox(
           width: 440,
           // Scrolls inside the dialog when the tablet keyboard is open; the
@@ -135,7 +169,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${measureUnitPriceLabel(formatPkr(product.salePriceMinor), unit)}$available',
+                  '${localizedUnitPrice(l10n, bidiMoney(context, formatPkr(product.salePriceMinor)), unit)}$available',
                   key: const ValueKey('measure-picker-summary'),
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
@@ -143,7 +177,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'In bill: ${formatMeasureQuantity(widget.editing!, unit)}',
+                      l10n.measureInBill(quantityText(widget.editing!)),
                     ),
                   ),
                 const SizedBox(height: 14),
@@ -159,7 +193,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                           onPressed: check(preset).allowed
                               ? () => _pick(preset)
                               : null,
-                          child: Text(formatMeasureQuantity(preset, unit)),
+                          child: Text(quantityText(preset)),
                         ),
                       ),
                   ],
@@ -167,7 +201,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                 if (product.allowCustomQuantity) ...[
                   const SizedBox(height: 18),
                   Text(
-                    'Custom quantity',
+                    l10n.measureCustomQuantity,
                     style: TextStyle(
                       color: scheme.primary,
                       fontWeight: FontWeight.w700,
@@ -184,6 +218,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                             decimal: true,
                           ),
                           inputFormatters: [
+                            const AsciiDigitsFormatter(),
                             FilteringTextInputFormatter.allow(
                               RegExp(r'[0-9.]'),
                             ),
@@ -193,8 +228,8 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                           onSubmitted: (_) {
                             if (quantity != null) _pick(quantity);
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Quantity',
+                          decoration: InputDecoration(
+                            labelText: l10n.measureQuantityLabel,
                           ),
                         ),
                       ),
@@ -205,14 +240,14 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                           ButtonSegment(
                             value: true,
                             label: Text(
-                              unit.fractionLabel,
+                              localizedFractionUnit(l10n, unit),
                               key: const ValueKey('measure-unit-fraction'),
                             ),
                           ),
                           ButtonSegment(
                             value: false,
                             label: Text(
-                              unit.wholeLabel,
+                              localizedWholeUnit(l10n, unit),
                               key: const ValueKey('measure-unit-whole'),
                             ),
                           ),
@@ -226,16 +261,26 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
                   const SizedBox(height: 10),
                   Text(
                     quantity == null || quantity <= 0
-                        ? 'Total —'
-                        : 'Total ${formatPkr(lineTotalMinor(product.salePriceMinor, quantity))}'
-                              ' for ${formatMeasureQuantity(quantity, unit)}',
+                        ? l10n.measureTotalNone
+                        : l10n.measureTotalFor(
+                            bidiMoney(
+                              context,
+                              formatPkr(
+                                lineTotalMinor(
+                                  product.salePriceMinor,
+                                  quantity,
+                                ),
+                              ),
+                            ),
+                            quantityText(quantity),
+                          ),
                     key: const ValueKey('measure-live-total'),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (typedCheck?.error ?? typedCheck?.warning case final note?)
+                  if (note != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
@@ -256,7 +301,7 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           if (product.allowCustomQuantity)
             FilledButton(
@@ -264,7 +309,9 @@ class _MeasuredQuantityPickerState extends State<MeasuredQuantityPicker> {
               onPressed: quantity != null && (typedCheck?.allowed ?? false)
                   ? () => _pick(quantity)
                   : null,
-              child: Text(widget.editing == null ? 'Add' : 'Update'),
+              child: Text(
+                widget.editing == null ? l10n.posAdd : l10n.posUpdate,
+              ),
             ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/l10n/l10n.dart';
 
 class SyncAttentionScreen extends StatelessWidget {
   const SyncAttentionScreen({
@@ -12,9 +13,7 @@ class SyncAttentionScreen extends StatelessWidget {
   final String shopId, deviceId;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Sync issues')),
-    body: const Center(
-      child: Text('Sync issues are available on Android and Windows.'),
-    ),
+    appBar: AppBar(title: Text(context.l10n.syncIssuesTitle)),
+    body: Center(child: Text(context.l10n.syncIssuesDeviceOnly)),
   );
 }

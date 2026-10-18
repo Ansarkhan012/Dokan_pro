@@ -19,6 +19,10 @@ import 'customer_models.dart';
 import 'drift_customer_repository.dart';
 import 'local_customer_payment_service.dart';
 import 'supabase_customer_gateway.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/messages.dart';
 
 class CustomerManagementScreen extends StatefulWidget {
   const CustomerManagementScreen({
@@ -92,6 +96,7 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
       try {
         await pull.pull(entity);
       } catch (_) {
+        // Translated on screen (localizedMessage).
         refreshWarning =
             'Customers could not be refreshed. Showing available offline data.';
       }
@@ -161,7 +166,7 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Customers / Khata'),
+      title: Text(context.l10n.customersTitle),
       actions: [
         IconButton(
           onPressed: refreshing ? null : refresh,
@@ -177,15 +182,18 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
     floatingActionButton: FloatingActionButton.extended(
       onPressed: () => edit(),
       icon: const Icon(Icons.person_add),
-      label: const Text('Add customer'),
+      label: Text(context.l10n.customersAdd),
     ),
     body: Column(
       children: [
         if (refreshWarning != null)
           MaterialBanner(
-            content: Text(refreshWarning!),
+            content: Text(localizedMessage(context.l10n, refreshWarning!)),
             actions: [
-              TextButton(onPressed: refresh, child: const Text('Retry')),
+              TextButton(
+                onPressed: refresh,
+                child: Text(context.l10n.commonRetry),
+              ),
             ],
           ),
         Expanded(
@@ -195,7 +203,9 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
               if (!snap.hasData) {
                 return snap.hasError
                     ? Center(
-                        child: Text('Could not open customers: ${snap.error}'),
+                        child: Text(
+                          context.l10n.customersOpenFailed('${snap.error}'),
+                        ),
                       )
                     : const Center(child: CircularProgressIndicator());
               }
@@ -206,21 +216,18 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
                     padding: const EdgeInsets.all(16),
                     child: TextField(
                       controller: search,
-                      onChanged: (v) =>
-                          setState(() => data = searchCustomers(v)),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        labelText: 'Search name or phone',
+                      onChanged: (v) => setState(() {
+                        data = searchCustomers(v);
+                      }),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        labelText: context.l10n.customersSearchLabel,
                       ),
                     ),
                   ),
                   Expanded(
                     child: rows.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No customers yet. Add the first customer.',
-                            ),
-                          )
+                        ? Center(child: Text(context.l10n.customersEmpty))
                         : ListView.builder(
                             itemCount: rows.length,
                             itemBuilder: (_, i) {
@@ -231,17 +238,16 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
                                     c.name.substring(0, 1).toUpperCase(),
                                   ),
                                 ),
-                                title: Text(c.name),
-                                subtitle: Text(
-                                  '${c.phone ?? 'No phone'}${c.isActive ? '' : ' • Inactive'}',
-                                ),
+                                title: Text(bidiName(context, c.name)),
+                                subtitle: Text(customerPhoneLine(context, c)),
                                 trailing: Wrap(
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
-                                      c.balanceMinor == 0
-                                          ? 'Clear'
-                                          : '${formatPkr(c.balanceMinor)} due',
+                                      customerBalanceLabel(
+                                        context,
+                                        c.balanceMinor,
+                                      ),
                                     ),
                                     IconButton(
                                       onPressed: () => edit(c),
@@ -286,12 +292,12 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Customer saved.')));
+        ).showSnackBar(SnackBar(content: Text(context.l10n.customersSaved)));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Customer could not be saved.')),
+          SnackBar(content: Text(context.l10n.customersSaveFailed)),
         );
       }
     }
@@ -327,7 +333,11 @@ class _CustomerFormState extends State<_CustomerForm> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.current == null ? 'Add customer' : 'Edit customer'),
+    title: Text(
+      widget.current == null
+          ? context.l10n.customersAdd
+          : context.l10n.customersEdit,
+    ),
     content: SizedBox(
       width: 440,
       child: SingleChildScrollView(
@@ -336,40 +346,48 @@ class _CustomerFormState extends State<_CustomerForm> {
           children: [
             TextField(
               controller: name,
-              decoration: const InputDecoration(labelText: 'Name *'),
+              decoration: InputDecoration(labelText: context.l10n.customerName),
             ),
             TextField(
               controller: phone,
+              inputFormatters: const [AsciiDigitsFormatter()],
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone'),
+              decoration: InputDecoration(
+                labelText: context.l10n.customerPhone,
+              ),
             ),
             TextField(
               controller: address,
-              decoration: const InputDecoration(labelText: 'Address'),
+              decoration: InputDecoration(
+                labelText: context.l10n.customerAddress,
+              ),
             ),
             TextField(
               controller: notes,
               maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Notes'),
+              decoration: InputDecoration(
+                labelText: context.l10n.customerNotes,
+              ),
             ),
             TextField(
               controller: limit,
+              inputFormatters: const [AsciiDigitsFormatter()],
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Credit limit (optional)',
+              decoration: InputDecoration(
+                labelText: context.l10n.customerCreditLimitOptional,
                 prefixText: 'Rs ',
               ),
             ),
             SwitchListTile(
               value: active,
               onChanged: (v) => setState(() => active = v),
-              title: const Text('Active'),
+              title: Text(context.l10n.editActive),
             ),
             if (error != null)
               Text(
-                error!,
+                localizedMessage(context.l10n, error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -379,7 +397,7 @@ class _CustomerFormState extends State<_CustomerForm> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: () {
@@ -405,7 +423,7 @@ class _CustomerFormState extends State<_CustomerForm> {
             ),
           );
         },
-        child: const Text('Save'),
+        child: Text(context.l10n.commonSave),
       ),
     ],
   );

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../features/shop/cashier_admin_gateway.dart';
+import '../core/l10n/digits.dart';
+import '../core/l10n/l10n.dart';
+import '../core/l10n/bidi.dart';
+import '../core/l10n/messages.dart';
 
 class OwnerCashierSetupPanel extends StatefulWidget {
   const OwnerCashierSetupPanel({
@@ -116,7 +120,7 @@ class _OwnerCashierSetupPanelState extends State<OwnerCashierSetupPanel> {
         children: [
           Expanded(
             child: Text(
-              'Cashiers',
+              context.l10n.settingsCashiers,
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
@@ -125,15 +129,19 @@ class _OwnerCashierSetupPanelState extends State<OwnerCashierSetupPanel> {
                 ? null
                 : () => setState(() => showCreateForm = !showCreateForm),
             icon: const Icon(Icons.person_add),
-            label: const Text('Create cashier'),
+            label: Text(context.l10n.cashierCreate),
           ),
         ],
       ),
       for (final cashier in widget.cashiers)
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: Text(cashier.displayName),
-          subtitle: Text(cashier.isActive ? 'Active' : 'Disabled'),
+          title: Text(bidiName(context, cashier.displayName)),
+          subtitle: Text(
+            cashier.isActive
+                ? context.l10n.editActive
+                : context.l10n.cashierDisabled,
+          ),
           value: cashier.isActive,
           onChanged: updating.contains(cashier.id)
               ? null
@@ -143,32 +151,46 @@ class _OwnerCashierSetupPanelState extends State<OwnerCashierSetupPanel> {
         TextField(
           controller: name,
           enabled: !isCreating,
-          decoration: const InputDecoration(labelText: 'Cashier name'),
+          decoration: InputDecoration(labelText: context.l10n.cashierName),
         ),
         TextField(
           controller: pin,
           enabled: !isCreating,
           obscureText: true,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Numeric PIN'),
+          inputFormatters: [
+            const AsciiDigitsFormatter(),
+            FilteringTextInputFormatter.digitsOnly,
+          ],
+          decoration: InputDecoration(
+            labelText: context.l10n.cashierNumericPin,
+          ),
         ),
         TextField(
           controller: confirmPin,
           enabled: !isCreating,
           obscureText: true,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Confirm PIN'),
+          inputFormatters: [
+            const AsciiDigitsFormatter(),
+            FilteringTextInputFormatter.digitsOnly,
+          ],
+          decoration: InputDecoration(
+            labelText: context.l10n.cashierConfirmPin,
+          ),
         ),
         FilledButton(
           onPressed: isCreating ? null : create,
-          child: Text(isCreating ? 'Creating…' : 'Create cashier'),
+          child: Text(
+            isCreating
+                ? context.l10n.customCreating
+                : context.l10n.cashierCreate,
+          ),
         ),
       ],
       if (error != null)
         Text(
-          error!,
+          localizedMessage(context.l10n, error!),
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
     ],

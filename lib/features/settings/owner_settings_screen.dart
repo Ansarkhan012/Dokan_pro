@@ -12,6 +12,14 @@ import '../../subscription/entitlement_policy.dart';
 import '../../subscription/entitlement_store.dart';
 import '../../subscription/entitlement_verifier.dart';
 import '../../subscription/supabase_entitlement_gateway.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
+import '../../core/l10n/locale_controller.dart';
+import 'offline_translation_setting.dart';
+import '../app_update/app_update_host.dart';
 
 class OwnerSettingsScreen extends StatefulWidget {
   const OwnerSettingsScreen({
@@ -194,16 +202,19 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
     }
   }
 
-  String _stateLabel(EntitlementState state) => switch (state) {
-    EntitlementState.trialActive => 'Trial active',
-    EntitlementState.active => 'Active',
-    EntitlementState.expiringSoon => 'Expires soon',
-    EntitlementState.offlineGrace => 'Offline grace',
-    EntitlementState.clockVerificationRequired =>
-      'Online verification required',
-    EntitlementState.expired => 'Expired',
-    EntitlementState.unavailable => 'Online verification required',
-  };
+  String _stateLabel(EntitlementState state) {
+    final l10n = context.l10n;
+    return switch (state) {
+      EntitlementState.trialActive => l10n.subStateTrial,
+      EntitlementState.active => l10n.editActive,
+      EntitlementState.expiringSoon => l10n.subStateExpiringSoon,
+      EntitlementState.offlineGrace => l10n.subStateOfflineGrace,
+      EntitlementState.clockVerificationRequired => l10n.subStateVerify,
+      EntitlementState.expired => l10n.subStateExpired,
+      EntitlementState.revoked => l10n.subStateBlocked,
+      EntitlementState.unavailable => l10n.subStateVerify,
+    };
+  }
 
   void _apply(Shop value) {
     name.text = value.name;
@@ -219,7 +230,7 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
   }
 
   Future<void> _save() async {
-    final low = int.tryParse(threshold.text);
+    final low = int.tryParse(normalizeDigits(threshold.text));
     if (name.text.trim().isEmpty || low == null || low < 0) {
       setState(
         () => error = 'Enter a shop name and a non-negative stock threshold.',
@@ -269,7 +280,7 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Settings saved.')));
+        ).showSnackBar(SnackBar(content: Text(context.l10n.settingsSaved)));
       }
     } catch (_) {
       if (mounted) {
@@ -295,7 +306,7 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Settings')),
+    appBar: AppBar(title: Text(context.l10n.ownerNavSettings)),
     body: loading
         ? const Center(child: CircularProgressIndicator())
         : Theme(
@@ -312,65 +323,81 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
-                          error!,
+                          localizedMessage(context.l10n, error!),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                           ),
                         ),
                       ),
-                    _section(context, 'Subscription', _subscription()),
                     _section(
                       context,
-                      'Shop details',
+                      context.l10n.settingsSubscription,
+                      _subscription(),
+                    ),
+                    _section(
+                      context,
+                      context.l10n.languageMenuTooltip,
+                      const _LanguageSetting(),
+                    ),
+                    _section(
+                      context,
+                      context.l10n.offlineTranslationHeading,
+                      const OfflineTranslationSetting(),
+                    ),
+                    _section(
+                      context,
+                      context.l10n.settingsShopDetails,
                       Column(
                         children: [
                           TextField(
                             controller: name,
-                            decoration: const InputDecoration(
-                              labelText: 'Shop name',
+                            decoration: InputDecoration(
+                              labelText: context.l10n.settingsShopName,
                             ),
                           ),
                           const SizedBox(height: 12),
                           FieldPair(
                             TextField(
                               controller: phone,
+                              inputFormatters: const [AsciiDigitsFormatter()],
                               keyboardType: TextInputType.phone,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone',
+                              decoration: InputDecoration(
+                                labelText: context.l10n.customerPhone,
                               ),
                             ),
                             TextField(
                               controller: address,
-                              decoration: const InputDecoration(
-                                labelText: 'Address',
+                              decoration: InputDecoration(
+                                labelText: context.l10n.customerAddress,
                               ),
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const _InfoRow('Currency', 'PKR'),
-                          const _InfoRow(
-                            'Time zone',
-                            'Pakistan (Asia/Karachi)',
+                          _InfoRow(context.l10n.settingsCurrency, 'PKR'),
+                          _InfoRow(
+                            context.l10n.settingsTimeZone,
+                            context.l10n.settingsTimeZoneValue,
                           ),
                         ],
                       ),
                     ),
                     _section(
                       context,
-                      'Stock',
+                      context.l10n.settingsStock,
                       Column(
                         children: [
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             value: allowNegative,
                             onChanged: (v) => setState(() => allowNegative = v),
-                            title: const Text('Allow selling below zero stock'),
+                            title: Text(context.l10n.settingsAllowNegative),
                           ),
                           TextField(
                             controller: threshold,
+                            inputFormatters: const [AsciiDigitsFormatter()],
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Default low-stock alert level',
+                            decoration: InputDecoration(
+                              labelText: context.l10n.settingsDefaultLowStock,
                             ),
                           ),
                         ],
@@ -378,20 +405,20 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
                     ),
                     _section(
                       context,
-                      'Receipt',
+                      context.l10n.receiptTitle,
                       Column(
                         children: [
                           FieldPair(
                             TextField(
                               controller: footer,
-                              decoration: const InputDecoration(
-                                labelText: 'Receipt footer',
+                              decoration: InputDecoration(
+                                labelText: context.l10n.settingsReceiptFooter,
                               ),
                             ),
                             DropdownButtonFormField(
                               initialValue: paper,
-                              decoration: const InputDecoration(
-                                labelText: 'Paper width',
+                              decoration: InputDecoration(
+                                labelText: context.l10n.settingsPaperWidth,
                               ),
                               items: const [
                                 DropdownMenuItem(
@@ -410,48 +437,61 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
                             contentPadding: EdgeInsets.zero,
                             value: showPhone,
                             onChanged: (v) => setState(() => showPhone = v),
-                            title: const Text('Show phone on receipt'),
+                            title: Text(context.l10n.settingsShowPhone),
                           ),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             value: showAddress,
                             onChanged: (v) => setState(() => showAddress = v),
-                            title: const Text('Show address on receipt'),
+                            title: Text(context.l10n.settingsShowAddress),
                           ),
                         ],
                       ),
                     ),
                     _section(
                       context,
-                      'Notifications',
+                      context.l10n.settingsNotifications,
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         value: notifications,
                         onChanged: (v) => setState(() => notifications = v),
-                        title: const Text('Owner alerts'),
+                        title: Text(context.l10n.settingsOwnerAlerts),
                         // Honest: the preference is stored, alerts are not
                         // delivered yet.
-                        subtitle: const Text(
-                          'Alerts are not available yet. Your choice is saved '
-                          'for when they are.',
-                        ),
+                        subtitle: Text(context.l10n.settingsAlertsHint),
                       ),
                     ),
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment: AlignmentDirectional.centerEnd,
                       child: FilledButton(
                         onPressed: saving ? null : _save,
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(160, 48),
                         ),
-                        child: Text(saving ? 'Saving…' : 'Save settings'),
+                        child: Text(
+                          saving
+                              ? context.l10n.commonSaving
+                              : context.l10n.settingsSave,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _section(context, 'Registered devices', _devices()),
+                    _section(context, context.l10n.settingsDevices, _devices()),
+                    if (AppUpdateHost.current case final updates?)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: OutlinedButton.icon(
+                            onPressed: updates.checkNow,
+                            icon: const Icon(Icons.system_update_alt),
+                            label: Text(context.l10n.updateCheckNow),
+                          ),
+                        ),
+                      ),
                     _section(
                       context,
-                      'Cashiers',
+                      context.l10n.settingsCashiers,
                       OwnerCashierSetupPanel(
                         gateway: SupabaseCashierAdminGateway(widget.client),
                         shopId: widget.shopId,
@@ -484,7 +524,8 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
 
   Widget _subscription() {
     final value = entitlement;
-    if (value == null) return const Text('Checking subscription…');
+    final l10n = context.l10n;
+    if (value == null) return Text(l10n.settingsCheckingSubscription);
     final claims = value.claims;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -501,50 +542,51 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
               ),
             ),
             value.permitsMutation
-                ? const StatusPill(
-                    'This tablet can record sales',
+                ? StatusPill(
+                    l10n.subCanRecord,
                     tone: StatusTone.success,
                     icon: Icons.check_circle_outline,
                   )
-                : const StatusPill(
-                    'Verification or renewal needed',
+                : StatusPill(
+                    l10n.subNeedsRenewal,
                     tone: StatusTone.danger,
                     icon: Icons.lock_outline,
                   ),
           ],
         ),
         const SizedBox(height: 4),
-        Text(value.message, style: const TextStyle(color: posMuted)),
+        Text(
+          localizedMessage(l10n, value.message),
+          style: const TextStyle(color: posMuted),
+        ),
         const SizedBox(height: 8),
         _InfoRow(
-          'Plan',
-          claims == null ? 'Unavailable' : humanizeIdentifier(claims.planId),
+          l10n.subPlan,
+          claims == null
+              ? l10n.subUnavailable
+              : bidiName(context, humanizeIdentifier(claims.planId)),
         ),
         if (claims != null) ...[
-          _InfoRow('Current period ends', formatDisplayDate(claims.validUntil)),
+          _InfoRow(l10n.subPeriodEnds, localizedDate(l10n, claims.validUntil)),
           _InfoRow(
-            'Works offline until',
-            formatRelativeDateTime(claims.offlineGraceUntil),
+            l10n.subOfflineUntil,
+            localizedRelativeDateTime(l10n, claims.offlineGraceUntil),
           ),
         ],
         _InfoRow(
-          'Last checked online',
+          l10n.subLastChecked,
           value.lastVerified == null
-              ? 'Not yet'
-              : formatRelativeDateTime(value.lastVerified!),
+              ? l10n.subNotYet
+              : localizedRelativeDateTime(l10n, value.lastVerified!),
         ),
         const SizedBox(height: 8),
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Online renewal is not available in the app yet.',
-                ),
-              ),
-            ),
-            child: const Text('Renew subscription'),
+            onPressed: () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(l10n.subRenewUnavailable))),
+            child: Text(l10n.subRenew),
           ),
         ),
       ],
@@ -578,38 +620,106 @@ class _OwnerSettingsScreenState extends State<OwnerSettingsScreen> {
                   children: [
                     Text(
                       d.id == widget.deviceId
-                          ? '${d.deviceName} (this device)'
-                          : d.deviceName,
+                          ? context.l10n.deviceThisDevice(
+                              bidiName(context, d.deviceName),
+                            )
+                          : bidiName(context, d.deviceName),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      '${_deviceTypeLabel(d.deviceType)} • Registered '
-                      '${formatDisplayDate(d.createdAt)}',
+                      context.l10n.deviceRegistered(
+                        _deviceTypeLabel(d.deviceType),
+                        localizedDate(context.l10n, d.createdAt),
+                      ),
                       style: const TextStyle(color: posMuted, fontSize: 13),
                     ),
                   ],
                 ),
               ),
               d.isActive
-                  ? const StatusPill('Active', tone: StatusTone.success)
-                  : const StatusPill('Inactive', tone: StatusTone.neutral),
+                  ? StatusPill(
+                      context.l10n.editActive,
+                      tone: StatusTone.success,
+                    )
+                  : StatusPill(
+                      context.l10n.productsInactive,
+                      tone: StatusTone.neutral,
+                    ),
             ],
           ),
         ),
       const SizedBox(height: 4),
-      const Text(
-        'Sync status for this tablet is shown at the top of the sales screen.',
-        style: TextStyle(color: posMuted, fontSize: 12),
+      Text(
+        context.l10n.settingsSyncHint,
+        style: const TextStyle(color: posMuted, fontSize: 12),
       ),
     ],
   );
 
-  static String _deviceTypeLabel(DeviceType type) => switch (type) {
-    DeviceType.androidTablet => 'Android tablet',
-    DeviceType.windowsDesktop => 'Windows computer',
-    DeviceType.mobile => 'Mobile',
+  String _deviceTypeLabel(DeviceType type) => switch (type) {
+    DeviceType.androidTablet => context.l10n.deviceAndroidTablet,
+    DeviceType.windowsDesktop => context.l10n.deviceWindows,
+    DeviceType.mobile => context.l10n.deviceMobile,
     _ => humanizeIdentifier(type.name),
   };
+}
+
+/// Device language (English / اردو) and the Urdu font, saved on this device
+/// only. Switching keeps the owner signed in and this screen open.
+class _LanguageSetting extends StatelessWidget {
+  const _LanguageSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = LocaleScope.maybeOf(context);
+    final l10n = context.l10n;
+    if (controller == null) return Text(l10n.settingsLanguageHint);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<String>(
+          key: const ValueKey('settings-language'),
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(value: 'en', label: Text(l10n.languageEnglish)),
+            ButtonSegment(value: 'ur', label: Text(l10n.languageUrdu)),
+          ],
+          selected: {controller.locale.languageCode},
+          onSelectionChanged: (value) => controller.setLocale(
+            value.single == 'ur'
+                ? LocaleController.urdu
+                : LocaleController.english,
+          ),
+        ),
+        if (controller.isUrdu) ...[
+          const SizedBox(height: 10),
+          Text(l10n.urduFontHeading, style: const TextStyle(color: posMuted)),
+          const SizedBox(height: 6),
+          SegmentedButton<UrduFont>(
+            key: const ValueKey('settings-urdu-font'),
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                value: UrduFont.nastaliq,
+                label: Text(l10n.urduFontNastaliq),
+              ),
+              ButtonSegment(
+                value: UrduFont.naskh,
+                label: Text(l10n.urduFontNaskh),
+              ),
+            ],
+            selected: {controller.urduFont},
+            onSelectionChanged: (value) => controller.setUrduFont(value.single),
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          l10n.settingsLanguageHint,
+          style: const TextStyle(color: posMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
 }
 
 class _InfoRow extends StatelessWidget {

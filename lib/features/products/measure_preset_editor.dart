@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/domain/enums.dart';
 import '../../core/format/measure_format.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 /// Owner editor for a measured product's quick quantities (U2): chips in
 /// ascending order, each removable, plus a typed quantity in g/kg (or ml/L).
@@ -68,6 +73,7 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
   @override
   Widget build(BuildContext context) {
     final unit = widget.unit;
+    final l10n = context.l10n;
     final full = widget.presets.length >= maxMeasurePresets;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,9 +85,14 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
             for (final quantity in widget.presets)
               InputChip(
                 key: ValueKey('preset-chip-$quantity'),
-                label: Text(formatMeasureQuantity(quantity, unit)),
+                label: Text(
+                  bidiQuantity(
+                    context,
+                    localizedMeasureQuantity(l10n, quantity, unit),
+                  ),
+                ),
                 onDeleted: () => _remove(quantity),
-                deleteButtonTooltipMessage: 'Remove',
+                deleteButtonTooltipMessage: l10n.commonRemove,
               ),
           ],
         ),
@@ -97,13 +108,14 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
                   decimal: true,
                 ),
                 inputFormatters: [
+                  const AsciiDigitsFormatter(),
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
                 onSubmitted: (_) => _add(),
                 decoration: InputDecoration(
                   labelText: full
-                      ? 'Quick quantities full ($maxMeasurePresets)'
-                      : 'Add quick quantity',
+                      ? l10n.presetFull('$maxMeasurePresets')
+                      : l10n.presetAdd,
                 ),
               ),
             ),
@@ -111,8 +123,14 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
             SegmentedButton<bool>(
               showSelectedIcon: false,
               segments: [
-                ButtonSegment(value: true, label: Text(unit.fractionLabel)),
-                ButtonSegment(value: false, label: Text(unit.wholeLabel)),
+                ButtonSegment(
+                  value: true,
+                  label: Text(localizedFractionUnit(l10n, unit)),
+                ),
+                ButtonSegment(
+                  value: false,
+                  label: Text(localizedWholeUnit(l10n, unit)),
+                ),
               ],
               selected: {fractionUnit},
               onSelectionChanged: (value) =>
@@ -121,7 +139,7 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
             const SizedBox(width: 8),
             IconButton.filledTonal(
               key: const ValueKey('preset-add'),
-              tooltip: 'Add',
+              tooltip: l10n.posAdd,
               onPressed: full ? null : _add,
               icon: const Icon(Icons.add),
             ),
@@ -131,7 +149,7 @@ class _MeasurePresetEditorState extends State<MeasurePresetEditor> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              error!,
+              localizedMessage(l10n, error!),
               key: const ValueKey('preset-error'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),

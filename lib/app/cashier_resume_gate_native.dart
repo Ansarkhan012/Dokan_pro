@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import '../core/l10n/language_switcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/cashier_session.dart';
 import '../auth/cashier_session_manager.dart';
@@ -17,6 +18,8 @@ import '../core/device/preferences_device_id_store.dart';
 import '../core/ids/id_generator.dart';
 import 'cashier_login_panel.dart';
 import 'device_mode_scope.dart';
+import '../core/l10n/l10n.dart';
+import '../core/l10n/messages.dart';
 
 /// The owner/cashier boundary of this device.
 ///
@@ -190,7 +193,7 @@ class _CashierResumeGateState extends State<CashierResumeGate> {
         final resolved = snapshot.data;
         if (snapshot.hasError || resolved == null) {
           return _Problem(
-            message: 'This device could not be opened. Try again.',
+            message: context.l10n.deviceOpenFailed,
             onRetry: _reload,
           );
         }
@@ -201,8 +204,7 @@ class _CashierResumeGateState extends State<CashierResumeGate> {
             warning,
           ),
           OwnerRemovalFailedState() => _Problem(
-            message:
-                'Owner mode could not be closed safely on this device, so cashier mode was not opened. Restart the app and try again.',
+            message: context.l10n.deviceOwnerRemovalFailed,
             onRetry: _reload,
           ),
           DeviceLobbyState(:final credential, :final warning) =>
@@ -229,7 +231,7 @@ class _CashierResumeGateState extends State<CashierResumeGate> {
               shopId: session.shopId,
               shopName: credential.shopName,
               cashierId: session.cashierId,
-              cashierName: cashierName ?? 'Cashier',
+              cashierName: cashierName ?? context.l10n.billsCashier,
               deviceId: session.deviceId,
               onExit: () => _exitCashier(deviceClient),
             );
@@ -255,7 +257,8 @@ class _CashierResumeGateState extends State<CashierResumeGate> {
               color: Theme.of(context).colorScheme.errorContainer,
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(warning),
+                // The warning comes from the device layer in English.
+                child: Text(localizedMessage(context.l10n, warning)),
               ),
             ),
           ),
@@ -282,7 +285,10 @@ class _DeviceLobby extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(credential.shopName)),
+    appBar: AppBar(
+      title: Text(credential.shopName),
+      actions: const [LanguageSwitcher()],
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -303,7 +309,7 @@ class _DeviceLobby extends StatelessWidget {
               key: const ValueKey('lobby-owner-sign-in'),
               onPressed: onOwnerSignIn,
               icon: const Icon(Icons.admin_panel_settings_outlined),
-              label: const Text('Owner sign in'),
+              label: Text(context.l10n.authOwnerSignIn),
             ),
           ],
         ),
@@ -331,14 +337,15 @@ class _OwnerSignIn extends StatelessWidget {
       children: [
         child,
         if (client.auth.currentSession == null)
-          Positioned(
-            left: 16,
+          PositionedDirectional(
+            start: 16,
             bottom: 16,
             child: SafeArea(
               child: OutlinedButton.icon(
                 onPressed: onBack,
+                // Mirrors itself in Urdu (matchTextDirection).
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back to cashier login'),
+                label: Text(context.l10n.navBackToCashierLogin),
               ),
             ),
           ),
@@ -361,7 +368,10 @@ class _Problem extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton(onPressed: onRetry, child: const Text('Try again')),
+            FilledButton(
+              onPressed: onRetry,
+              child: Text(context.l10n.commonTryAgain),
+            ),
           ],
         ),
       ),

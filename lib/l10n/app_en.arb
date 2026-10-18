@@ -1,0 +1,3616 @@
+{
+  "@@locale": "en",
+  "languageMenuTooltip": "Language",
+  "@languageMenuTooltip": {
+    "description": "Tooltip and accessible label of the language switcher button."
+  },
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "Name of the English language, always written in English (endonym)."
+  },
+  "languageUrdu": "اردو",
+  "@languageUrdu": {
+    "description": "Name of the Urdu language, always written in Urdu (endonym)."
+  },
+  "urduFontHeading": "Urdu font",
+  "@urduFontHeading": {
+    "description": "Heading above the Urdu font choice (Nastaliq or Naskh) in the language menu."
+  },
+  "urduFontNastaliq": "Nastaliq",
+  "@urduFontNastaliq": {
+    "description": "Nastaliq style Urdu font option (Noto Nastaliq Urdu)."
+  },
+  "urduFontNaskh": "Naskh",
+  "@urduFontNaskh": {
+    "description": "Naskh style Urdu font option (Noto Naskh Arabic); more compact."
+  },
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Dismisses a dialog without changes. Deliberately different from voiding a bill (بل منسوخ کریں)."
+  },
+  "commonSave": "Save",
+  "@commonSave": {
+    "description": "Saves a form."
+  },
+  "commonClose": "Close",
+  "@commonClose": {
+    "description": "Closes a dialog or sheet."
+  },
+  "commonRetry": "Retry",
+  "@commonRetry": {
+    "description": "Tries a failed load or sync again."
+  },
+  "commonSignOut": "Sign out",
+  "@commonSignOut": {
+    "description": "Signs the owner out of this device."
+  },
+  "commonClear": "Clear",
+  "@commonClear": {
+    "description": "Empties the current bill or a field."
+  },
+  "commonRemove": "Remove",
+  "@commonRemove": {
+    "description": "Removes an item, e.g. a chosen product photo."
+  },
+  "commonRequiredHint": "* Required",
+  "@commonRequiredHint": {
+    "description": "Form footer hint: fields marked * must be filled."
+  },
+  "commonLocalDataUnavailable": "Could not open local data.",
+  "@commonLocalDataUnavailable": {
+    "description": "Shown when the on-device database cannot be opened."
+  },
+  "navSale": "Sale",
+  "@navSale": {
+    "description": "POS sidebar: the sale (billing) screen."
+  },
+  "navProducts": "Products",
+  "@navProducts": {
+    "description": "POS sidebar: product list."
+  },
+  "navBills": "Bills",
+  "@navBills": {
+    "description": "POS sidebar: past bills."
+  },
+  "navKhata": "Khata",
+  "@navKhata": {
+    "description": "POS sidebar: customer credit ledger (Khata / Udhaar)."
+  },
+  "navBackToCashierLogin": "Back to cashier login",
+  "@navBackToCashierLogin": {
+    "description": "Button that returns from owner sign-in to the cashier PIN screen."
+  },
+  "ownerNavDashboard": "Owner Dashboard",
+  "@ownerNavDashboard": {
+    "description": "Owner home: sales and profit summary."
+  },
+  "ownerNavSettings": "Settings",
+  "@ownerNavSettings": {
+    "description": "Owner home: shop settings."
+  },
+  "ownerNavSalesReturns": "Sales & Returns",
+  "@ownerNavSalesReturns": {
+    "description": "Owner home: bills, returns and voids."
+  },
+  "ownerNavInventory": "Inventory",
+  "@ownerNavInventory": {
+    "description": "Owner home: stock levels and adjustments."
+  },
+  "ownerNavProducts": "Manage products",
+  "@ownerNavProducts": {
+    "description": "Owner home: create and edit products."
+  },
+  "ownerNavCustomers": "Manage customers / Khata",
+  "@ownerNavCustomers": {
+    "description": "Owner home: customers and their Udhaar ledger."
+  },
+  "ownerNavPurchases": "Suppliers & Purchases",
+  "@ownerNavPurchases": {
+    "description": "Owner home: suppliers, purchases and supplier payments."
+  },
+  "ownerNavExpenses": "Expenses",
+  "@ownerNavExpenses": {
+    "description": "Owner home: shop expenses."
+  },
+  "syncIssuesTitle": "Sync issues",
+  "@syncIssuesTitle": {
+    "description": "Owner home entry and screen title: records that could not be saved online."
+  },
+  "syncStatusSynced": "Synced",
+  "@syncStatusSynced": {
+    "description": "Status chip: everything is saved online."
+  },
+  "syncStatusPending": "Pending sync",
+  "@syncStatusPending": {
+    "description": "Status chip: sales saved on the tablet, waiting to upload."
+  },
+  "syncStatusSyncing": "Syncing",
+  "@syncStatusSyncing": {
+    "description": "Status chip: uploading now."
+  },
+  "syncStatusOffline": "Offline",
+  "@syncStatusOffline": {
+    "description": "Status chip: no internet; billing continues."
+  },
+  "syncStatusNeedsAttention": "Needs attention",
+  "@syncStatusNeedsAttention": {
+    "description": "Status chip and state: a record needs the owner to look at it."
+  },
+  "syncStatusNeedsAttentionHint": "Some records could not sync. The owner can review them.",
+  "@syncStatusNeedsAttentionHint": {
+    "description": "Tooltip on the Needs attention chip, shown to cashiers."
+  },
+  "syncNoIssues": "No sync issues.",
+  "@syncNoIssues": {
+    "description": "Empty state of the sync issues screen."
+  },
+  "syncNothingDeleted": "Nothing here was deleted. Records stay on this device until they sync.",
+  "@syncNothingDeleted": {
+    "description": "Reassurance above the sync issue list."
+  },
+  "syncReasonFallback": "This record could not sync.",
+  "@syncReasonFallback": {
+    "description": "Shown when a sync issue has no stored reason."
+  },
+  "syncAttentionDetails": "Code: {code} • {state} • {time} • attempts {attempts}",
+  "@syncAttentionDetails": {
+    "description": "Detail line of a sync issue. code is a technical code (never translated), time is dd/MM HH:mm, attempts a number.",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      },
+      "attempts": {
+        "type": "String"
+      }
+    }
+  },
+  "syncStateFlagged": "Synced, flagged",
+  "@syncStateFlagged": {
+    "description": "A record that synced but broke a shop rule."
+  },
+  "syncStateWaitingAuthorisation": "Waiting for authorisation",
+  "@syncStateWaitingAuthorisation": {
+    "description": "A record waiting for the device or cashier to be authorised again."
+  },
+  "syncAcknowledge": "Acknowledge",
+  "@syncAcknowledge": {
+    "description": "Button: the owner has seen a flagged record."
+  },
+  "syncEntitySale": "Sale • {reference}",
+  "@syncEntitySale": {
+    "description": "Sync issue title for a sale. reference is the bill number (never translated).",
+    "placeholders": {
+      "reference": {
+        "type": "String"
+      }
+    }
+  },
+  "syncEntityVoid": "Bill void",
+  "@syncEntityVoid": {
+    "description": "Sync issue title for a voided bill."
+  },
+  "syncEntityReturn": "Bill return",
+  "@syncEntityReturn": {
+    "description": "Sync issue title for a bill return."
+  },
+  "syncEntityCustomerPayment": "Customer payment",
+  "@syncEntityCustomerPayment": {
+    "description": "Sync issue title for an Udhaar payment received."
+  },
+  "syncEntityPurchase": "Purchase",
+  "@syncEntityPurchase": {
+    "description": "Sync issue title for a purchase."
+  },
+  "syncEntitySupplierPayment": "Supplier payment",
+  "@syncEntitySupplierPayment": {
+    "description": "Sync issue title for a payment to a supplier."
+  },
+  "syncEntityExpense": "Expense",
+  "@syncEntityExpense": {
+    "description": "Sync issue title for an expense."
+  },
+  "syncEntityStockAdjustment": "Stock adjustment",
+  "@syncEntityStockAdjustment": {
+    "description": "Sync issue title for a manual stock change."
+  },
+  "syncIssuesDeviceOnly": "Sync issues are available on Android and Windows.",
+  "@syncIssuesDeviceOnly": {
+    "description": "Web preview placeholder."
+  },
+  "monthShort": "{month, select, 1{Jan} 2{Feb} 3{Mar} 4{Apr} 5{May} 6{Jun} 7{Jul} 8{Aug} 9{Sep} 10{Oct} 11{Nov} 12{Dec} other{}}",
+  "@monthShort": {
+    "description": "Short month name for dates such as 5 Oct 2026. month is 1-12. Urdu uses the full Gregorian month name.",
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "timeAm": "AM",
+  "@timeAm": {
+    "description": "Morning suffix for 12-hour times. Kept as AM in Urdu (as on Pakistani receipts and phones); native review may change it."
+  },
+  "timePm": "PM",
+  "@timePm": {
+    "description": "Afternoon/evening suffix for 12-hour times. Kept as PM in Urdu; native review may change it."
+  },
+  "relativeToday": "Today, {time}",
+  "@relativeToday": {
+    "description": "A date that is today.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "relativeYesterday": "Yesterday, {time}",
+  "@relativeYesterday": {
+    "description": "A date that was yesterday. Urdu avoids plain کل, which also means tomorrow.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "relativeTomorrow": "Tomorrow, {time}",
+  "@relativeTomorrow": {
+    "description": "A date that is tomorrow.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateWithTime": "{date}, {time}",
+  "@dateWithTime": {
+    "description": "Any other date with its time.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "paymentCash": "Cash",
+  "@paymentCash": {
+    "description": "Payment method stored as cash."
+  },
+  "paymentDigital": "Digital",
+  "@paymentDigital": {
+    "description": "Payment method stored as digital (JazzCash, Easypaisa, bank)."
+  },
+  "paymentUdhaar": "Udhaar",
+  "@paymentUdhaar": {
+    "description": "Payment method stored as credit (the customer owes the shop)."
+  },
+  "paymentSplit": "Split",
+  "@paymentSplit": {
+    "description": "A bill paid with more than one method."
+  },
+  "paymentNone": "No payment",
+  "@paymentNone": {
+    "description": "A Rs 0 bill with no payment."
+  },
+  "unitKg": "kg",
+  "@unitKg": {
+    "description": "Kilogram label after a weight, e.g. 2.5 kg."
+  },
+  "unitGram": "g",
+  "@unitGram": {
+    "description": "Gram label after a weight below 1 kg, e.g. 250 g."
+  },
+  "unitLiter": "L",
+  "@unitLiter": {
+    "description": "Liter label after a volume, e.g. 1.5 L."
+  },
+  "unitMilliliter": "ml",
+  "@unitMilliliter": {
+    "description": "Milliliter label after a volume below 1 L, e.g. 750 ml."
+  },
+  "measureQuantity": "{amount} {unit}",
+  "@measureQuantity": {
+    "description": "A measured quantity: amount is digits (e.g. 2.5), unit one of the unit labels.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "unitPrice": "{price}/{unit}",
+  "@unitPrice": {
+    "description": "Price per unit, e.g. Rs 130.00/kg. price is already formatted.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "posNewSaleHeading": "New Sale",
+  "@posNewSaleHeading": {
+    "description": "Sale screen heading."
+  },
+  "posTodaySummary": "Today: {amount}  •  {bills} bills",
+  "@posTodaySummary": {
+    "description": "Line under the heading: today's sales total and number of bills. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "bills": {
+        "type": "String"
+      }
+    }
+  },
+  "posSearchHint": "Search product or scan barcode",
+  "@posSearchHint": {
+    "description": "Hint in the sale search field."
+  },
+  "posCategoryAll": "All",
+  "@posCategoryAll": {
+    "description": "Category chip that shows every product."
+  },
+  "posNoProducts": "No local products found.",
+  "@posNoProducts": {
+    "description": "Empty product grid (search or category has no match)."
+  },
+  "posNoBarcodeMatch": "No product matches that barcode.",
+  "@posNoBarcodeMatch": {
+    "description": "Scanned barcode is not in the catalogue."
+  },
+  "posPricesChangedTitle": "Prices changed since these items were added. Check the total before taking payment.",
+  "@posPricesChangedTitle": {
+    "description": "Shown in the bill, the payment dialog and a snackbar when the owner's new prices reached the tablet while items were in the cart."
+  },
+  "posPriceChangeLine": "{product}: was {oldPrice}, now {newPrice}",
+  "@posPriceChangeLine": {
+    "description": "One changed cart price. product is shown as entered; oldPrice and newPrice are formatted amounts.",
+    "placeholders": {
+      "product": {
+        "type": "String"
+      },
+      "oldPrice": {
+        "type": "String"
+      },
+      "newPrice": {
+        "type": "String"
+      }
+    }
+  },
+  "posCatalogTruncated": "Showing the first {shown} of {total} products (A–Z). Later products cannot be found or scanned here. Archive products you no longer sell.",
+  "@posCatalogTruncated": {
+    "description": "Warning above the sale grid when the shop has more active products than the POS loads. shown and total are formatted counts.",
+    "placeholders": {
+      "shown": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "posCustomersTruncated": "Only the first {shown} of {total} customers (A–Z) can be picked here. Ask the owner to deactivate customers who no longer buy on Udhaar.",
+  "@posCustomersTruncated": {
+    "description": "Warning in the payment dialog when the shop has more active customers than the POS loads for Udhaar. shown and total are formatted counts.",
+    "placeholders": {
+      "shown": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "posAdd": "Add",
+  "@posAdd": {
+    "description": "Button on a product card: add to the current bill."
+  },
+  "posUpdate": "Update",
+  "@posUpdate": {
+    "description": "Confirms a changed quantity of a bill line."
+  },
+  "posStock": "Stock {stock}",
+  "@posStock": {
+    "description": "Stock on a product card; stock is a number or a measure such as 40 kg.",
+    "placeholders": {
+      "stock": {
+        "type": "String"
+      }
+    }
+  },
+  "posStockLow": "Stock {stock} • Low",
+  "@posStockLow": {
+    "description": "Stock on a product card when it is low.",
+    "placeholders": {
+      "stock": {
+        "type": "String"
+      }
+    }
+  },
+  "posFromPrice": "From {price}",
+  "@posFromPrice": {
+    "description": "Lowest price of a pack family, e.g. From Rs 95.00.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "posPackSizes": "{count} pack sizes",
+  "@posPackSizes": {
+    "description": "Number of sizes in a pack family.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "posPackSizesLow": "{count} pack sizes • Low",
+  "@posPackSizesLow": {
+    "description": "Number of sizes in a pack family when one of them is low on stock.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "posPackOne": "{count} pack",
+  "@posPackOne": {
+    "description": "Exactly one pack (count is 1).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "posPackMany": "{count} packs",
+  "@posPackMany": {
+    "description": "Several packs, e.g. 24 packs.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "posStockNotTracked": "Stock not tracked",
+  "@posStockNotTracked": {
+    "description": "Pack size whose stock is not counted."
+  },
+  "posNoBarcode": "No barcode",
+  "@posNoBarcode": {
+    "description": "Product without a barcode (cashier product list)."
+  },
+  "posLowStock": "Low stock",
+  "@posLowStock": {
+    "description": "Low stock warning (cashier product list)."
+  },
+  "posPriceAndStock": "{price} • Stock {stock}",
+  "@posPriceAndStock": {
+    "description": "Price and stock in the cashier product list.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      },
+      "stock": {
+        "type": "String"
+      }
+    }
+  },
+  "posLastSaleSaved": "Last sale saved on this device: {amount} at {time}",
+  "@posLastSaleSaved": {
+    "description": "Banner after an interrupted checkout. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "posViewReprint": "View / Reprint",
+  "@posViewReprint": {
+    "description": "Opens the last saved sale's receipt."
+  },
+  "posDismiss": "Dismiss",
+  "@posDismiss": {
+    "description": "Hides a banner."
+  },
+  "posReceiptUnavailable": "The receipt could not be opened. Find it in Bills.",
+  "@posReceiptUnavailable": {
+    "description": "The receipt of a saved sale could not be read."
+  },
+  "posLogOut": "Log out",
+  "@posLogOut": {
+    "description": "Leaves the POS when it could not open."
+  },
+  "posOpenFailed": "The local POS could not be opened. Check this device’s local storage and try again.",
+  "@posOpenFailed": {
+    "description": "The on-device POS database could not be opened."
+  },
+  "posCurrentBill": "Current Bill",
+  "@posCurrentBill": {
+    "description": "Heading of the bill panel."
+  },
+  "posOpenCurrentBill": "Open Current Bill",
+  "@posOpenCurrentBill": {
+    "description": "Narrow screens: opens the bill sheet when it is empty."
+  },
+  "posCurrentBillSummary": "Current Bill • {count} • {amount}",
+  "@posCurrentBillSummary": {
+    "description": "Narrow screens: opens the bill sheet; count is the number of lines. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "posItemCount": "{count} items",
+  "@posItemCount": {
+    "description": "Number of lines in the bill.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "posEmptyBill": "Tap a product to begin a sale.",
+  "@posEmptyBill": {
+    "description": "Empty bill panel."
+  },
+  "posSubtotal": "Subtotal",
+  "@posSubtotal": {
+    "description": "Bill subtotal label."
+  },
+  "posDiscount": "Discount",
+  "@posDiscount": {
+    "description": "Bill discount label."
+  },
+  "posTotal": "Total",
+  "@posTotal": {
+    "description": "Bill total label."
+  },
+  "posPay": "Pay {amount}",
+  "@posPay": {
+    "description": "Main checkout button. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "posCompleting": "Completing…",
+  "@posCompleting": {
+    "description": "Checkout button while the sale is being saved."
+  },
+  "posHoldBill": "Hold Bill",
+  "@posHoldBill": {
+    "description": "Puts the bill aside (not available yet)."
+  },
+  "payTitle": "Payment • {amount}",
+  "@payTitle": {
+    "description": "Payment dialog title. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payCashReceived": "Cash received",
+  "@payCashReceived": {
+    "description": "Cash the customer handed over."
+  },
+  "payDigitalNote": "Digital payment will be recorded without a gateway.",
+  "@payDigitalNote": {
+    "description": "Explains that digital payments are only recorded."
+  },
+  "payCashAmount": "Cash amount",
+  "@payCashAmount": {
+    "description": "Split payment: cash part."
+  },
+  "payDigitalAmount": "Digital amount",
+  "@payDigitalAmount": {
+    "description": "Split payment: digital part."
+  },
+  "payUdhaarAmount": "Udhaar amount",
+  "@payUdhaarAmount": {
+    "description": "Split payment: Udhaar part."
+  },
+  "payChange": "Change: {amount}",
+  "@payChange": {
+    "description": "Cash to give back to the customer. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payComplete": "Complete Sale",
+  "@payComplete": {
+    "description": "Confirms the payment and saves the sale."
+  },
+  "payUdhaarCustomer": "Udhaar customer",
+  "@payUdhaarCustomer": {
+    "description": "Customer who takes the sale on Udhaar."
+  },
+  "payExistingBalance": "Existing balance: {amount}",
+  "@payExistingBalance": {
+    "description": "Customer's Udhaar before this sale. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payThisSaleUdhaar": "This sale on Udhaar: {amount}",
+  "@payThisSaleUdhaar": {
+    "description": "Udhaar added by this sale. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payNewBalance": "New balance: {amount}",
+  "@payNewBalance": {
+    "description": "Customer's Udhaar after this sale. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payCreditLimit": "Credit limit: {amount}",
+  "@payCreditLimit": {
+    "description": "Customer's Udhaar limit. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payCreditLimitExceeded": "Credit limit exceeded. Ask the owner to increase the limit.",
+  "@payCreditLimitExceeded": {
+    "description": "Udhaar sale would pass the customer's limit."
+  },
+  "saleCompleted": "Sale completed",
+  "@saleCompleted": {
+    "description": "Title after a successful checkout."
+  },
+  "saleSavedOpenFromBills": "The sale is saved. Open its receipt from Bills.",
+  "@saleSavedOpenFromBills": {
+    "description": "Saved sale whose receipt could not be shown right away."
+  },
+  "saleSavedSynced": "Saved on this tablet • Synced",
+  "@saleSavedSynced": {
+    "description": "Sale saved locally and online."
+  },
+  "saleSavedWaiting": "Saved on this tablet • Waiting to sync",
+  "@saleSavedWaiting": {
+    "description": "Sale saved locally, upload pending (also offline)."
+  },
+  "saleViewReceipt": "View receipt",
+  "@saleViewReceipt": {
+    "description": "Opens Bills to see the receipt."
+  },
+  "saleNew": "New sale",
+  "@saleNew": {
+    "description": "Closes the result and starts a new sale."
+  },
+  "saleCheckoutConflict": "This sale was already saved with different details. Nothing new was recorded.",
+  "@saleCheckoutConflict": {
+    "description": "Retried checkout whose content changed."
+  },
+  "saleFailed": "Sale could not be completed. Nothing was charged.",
+  "@saleFailed": {
+    "description": "Checkout failed before anything was saved."
+  },
+  "saleErrorOther": "{message}",
+  "@saleErrorOther": {
+    "description": "A rare checkout error without a translation; message is the technical English reason.",
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "saleErrCartEmpty": "Cart must not be empty",
+  "@saleErrCartEmpty": {
+    "description": "Shown when checkout is refused: Cart must not be empty"
+  },
+  "saleErrDiscountNegative": "Discount cannot be negative",
+  "@saleErrDiscountNegative": {
+    "description": "Shown when checkout is refused: Discount cannot be negative"
+  },
+  "saleErrDiscountTooHigh": "Discount exceeds line value",
+  "@saleErrDiscountTooHigh": {
+    "description": "Shown when checkout is refused: Discount exceeds line value"
+  },
+  "saleErrInsufficientStock": "Insufficient stock",
+  "@saleErrInsufficientStock": {
+    "description": "Shown when checkout is refused: Insufficient stock"
+  },
+  "saleErrProductName": "Product requires a display name",
+  "@saleErrProductName": {
+    "description": "Shown when checkout is refused: Product requires a display name"
+  },
+  "saleErrTotalNegative": "Sale total cannot be negative",
+  "@saleErrTotalNegative": {
+    "description": "Shown when checkout is refused: Sale total cannot be negative"
+  },
+  "saleErrShopMissing": "Shop does not exist",
+  "@saleErrShopMissing": {
+    "description": "Shown when checkout is refused: Shop does not exist"
+  },
+  "saleErrCashierInactive": "Cashier is not active for this shop",
+  "@saleErrCashierInactive": {
+    "description": "Shown when checkout is refused: Cashier is not active for this shop"
+  },
+  "saleErrCreditCustomerInactive": "Credit customer is not active for this shop",
+  "@saleErrCreditCustomerInactive": {
+    "description": "Shown when checkout is refused: Credit customer is not active for this shop"
+  },
+  "saleErrCreditNeedsCustomer": "Credit payment requires a customer",
+  "@saleErrCreditNeedsCustomer": {
+    "description": "Shown when checkout is refused: Credit payment requires a customer"
+  },
+  "saleErrCreditLimit": "Customer credit limit exceeded",
+  "@saleErrCreditLimit": {
+    "description": "Shown when checkout is refused: Customer credit limit exceeded"
+  },
+  "saleErrDeviceInactive": "Device is not active for this shop",
+  "@saleErrDeviceInactive": {
+    "description": "Shown when checkout is refused: Device is not active for this shop"
+  },
+  "saleErrMeasuredUnit": "Measured product requires kg or liter",
+  "@saleErrMeasuredUnit": {
+    "description": "Shown when checkout is refused: Measured product requires kg or liter"
+  },
+  "saleErrPaymentPositive": "Payment amounts must be greater than zero",
+  "@saleErrPaymentPositive": {
+    "description": "Shown when checkout is refused: Payment amounts must be greater than zero"
+  },
+  "saleErrPaymentTotal": "Payment total must equal sale total",
+  "@saleErrPaymentTotal": {
+    "description": "Shown when checkout is refused: Payment total must equal sale total"
+  },
+  "saleErrWholeUnits": "Piece products are sold in whole units",
+  "@saleErrWholeUnits": {
+    "description": "Shown when checkout is refused: Piece products are sold in whole units"
+  },
+  "saleErrProductInactive": "Product is not active for this shop",
+  "@saleErrProductInactive": {
+    "description": "Shown when checkout is refused: Product is not active for this shop"
+  },
+  "saleErrPriceNegative": "Product prices cannot be negative",
+  "@saleErrPriceNegative": {
+    "description": "Shown when checkout is refused: Product prices cannot be negative"
+  },
+  "saleErrQuantityPositive": "Quantities must be greater than zero",
+  "@saleErrQuantityPositive": {
+    "description": "Shown when checkout is refused: Quantities must be greater than zero"
+  },
+  "payErrInvalid": "Enter a valid payment.",
+  "@payErrInvalid": {
+    "description": "Shown when checkout is refused: Enter a valid payment."
+  },
+  "payErrTotal": "Payment total must equal the sale total.",
+  "@payErrTotal": {
+    "description": "Shown when checkout is refused: Payment total must equal the sale total."
+  },
+  "payErrUdhaarCustomer": "Select a customer for Udhaar.",
+  "@payErrUdhaarCustomer": {
+    "description": "Shown when checkout is refused: Select a customer for Udhaar."
+  },
+  "payErrCashShort": "Cash received is less than the total.",
+  "@payErrCashShort": {
+    "description": "Shown when checkout is refused: Cash received is less than the total."
+  },
+  "measureErrInvalid": "Enter a valid quantity.",
+  "@measureErrInvalid": {
+    "description": "Shown when checkout is refused: Enter a valid quantity."
+  },
+  "measureErrZero": "Quantity must be more than zero.",
+  "@measureErrZero": {
+    "description": "Shown when checkout is refused: Quantity must be more than zero."
+  },
+  "measureErrTooLarge": "Quantity is too large.",
+  "@measureErrTooLarge": {
+    "description": "Shown when checkout is refused: Quantity is too large."
+  },
+  "measureAvailable": "Available {quantity}",
+  "@measureAvailable": {
+    "description": "Stock left of a loose product, e.g. Available 40 kg.",
+    "placeholders": {
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "measureInBill": "In bill: {quantity}",
+  "@measureInBill": {
+    "description": "Quantity of this product already in the bill.",
+    "placeholders": {
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "measureCustomQuantity": "Custom quantity",
+  "@measureCustomQuantity": {
+    "description": "Heading for typing an exact weight or volume."
+  },
+  "measureQuantityLabel": "Quantity",
+  "@measureQuantityLabel": {
+    "description": "Label of the typed quantity field."
+  },
+  "measureTotalNone": "Total —",
+  "@measureTotalNone": {
+    "description": "Live total before a valid quantity is typed."
+  },
+  "measureTotalFor": "Total {amount} for {quantity}",
+  "@measureTotalFor": {
+    "description": "Live total for the typed quantity. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "measureOnlyInStock": "Only {available} in stock.",
+  "@measureOnlyInStock": {
+    "description": "Warning: more than the stock (negative stock allowed).",
+    "placeholders": {
+      "available": {
+        "type": "String"
+      }
+    }
+  },
+  "measureOnlyAvailable": "Only {available} available.",
+  "@measureOnlyAvailable": {
+    "description": "Refusal: more than the stock (negative stock not allowed).",
+    "placeholders": {
+      "available": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptTitle": "Receipt",
+  "@receiptTitle": {
+    "description": "Receipt dialog title."
+  },
+  "receiptPrint": "Print / Reprint",
+  "@receiptPrint": {
+    "description": "Prints the receipt again."
+  },
+  "receiptPrinterMissing": "No receipt printer is configured. You can retry from Sales.",
+  "@receiptPrinterMissing": {
+    "description": "Print tapped while no printer is set up."
+  },
+  "receiptDateCashier": "{dateTime} • {cashier}",
+  "@receiptDateCashier": {
+    "description": "Date and cashier name on the receipt.",
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      },
+      "cashier": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptCustomer": "Customer: {name}",
+  "@receiptCustomer": {
+    "description": "Customer name on the receipt (as entered).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptLine": "{quantity} × {name}  {amount}",
+  "@receiptLine": {
+    "description": "One receipt line: quantity, product name as entered, line total.",
+    "placeholders": {
+      "quantity": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptAtPrice": "@ {price}",
+  "@receiptAtPrice": {
+    "description": "Unit price under a receipt line.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptEach": "{price} each",
+  "@receiptEach": {
+    "description": "Price of one piece.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptSubtotal": "Subtotal {amount}",
+  "@receiptSubtotal": {
+    "description": "Receipt subtotal. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptDiscount": "Discount {amount}",
+  "@receiptDiscount": {
+    "description": "Receipt discount; amount already carries the minus sign.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptTotal": "Total {amount}",
+  "@receiptTotal": {
+    "description": "Receipt total. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptReturned": "Returned {amount}",
+  "@receiptReturned": {
+    "description": "Amount returned from this bill. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptNet": "Net {amount}",
+  "@receiptNet": {
+    "description": "Total minus returns. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptPayment": "{method}: {amount}",
+  "@receiptPayment": {
+    "description": "One payment on the receipt, e.g. Cash: Rs 500.00.",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptReceived": "Received {amount}",
+  "@receiptReceived": {
+    "description": "Cash received. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptChange": "Change {amount}",
+  "@receiptChange": {
+    "description": "Cash given back. amount is a formatted price such as Rs 350.00 (kept left to right).",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "categoryHousehold": "Household",
+  "@categoryHousehold": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "categoryStaples": "Staples",
+  "@categoryStaples": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "categoryDairy": "Dairy",
+  "@categoryDairy": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "categoryCookingEssentials": "Cooking Essentials",
+  "@categoryCookingEssentials": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "categoryBeverages": "Beverages",
+  "@categoryBeverages": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "categorySnacks": "Snacks",
+  "@categorySnacks": {
+    "description": "Built-in product category (seeded, fixed id). English must equal the seeded name."
+  },
+  "posPreviewTitle": "{shopName} • POS preview",
+  "@posPreviewTitle": {
+    "description": "Web preview title; shopName as entered.",
+    "placeholders": {
+      "shopName": {
+        "type": "String"
+      }
+    }
+  },
+  "posPreviewAuthenticated": "Cashier authentication successful",
+  "@posPreviewAuthenticated": {
+    "description": "Web preview."
+  },
+  "posPreviewSignedIn": "{cashierName} is signed in.",
+  "@posPreviewSignedIn": {
+    "description": "Web preview; cashierName as entered.",
+    "placeholders": {
+      "cashierName": {
+        "type": "String"
+      }
+    }
+  },
+  "posPreviewNote": "The offline POS database is available on Android and Windows. Chrome remains an auth and onboarding preview target.",
+  "@posPreviewNote": {
+    "description": "Web preview explanation."
+  },
+  "posPreviewEnd": "End preview session",
+  "@posPreviewEnd": {
+    "description": "Web preview button."
+  },
+  "commonLoading": "Loading…",
+  "@commonLoading": {
+    "description": "Shown while more items load."
+  },
+  "commonTryAgain": "Try again",
+  "@commonTryAgain": {
+    "description": "Retries loading a screen."
+  },
+  "commonOptional": "Optional",
+  "@commonOptional": {
+    "description": "Hint for a field that may stay empty."
+  },
+  "commonSaving": "Saving…",
+  "@commonSaving": {
+    "description": "Save button while saving."
+  },
+  "commonEdit": "Edit",
+  "@commonEdit": {
+    "description": "Edit button tooltip."
+  },
+  "commonSearch": "Search",
+  "@commonSearch": {
+    "description": "Search button."
+  },
+  "commonSearching": "Searching…",
+  "@commonSearching": {
+    "description": "Search button while searching."
+  },
+  "commonRefresh": "Refresh",
+  "@commonRefresh": {
+    "description": "Reloads data."
+  },
+  "unitName": "{key, select, other{{english}}}",
+  "@unitName": {
+    "description": "A stored product unit (piece, pack, kg, gram, liter, bottle, carton, dozen, bag). key is the stored value (never translated); english is how this screen already shows it in English. Urdu translates known units; unknown units stay as they are.",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "english": {
+        "type": "String"
+      }
+    }
+  },
+  "productsTitle": "Products",
+  "@productsTitle": {
+    "description": "Owner product management screen title."
+  },
+  "productsTabMine": "My Products",
+  "@productsTabMine": {
+    "description": "Tab: products already in the shop."
+  },
+  "productsTabAdd": "Add Product",
+  "@productsTabAdd": {
+    "description": "Tab: add from the catalogue or create a custom product."
+  },
+  "productsOpenFailed": "Could not open products. Please try again.",
+  "@productsOpenFailed": {
+    "description": "Product data could not be opened."
+  },
+  "productsSaved": "Product saved to My Products.",
+  "@productsSaved": {
+    "description": "A product was added or changed."
+  },
+  "productsSearchLabel": "Search name or barcode",
+  "@productsSearchLabel": {
+    "description": "Search field on My Products."
+  },
+  "productsCategoryLabel": "Category",
+  "@productsCategoryLabel": {
+    "description": "Category filter label."
+  },
+  "productsAllCategories": "All categories",
+  "@productsAllCategories": {
+    "description": "Category filter option for no filter."
+  },
+  "productsUncategorized": "Uncategorized",
+  "@productsUncategorized": {
+    "description": "Product without a category."
+  },
+  "productsNoMatch": "No products match this filter.",
+  "@productsNoMatch": {
+    "description": "Empty product or stock list."
+  },
+  "productsLoadMore": "Load more",
+  "@productsLoadMore": {
+    "description": "Loads the next page of products."
+  },
+  "productsImageNotUpdated": "Product saved. The image could not be updated on this tablet.",
+  "@productsImageNotUpdated": {
+    "description": "Product saved but its local photo could not be changed."
+  },
+  "productsImageNotSaved": "Product created. The image could not be saved on this tablet.",
+  "@productsImageNotSaved": {
+    "description": "Product created but its local photo could not be stored."
+  },
+  "productsSaleAndPurchase": "Sale {sale} • Purchase {purchase}",
+  "@productsSaleAndPurchase": {
+    "description": "Prices on a product card; each already formatted (e.g. Rs 130.00/kg).",
+    "placeholders": {
+      "sale": {
+        "type": "String"
+      },
+      "purchase": {
+        "type": "String"
+      }
+    }
+  },
+  "productsInactive": "Inactive",
+  "@productsInactive": {
+    "description": "A product hidden from sale."
+  },
+  "productsSearchMasterCatalog": "Search Master Catalog",
+  "@productsSearchMasterCatalog": {
+    "description": "Heading of the catalogue search."
+  },
+  "productsCatalogQueryLabel": "Product name, brand, or barcode",
+  "@productsCatalogQueryLabel": {
+    "description": "Catalogue search field."
+  },
+  "productsCatalogSearchFailed": "Catalog search failed. Check internet and try again.",
+  "@productsCatalogSearchFailed": {
+    "description": "Online catalogue search failed."
+  },
+  "productsOpenEdit": "Open / edit",
+  "@productsOpenEdit": {
+    "description": "Catalogue result already in the shop."
+  },
+  "productsCreateCustom": "Create Custom Product",
+  "@productsCreateCustom": {
+    "description": "Button and dialog title for a product that is not in the catalogue."
+  },
+  "productsAddToShop": "Add to My Shop",
+  "@productsAddToShop": {
+    "description": "Adds a catalogue product with its prices and stock."
+  },
+  "productsLowStockThreshold": "Low-stock threshold",
+  "@productsLowStockThreshold": {
+    "description": "Low-stock level when adding from the catalogue."
+  },
+  "fieldPurchasePrice": "Purchase price",
+  "@fieldPurchasePrice": {
+    "description": "Cost price field."
+  },
+  "fieldPurchasePricePer": "Purchase price per {unit}",
+  "@fieldPurchasePricePer": {
+    "description": "Cost price of a loose product per kg or L.",
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "fieldSalePrice": "Sale price",
+  "@fieldSalePrice": {
+    "description": "Selling price field."
+  },
+  "fieldSalePricePer": "Sale price per {unit}",
+  "@fieldSalePricePer": {
+    "description": "Selling price of a loose product per kg or L.",
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "fieldOpeningStock": "Opening stock",
+  "@fieldOpeningStock": {
+    "description": "Stock when the product is created; also a stock movement name."
+  },
+  "fieldOpeningStockIn": "Opening stock ({unit})",
+  "@fieldOpeningStockIn": {
+    "description": "Opening stock of a loose product in kg or L.",
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "fieldLowStockAlert": "Low-stock alert at",
+  "@fieldLowStockAlert": {
+    "description": "Stock level that shows a low-stock warning."
+  },
+  "fieldLowStockAlertIn": "Low-stock alert at ({unit})",
+  "@fieldLowStockAlertIn": {
+    "description": "Low-stock level of a loose product in kg or L.",
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "fieldBarcode": "Barcode",
+  "@fieldBarcode": {
+    "description": "Barcode field."
+  },
+  "fieldPackSize": "Pack size",
+  "@fieldPackSize": {
+    "description": "Size label of one pack, e.g. 250 g."
+  },
+  "fieldPurchaseCost": "Purchase cost",
+  "@fieldPurchaseCost": {
+    "description": "Cost of one pack size."
+  },
+  "customSubtitle": "For items that are not in the master catalog.",
+  "@customSubtitle": {
+    "description": "Subtitle of Create Custom Product."
+  },
+  "customCreate": "Create Product",
+  "@customCreate": {
+    "description": "Creates the product."
+  },
+  "customCreating": "Creating…",
+  "@customCreating": {
+    "description": "Create button while saving."
+  },
+  "customProductDetails": "Product details",
+  "@customProductDetails": {
+    "description": "Form section heading."
+  },
+  "sellingPiece": "Single Piece",
+  "@sellingPiece": {
+    "description": "Selling type: sold by count."
+  },
+  "sellingLoose": "Loose / Measured",
+  "@sellingLoose": {
+    "description": "Selling type: sold by weight or volume."
+  },
+  "sellingPackaged": "Packaged Variants",
+  "@sellingPackaged": {
+    "description": "Selling type: one product family with several pack sizes."
+  },
+  "customFamilyName": "Product family name *",
+  "@customFamilyName": {
+    "description": "Name of a pack family, required."
+  },
+  "customProductName": "Product name *",
+  "@customProductName": {
+    "description": "Product name, required."
+  },
+  "customFamilyHint": "e.g. Tapal Danedar",
+  "@customFamilyHint": {
+    "description": "Example family name (brand stays as written)."
+  },
+  "customPackSizes": "Pack sizes",
+  "@customPackSizes": {
+    "description": "Form section heading for pack sizes."
+  },
+  "customCategoryRequired": "Category *",
+  "@customCategoryRequired": {
+    "description": "Category, required."
+  },
+  "customUnitRequired": "Unit *",
+  "@customUnitRequired": {
+    "description": "Unit of a piece product, required."
+  },
+  "measureWeightKg": "Weight (kg)",
+  "@measureWeightKg": {
+    "description": "Loose product sold by weight."
+  },
+  "measureVolumeL": "Volume (L)",
+  "@measureVolumeL": {
+    "description": "Loose product sold by volume."
+  },
+  "customPackLabel": "Pack size / label",
+  "@customPackLabel": {
+    "description": "Optional size label of a piece product."
+  },
+  "customPackLabelHint": "e.g. 500 g",
+  "@customPackLabelHint": {
+    "description": "Example pack label."
+  },
+  "customPricingStock": "Pricing & stock",
+  "@customPricingStock": {
+    "description": "Form section heading."
+  },
+  "customQuickQuantities": "Quick quantities",
+  "@customQuickQuantities": {
+    "description": "Preset weights or volumes the cashier taps."
+  },
+  "customAllowCustom": "Allow custom quantity",
+  "@customAllowCustom": {
+    "description": "Lets the cashier type any quantity."
+  },
+  "customAllowCustomHint": "Cashier may type any amount, not only quick quantities.",
+  "@customAllowCustomHint": {
+    "description": "Explains Allow custom quantity."
+  },
+  "imageSection": "Product image",
+  "@imageSection": {
+    "description": "Heading of the photo card."
+  },
+  "imageChoose": "Choose product image",
+  "@imageChoose": {
+    "description": "Empty photo card."
+  },
+  "imageChange": "Change",
+  "@imageChange": {
+    "description": "Choose a different photo."
+  },
+  "imageChangeSemantics": "Change product image",
+  "@imageChangeSemantics": {
+    "description": "Accessibility label of the photo card."
+  },
+  "imagePreviewSemantics": "Product image preview",
+  "@imagePreviewSemantics": {
+    "description": "Accessibility label of the chosen photo."
+  },
+  "imageFormats": "Optional · JPG, PNG or WebP",
+  "@imageFormats": {
+    "description": "Allowed photo formats."
+  },
+  "editTitle": "Edit product",
+  "@editTitle": {
+    "description": "Edit dialog title; the product name follows as subtitle."
+  },
+  "editLooseWeight": "Loose product · sold by weight (kg)",
+  "@editLooseWeight": {
+    "description": "Fixed selling mode of a loose product."
+  },
+  "editLooseVolume": "Loose product · sold by volume (L)",
+  "@editLooseVolume": {
+    "description": "Fixed selling mode of a loose product."
+  },
+  "editAvailability": "Availability",
+  "@editAvailability": {
+    "description": "Form section heading."
+  },
+  "editActive": "Active",
+  "@editActive": {
+    "description": "Product is available for sale."
+  },
+  "editActiveHint": "Inactive products are hidden from sale.",
+  "@editActiveHint": {
+    "description": "Explains the Active switch."
+  },
+  "dupTitle": "This product may already exist",
+  "@dupTitle": {
+    "description": "Duplicate warning title."
+  },
+  "dupAlreadyHas": "Your shop already has:",
+  "@dupAlreadyHas": {
+    "description": "Before the list of similar products."
+  },
+  "dupSameBarcode": "(same barcode)",
+  "@dupSameBarcode": {
+    "description": "After a product that has the same barcode."
+  },
+  "dupMore": "and {count} more",
+  "@dupMore": {
+    "description": "More similar products not listed.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "dupExplain": "Creating it again makes a separate product with its own stock. Go back to edit, or create it anyway.",
+  "@dupExplain": {
+    "description": "Explains the duplicate warning."
+  },
+  "dupGoBack": "Go back",
+  "@dupGoBack": {
+    "description": "Returns to the form."
+  },
+  "dupCreateAnyway": "Create anyway",
+  "@dupCreateAnyway": {
+    "description": "Creates the product despite the warning."
+  },
+  "packRowTitle": "Pack size {number}",
+  "@packRowTitle": {
+    "description": "Heading of one pack size card.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "packRowSaved": "Saved",
+  "@packRowSaved": {
+    "description": "This pack size already exists on the server."
+  },
+  "packRemove": "Remove pack size",
+  "@packRemove": {
+    "description": "Removes a pack size card."
+  },
+  "packSizeHint": "e.g. 250 g",
+  "@packSizeHint": {
+    "description": "Example pack size."
+  },
+  "packOpeningStock": "Opening stock (packs)",
+  "@packOpeningStock": {
+    "description": "Opening stock in whole packs."
+  },
+  "packLowStock": "Low-stock alert (packs)",
+  "@packLowStock": {
+    "description": "Low-stock level in whole packs."
+  },
+  "packAdd": "Add pack size",
+  "@packAdd": {
+    "description": "Adds another pack size."
+  },
+  "presetFull": "Quick quantities full ({max})",
+  "@presetFull": {
+    "description": "No more quick quantities can be added.",
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "presetAdd": "Add quick quantity",
+  "@presetAdd": {
+    "description": "Field to add a quick quantity."
+  },
+  "inventoryLoadFailed": "Inventory could not be loaded.",
+  "@inventoryLoadFailed": {
+    "description": "Inventory screen failed to load."
+  },
+  "inventoryTabCurrent": "Current Stock",
+  "@inventoryTabCurrent": {
+    "description": "Tab: stock per product."
+  },
+  "inventoryTabHistory": "Movement History",
+  "@inventoryTabHistory": {
+    "description": "Tab: stock movements."
+  },
+  "inventorySearchLabel": "Search product or barcode",
+  "@inventorySearchLabel": {
+    "description": "Inventory search field."
+  },
+  "inventoryFilterLow": "Low",
+  "@inventoryFilterLow": {
+    "description": "Filter: low stock."
+  },
+  "inventoryFilterOut": "Out",
+  "@inventoryFilterOut": {
+    "description": "Filter: out of stock."
+  },
+  "inventoryNoMovements": "No stock movements yet.",
+  "@inventoryNoMovements": {
+    "description": "Empty movement history."
+  },
+  "inventoryAdjustSaved": "Stock adjustment saved locally.",
+  "@inventoryAdjustSaved": {
+    "description": "Adjustment saved on the device."
+  },
+  "inventoryAdjustFailed": "Stock adjustment could not be saved. Check the quantity and try again.",
+  "@inventoryAdjustFailed": {
+    "description": "Adjustment was not saved."
+  },
+  "inventoryAdjustTitle": "Adjust {name}",
+  "@inventoryAdjustTitle": {
+    "description": "Adjustment dialog title; name as entered.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryReason": "Reason",
+  "@inventoryReason": {
+    "description": "Kind of adjustment."
+  },
+  "inventoryManualCorrection": "Manual correction (+ / -)",
+  "@inventoryManualCorrection": {
+    "description": "Adjustment that may add or remove stock."
+  },
+  "inventoryQuantitySigned": "Quantity (+ / -)",
+  "@inventoryQuantitySigned": {
+    "description": "Quantity that may be negative."
+  },
+  "inventoryReasonNote": "Reason / note *",
+  "@inventoryReasonNote": {
+    "description": "Required explanation of an adjustment."
+  },
+  "inventorySaveAdjustment": "Save Adjustment",
+  "@inventorySaveAdjustment": {
+    "description": "Saves the adjustment."
+  },
+  "inventoryOutOfStock": "Out of stock",
+  "@inventoryOutOfStock": {
+    "description": "Status pill."
+  },
+  "inventoryInStock": "in stock",
+  "@inventoryInStock": {
+    "description": "Under the stock number."
+  },
+  "inventoryAdjust": "Adjust",
+  "@inventoryAdjust": {
+    "description": "Opens the adjustment dialog."
+  },
+  "movementOpening": "Opening stock",
+  "@movementOpening": {
+    "description": "Stock movement: opening stock."
+  },
+  "movementPurchase": "Purchase",
+  "@movementPurchase": {
+    "description": "Stock movement: purchase."
+  },
+  "movementSale": "Sale",
+  "@movementSale": {
+    "description": "Stock movement: sale."
+  },
+  "movementVoid": "Void",
+  "@movementVoid": {
+    "description": "Stock movement: a voided sale returned its stock."
+  },
+  "movementReturn": "Return",
+  "@movementReturn": {
+    "description": "Stock movement: returned items."
+  },
+  "movementDamage": "Damaged / wastage",
+  "@movementDamage": {
+    "description": "Stock movement and adjustment reason: damaged or wasted."
+  },
+  "movementAdjustment": "Adjustment",
+  "@movementAdjustment": {
+    "description": "Stock movement: manual adjustment."
+  },
+  "movementCorrection": "Stock correction",
+  "@movementCorrection": {
+    "description": "Stock movement: correction."
+  },
+  "inventoryWebOnly": "Inventory management is available on Windows and Android.",
+  "@inventoryWebOnly": {
+    "description": "Web preview placeholder."
+  },
+  "productsWebOnly": "Product management uses the native Drift catalog. Open Dukaan Pro on Windows or Android.",
+  "@productsWebOnly": {
+    "description": "Web preview placeholder."
+  },
+  "prodErrAlreadyInShop": "This product is already in your shop",
+  "@prodErrAlreadyInShop": {
+    "description": "Shown when a product or stock form is refused: This product is already in your shop"
+  },
+  "prodErrNameRequired": "Product name is required",
+  "@prodErrNameRequired": {
+    "description": "Shown when a product or stock form is refused: Product name is required"
+  },
+  "prodErrCategoryRequired": "Category is required",
+  "@prodErrCategoryRequired": {
+    "description": "Shown when a product or stock form is refused: Category is required"
+  },
+  "prodErrFamilyNameRequired": "Product family name is required",
+  "@prodErrFamilyNameRequired": {
+    "description": "Shown when a product or stock form is refused: Product family name is required"
+  },
+  "prodErrNoPackSize": "Add at least one pack size",
+  "@prodErrNoPackSize": {
+    "description": "Shown when a product or stock form is refused: Add at least one pack size"
+  },
+  "prodErrPackLabel": "Every pack needs a size label",
+  "@prodErrPackLabel": {
+    "description": "Shown when a product or stock form is refused: Every pack needs a size label"
+  },
+  "prodErrPackTwice": "Pack size {label} is listed twice",
+  "@prodErrPackTwice": {
+    "description": "Shown when a product or stock form is refused: Pack size {label} is listed twice",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrBarcodeUsed": "Barcode {barcode} is already used in this shop",
+  "@prodErrBarcodeUsed": {
+    "description": "Shown when a product or stock form is refused: Barcode {barcode} is already used in this shop",
+    "placeholders": {
+      "barcode": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrPackSalePrice": "Enter a sale price for {label}",
+  "@prodErrPackSalePrice": {
+    "description": "Shown when a product or stock form is refused: Enter a sale price for {label}",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrPricesNegative": "Prices cannot be negative",
+  "@prodErrPricesNegative": {
+    "description": "Shown when a product or stock form is refused: Prices cannot be negative"
+  },
+  "prodErrWholePacks": "Stock for {label} must be whole packs",
+  "@prodErrWholePacks": {
+    "description": "Shown when a product or stock form is refused: Stock for {label} must be whole packs",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrLooseUnit": "Loose products are sold by weight (kg) or volume (L)",
+  "@prodErrLooseUnit": {
+    "description": "Shown when a product or stock form is refused: Loose products are sold by weight (kg) or volume (L)"
+  },
+  "prodErrPresetCount": "Use at most {max} quick quantities",
+  "@prodErrPresetCount": {
+    "description": "Shown when a product or stock form is refused: Use at most {max} quick quantities",
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrPresetCountDot": "Use at most {max} quick quantities.",
+  "@prodErrPresetCountDot": {
+    "description": "Shown when a product or stock form is refused: Use at most {max} quick quantities.",
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrPresetsInvalid": "Quick quantities are not valid",
+  "@prodErrPresetsInvalid": {
+    "description": "Shown when a product or stock form is refused: Quick quantities are not valid"
+  },
+  "prodErrStockNegative": "Stock values cannot be negative",
+  "@prodErrStockNegative": {
+    "description": "Shown when a product or stock form is refused: Stock values cannot be negative"
+  },
+  "prodErrValues": "Enter valid non-negative values.",
+  "@prodErrValues": {
+    "description": "Shown when a product or stock form is refused: Enter valid non-negative values."
+  },
+  "prodErrRequiredFields": "Complete all required fields with valid values.",
+  "@prodErrRequiredFields": {
+    "description": "Shown when a product or stock form is refused: Complete all required fields with valid values."
+  },
+  "prodErrPackRow": "Pack {label}: enter a sale price and whole-pack stock.",
+  "@prodErrPackRow": {
+    "description": "Shown when a product or stock form is refused: Pack {label}: enter a sale price and whole-pack stock.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrFamilyIncomplete": "Pack {label} was not created: {reason}. {count} size(s) already saved; press Create again to finish without duplicating them.",
+  "@prodErrFamilyIncomplete": {
+    "description": "Shown when a product or stock form is refused: Pack {label} was not created: {reason}. {count} size(s) already saved; press Create again to finish without duplicating them.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "prodErrNotSaved": "it could not be saved",
+  "@prodErrNotSaved": {
+    "description": "Shown when a product or stock form is refused: it could not be saved"
+  },
+  "prodErrSaveFailed": "Could not save the product. Please try again.",
+  "@prodErrSaveFailed": {
+    "description": "Shown when a product or stock form is refused: Could not save the product. Please try again."
+  },
+  "prodErrCreateFailed": "Could not create the product. Please try again.",
+  "@prodErrCreateFailed": {
+    "description": "Shown when a product or stock form is refused: Could not create the product. Please try again."
+  },
+  "prodErrUpdateFailed": "Could not update product.",
+  "@prodErrUpdateFailed": {
+    "description": "Shown when a product or stock form is refused: Could not update product."
+  },
+  "prodErrImageOpen": "Could not open that image. Try another.",
+  "@prodErrImageOpen": {
+    "description": "Shown when a product or stock form is refused: Could not open that image. Try another."
+  },
+  "prodErrImageEmpty": "The selected file is empty.",
+  "@prodErrImageEmpty": {
+    "description": "Shown when a product or stock form is refused: The selected file is empty."
+  },
+  "prodErrImageTooLarge": "The selected image is too large.",
+  "@prodErrImageTooLarge": {
+    "description": "Shown when a product or stock form is refused: The selected image is too large."
+  },
+  "prodErrImageFormat": "Choose a JPG, PNG or WebP product image.",
+  "@prodErrImageFormat": {
+    "description": "Shown when a product or stock form is refused: Choose a JPG, PNG or WebP product image."
+  },
+  "presetErrDuplicate": "That quick quantity is already in the list.",
+  "@presetErrDuplicate": {
+    "description": "Shown when a product or stock form is refused: That quick quantity is already in the list."
+  },
+  "presetErrKeepOne": "Keep at least one quick quantity.",
+  "@presetErrKeepOne": {
+    "description": "Shown when a product or stock form is refused: Keep at least one quick quantity."
+  },
+  "inventoryErrInvalid": "Enter a valid quantity and reason.",
+  "@inventoryErrInvalid": {
+    "description": "Shown when a product or stock form is refused: Enter a valid quantity and reason."
+  },
+  "billsLoadFailed": "Sales could not be loaded. Please try again.",
+  "@billsLoadFailed": {
+    "description": "Bills list failed to load."
+  },
+  "billsNoMatch": "No sales match these filters.",
+  "@billsNoMatch": {
+    "description": "Empty bills list."
+  },
+  "billsSearchLabel": "Bill #, customer name or phone",
+  "@billsSearchLabel": {
+    "description": "Bills search field."
+  },
+  "billsCashier": "Cashier",
+  "@billsCashier": {
+    "description": "Cashier filter label."
+  },
+  "billsAllCashiers": "All cashiers",
+  "@billsAllCashiers": {
+    "description": "Cashier filter: no filter."
+  },
+  "billsToday": "Today",
+  "@billsToday": {
+    "description": "Period filter."
+  },
+  "billsYesterday": "Yesterday",
+  "@billsYesterday": {
+    "description": "Period filter."
+  },
+  "billsThisWeek": "This Week",
+  "@billsThisWeek": {
+    "description": "Period filter."
+  },
+  "billsCustomDates": "Custom dates",
+  "@billsCustomDates": {
+    "description": "Period filter before dates are chosen."
+  },
+  "billsCustom": "Custom",
+  "@billsCustom": {
+    "description": "Period filter after dates are chosen."
+  },
+  "billsAllPayments": "All payments",
+  "@billsAllPayments": {
+    "description": "Payment filter: no filter."
+  },
+  "billsTodaySales": "Today's sales",
+  "@billsTodaySales": {
+    "description": "Summary tile."
+  },
+  "billsCountOne": "{count} bill",
+  "@billsCountOne": {
+    "description": "Exactly one bill (count is 1).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "billsCountMany": "{count} bills",
+  "@billsCountMany": {
+    "description": "Number of bills.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "saleStatus": "{key, select, other{{english}}}",
+  "@saleStatus": {
+    "description": "Bill status. key is the stored status without spaces (Completed, Voided, FullyReturned, PartiallyReturned); english is the stored status shown unchanged in English.",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "english": {
+        "type": "String"
+      }
+    }
+  },
+  "billWaitingToSync": "Waiting to sync",
+  "@billWaitingToSync": {
+    "description": "Bill saved on the device, not uploaded yet."
+  },
+  "billCashier": "Cashier: {name}",
+  "@billCashier": {
+    "description": "Cashier of a bill (name as entered).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "billReturned": "Returned",
+  "@billReturned": {
+    "description": "Amount returned from a bill."
+  },
+  "billNet": "Net",
+  "@billNet": {
+    "description": "Total minus returns."
+  },
+  "billPaidBy": "Paid by {method}",
+  "@billPaidBy": {
+    "description": "One payment of a bill; method is Cash, Digital, Udhaar…",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "billReturnLine": "Return: {dateTime} • {reason} • {amount}",
+  "@billReturnLine": {
+    "description": "One return of a bill; reason as entered. amount is already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "billVoidReason": "Void reason: {reason}",
+  "@billVoidReason": {
+    "description": "Why a bill was voided (as entered).",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "billVoid": "Void",
+  "@billVoid": {
+    "description": "Opens the void dialog."
+  },
+  "billReturnItems": "Return items",
+  "@billReturnItems": {
+    "description": "Opens the return dialog; also its title."
+  },
+  "salesOpenFailed": "Sales could not be opened.",
+  "@salesOpenFailed": {
+    "description": "Sales & Returns could not open."
+  },
+  "returnSaved": "Return saved locally.",
+  "@returnSaved": {
+    "description": "A return was saved."
+  },
+  "returnFailed": "Return could not be saved. Check quantities and try again.",
+  "@returnFailed": {
+    "description": "A return was refused."
+  },
+  "returnLineLabel": "{name} (sold {quantity})",
+  "@returnLineLabel": {
+    "description": "Quantity to return of one bill line; name as on the bill, quantity sold.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "returnRefundMethod": "Refund method",
+  "@returnRefundMethod": {
+    "description": "How the refund is given."
+  },
+  "returnUdhaarAdjustment": "Udhaar adjustment",
+  "@returnUdhaarAdjustment": {
+    "description": "Refund taken off the customer's Udhaar."
+  },
+  "returnSave": "Save Return",
+  "@returnSave": {
+    "description": "Saves the return."
+  },
+  "commonReasonRequired": "Reason *",
+  "@commonReasonRequired": {
+    "description": "Required reason field."
+  },
+  "voidTitle": "Void sale",
+  "@voidTitle": {
+    "description": "Void dialog title."
+  },
+  "voidConfirm": "Void Sale",
+  "@voidConfirm": {
+    "description": "Confirms the void."
+  },
+  "voidSaved": "Sale void recorded locally.",
+  "@voidSaved": {
+    "description": "A void was saved."
+  },
+  "voidRefused": "Void is allowed only for an owner within 15 minutes and before any return.",
+  "@voidRefused": {
+    "description": "A void was refused."
+  },
+  "salesWebTitle": "Sales",
+  "@salesWebTitle": {
+    "description": "Web preview title."
+  },
+  "salesWebOnly": "Sales management is available on Windows and Android.",
+  "@salesWebOnly": {
+    "description": "Web preview placeholder."
+  },
+  "khataSearchLabel": "Search customer name or phone",
+  "@khataSearchLabel": {
+    "description": "Khata search field."
+  },
+  "khataLoadFailed": "Could not load Khata: {error}",
+  "@khataLoadFailed": {
+    "description": "Khata failed to load; error is technical text.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "khataNoCustomers": "No customers found.",
+  "@khataNoCustomers": {
+    "description": "Empty Khata search."
+  },
+  "khataNoPhone": "No phone",
+  "@khataNoPhone": {
+    "description": "Customer without a phone number."
+  },
+  "khataBalanceClear": "Clear",
+  "@khataBalanceClear": {
+    "description": "Customer owes nothing."
+  },
+  "khataDue": "{amount} due",
+  "@khataDue": {
+    "description": "Amount the customer owes. amount is already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "khataReceivePayment": "Receive Payment",
+  "@khataReceivePayment": {
+    "description": "Records Udhaar paid back; also the dialog title."
+  },
+  "khataBalance": "Balance",
+  "@khataBalance": {
+    "description": "Outstanding Udhaar."
+  },
+  "khataCreditLimit": "Credit limit",
+  "@khataCreditLimit": {
+    "description": "Customer Udhaar limit."
+  },
+  "khataNotSet": "Not set",
+  "@khataNotSet": {
+    "description": "No credit limit."
+  },
+  "khataCreditSales": "Credit sales",
+  "@khataCreditSales": {
+    "description": "Total sold on Udhaar."
+  },
+  "khataPayments": "Payments",
+  "@khataPayments": {
+    "description": "Total paid back."
+  },
+  "khataStatement": "Statement",
+  "@khataStatement": {
+    "description": "Ledger heading."
+  },
+  "khataNoEntries": "No ledger entries yet.",
+  "@khataNoEntries": {
+    "description": "Empty ledger."
+  },
+  "khataRunningBalance": "Balance {amount}",
+  "@khataRunningBalance": {
+    "description": "Balance after a ledger line. amount is already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ledgerSale": "Sale",
+  "@ledgerSale": {
+    "description": "Ledger line: a sale on Udhaar."
+  },
+  "ledgerPayment": "Payment",
+  "@ledgerPayment": {
+    "description": "Ledger line: Udhaar paid back."
+  },
+  "ledgerOpeningBalance": "Opening balance",
+  "@ledgerOpeningBalance": {
+    "description": "Ledger line: starting balance."
+  },
+  "ledgerReturnAdjustment": "Return adjustment",
+  "@ledgerReturnAdjustment": {
+    "description": "Ledger line: a return reduced the Udhaar."
+  },
+  "ledgerManualAdjustment": "Manual adjustment",
+  "@ledgerManualAdjustment": {
+    "description": "Ledger line: manual correction."
+  },
+  "paymentStored": "{key, select, other{{english}}}",
+  "@paymentStored": {
+    "description": "A stored payment method shown as stored in English (e.g. cash); Urdu translates known methods.",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "english": {
+        "type": "String"
+      }
+    }
+  },
+  "khataPaymentSaved": "Payment saved locally and queued for sync.",
+  "@khataPaymentSaved": {
+    "description": "Udhaar payment saved."
+  },
+  "khataPaymentFailed": "Payment could not be recorded. Nothing was changed.",
+  "@khataPaymentFailed": {
+    "description": "Udhaar payment refused."
+  },
+  "khataAmount": "Amount",
+  "@khataAmount": {
+    "description": "Payment amount field."
+  },
+  "khataReferenceOptional": "Reference (optional)",
+  "@khataReferenceOptional": {
+    "description": "Optional payment reference, e.g. a JazzCash ID."
+  },
+  "khataNoteOptional": "Note (optional)",
+  "@khataNoteOptional": {
+    "description": "Optional note."
+  },
+  "khataRecordPayment": "Record Payment",
+  "@khataRecordPayment": {
+    "description": "Saves the payment."
+  },
+  "customersTitle": "Customers / Khata",
+  "@customersTitle": {
+    "description": "Owner customers screen title."
+  },
+  "customersAdd": "Add customer",
+  "@customersAdd": {
+    "description": "Adds a customer; also the form title."
+  },
+  "customersEdit": "Edit customer",
+  "@customersEdit": {
+    "description": "Customer form title when editing."
+  },
+  "customersOpenFailed": "Could not open customers: {error}",
+  "@customersOpenFailed": {
+    "description": "Customers failed to open; error is technical text.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "customersSearchLabel": "Search name or phone",
+  "@customersSearchLabel": {
+    "description": "Customers search field."
+  },
+  "customersEmpty": "No customers yet. Add the first customer.",
+  "@customersEmpty": {
+    "description": "No customers."
+  },
+  "customersSaved": "Customer saved.",
+  "@customersSaved": {
+    "description": "Customer saved."
+  },
+  "customersSaveFailed": "Customer could not be saved.",
+  "@customersSaveFailed": {
+    "description": "Customer not saved."
+  },
+  "customerName": "Name *",
+  "@customerName": {
+    "description": "Customer name, required."
+  },
+  "customerPhone": "Phone",
+  "@customerPhone": {
+    "description": "Phone number."
+  },
+  "customerAddress": "Address",
+  "@customerAddress": {
+    "description": "Address."
+  },
+  "customerNotes": "Notes",
+  "@customerNotes": {
+    "description": "Notes about the customer."
+  },
+  "customerCreditLimitOptional": "Credit limit (optional)",
+  "@customerCreditLimitOptional": {
+    "description": "Optional Udhaar limit."
+  },
+  "customersWebOnly": "Customer offline management is available on Android and Windows.",
+  "@customersWebOnly": {
+    "description": "Web preview placeholder."
+  },
+  "khataErrAmountZero": "Enter an amount greater than zero.",
+  "@khataErrAmountZero": {
+    "description": "Message: Enter an amount greater than zero."
+  },
+  "khataErrExceeds": "Payment cannot exceed {amount}.",
+  "@khataErrExceeds": {
+    "description": "Message: Payment cannot exceed {amount}.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "customersErrRequired": "Name and a valid credit limit are required.",
+  "@customersErrRequired": {
+    "description": "Message: Name and a valid credit limit are required."
+  },
+  "customersRefreshWarning": "Customers could not be refreshed. Showing available offline data.",
+  "@customersRefreshWarning": {
+    "description": "Message: Customers could not be refreshed. Showing available offline data."
+  },
+  "purchasesTabSuppliers": "Suppliers",
+  "@purchasesTabSuppliers": {
+    "description": "Tab: suppliers."
+  },
+  "purchasesTabPurchases": "Purchases",
+  "@purchasesTabPurchases": {
+    "description": "Tab: purchases; also a dashboard card."
+  },
+  "suppliersAdd": "Add supplier",
+  "@suppliersAdd": {
+    "description": "Adds a supplier; also the form title."
+  },
+  "suppliersEdit": "Edit supplier",
+  "@suppliersEdit": {
+    "description": "Supplier form title when editing."
+  },
+  "purchasesNew": "New purchase",
+  "@purchasesNew": {
+    "description": "Starts a purchase."
+  },
+  "purchasesNewTitle": "New Purchase",
+  "@purchasesNewTitle": {
+    "description": "New purchase screen title."
+  },
+  "suppliersSearch": "Search supplier name or phone",
+  "@suppliersSearch": {
+    "description": "Supplier search field."
+  },
+  "purchasesSearch": "Search supplier or invoice",
+  "@purchasesSearch": {
+    "description": "Purchase search field."
+  },
+  "suppliersEmpty": "No suppliers yet.",
+  "@suppliersEmpty": {
+    "description": "No suppliers."
+  },
+  "purchasesEmpty": "No purchases yet.",
+  "@purchasesEmpty": {
+    "description": "No purchases."
+  },
+  "suppliersPayable": "{amount} payable",
+  "@suppliersPayable": {
+    "description": "What the shop still owes a supplier. Amounts are already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "purchaseRowDetails": "{date} • {reference} • {count} items",
+  "@purchaseRowDetails": {
+    "description": "Purchase list line: date, invoice or reference, number of items.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "reference": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "purchasesNoReference": "No reference",
+  "@purchasesNoReference": {
+    "description": "Purchase without an invoice number."
+  },
+  "purchaseStatusPaid": "Paid",
+  "@purchaseStatusPaid": {
+    "description": "Purchase fully paid; also an amount label."
+  },
+  "purchaseStatusPartial": "Partial",
+  "@purchaseStatusPartial": {
+    "description": "Purchase partly paid."
+  },
+  "purchaseStatusCredit": "Credit",
+  "@purchaseStatusCredit": {
+    "description": "Purchase on supplier credit."
+  },
+  "suppliersSaveFailed": "Supplier could not be saved.",
+  "@suppliersSaveFailed": {
+    "description": "Supplier not saved."
+  },
+  "purchasesSaved": "Purchase saved locally.",
+  "@purchasesSaved": {
+    "description": "Purchase saved."
+  },
+  "supplierContactPerson": "Contact person",
+  "@supplierContactPerson": {
+    "description": "Supplier contact person."
+  },
+  "purchaseSupplierRequired": "Supplier *",
+  "@purchaseSupplierRequired": {
+    "description": "Supplier, required."
+  },
+  "purchaseInvoiceReference": "Invoice/reference",
+  "@purchaseInvoiceReference": {
+    "description": "Supplier invoice number."
+  },
+  "purchaseDate": "Purchase date",
+  "@purchaseDate": {
+    "description": "Date of the purchase."
+  },
+  "purchaseAmountPaid": "Amount paid",
+  "@purchaseAmountPaid": {
+    "description": "Paid now to the supplier."
+  },
+  "purchaseSave": "Save Purchase",
+  "@purchaseSave": {
+    "description": "Saves the purchase."
+  },
+  "purchaseLineQtyCost": "Qty {quantity} @ {cost}",
+  "@purchaseLineQtyCost": {
+    "description": "A purchase line: quantity and unit cost.",
+    "placeholders": {
+      "quantity": {
+        "type": "String"
+      },
+      "cost": {
+        "type": "String"
+      }
+    }
+  },
+  "purchaseProductFallback": "Product",
+  "@purchaseProductFallback": {
+    "description": "Name shown for a product without a name."
+  },
+  "purchaseItemTitle": "Purchase item",
+  "@purchaseItemTitle": {
+    "description": "Purchase line dialog title."
+  },
+  "purchaseUnitCost": "Unit cost",
+  "@purchaseUnitCost": {
+    "description": "Cost of one unit."
+  },
+  "supplierPayableHeading": "Payable {amount}",
+  "@supplierPayableHeading": {
+    "description": "Supplier balance heading. Amounts are already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "supplierTotals": "Purchases {purchases} • Payments {payments}",
+  "@supplierTotals": {
+    "description": "Supplier totals. Amounts are already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "purchases": {
+        "type": "String"
+      },
+      "payments": {
+        "type": "String"
+      }
+    }
+  },
+  "supplierPaymentTitle": "Supplier Payment",
+  "@supplierPaymentTitle": {
+    "description": "Supplier payment dialog title."
+  },
+  "commonReference": "Reference",
+  "@commonReference": {
+    "description": "Optional reference field."
+  },
+  "commonNote": "Note",
+  "@commonNote": {
+    "description": "Optional note field."
+  },
+  "supplierPaymentRecord": "Record",
+  "@supplierPaymentRecord": {
+    "description": "Saves the supplier payment."
+  },
+  "purchaseTotals": "Total {total} • Paid {paid} • Due {due}",
+  "@purchaseTotals": {
+    "description": "Purchase totals. Amounts are already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "total": {
+        "type": "String"
+      },
+      "paid": {
+        "type": "String"
+      },
+      "due": {
+        "type": "String"
+      }
+    }
+  },
+  "purchasesErrSelection": "Select supplier/items and enter a valid payment.",
+  "@purchasesErrSelection": {
+    "description": "New purchase is incomplete."
+  },
+  "expensesAddCategory": "Add category",
+  "@expensesAddCategory": {
+    "description": "Adds an expense category."
+  },
+  "expensesAdd": "Add Expense",
+  "@expensesAdd": {
+    "description": "Adds an expense; also the form title."
+  },
+  "expensesThisMonth": "This month",
+  "@expensesThisMonth": {
+    "description": "Expense total this month."
+  },
+  "expensesSearch": "Search description/category",
+  "@expensesSearch": {
+    "description": "Expense search field."
+  },
+  "expensesAnyDate": "Any date",
+  "@expensesAnyDate": {
+    "description": "No date filter."
+  },
+  "expensesEmpty": "No expenses found.",
+  "@expensesEmpty": {
+    "description": "No expenses match."
+  },
+  "expensesReferenceLine": "Reference: {reference}",
+  "@expensesReferenceLine": {
+    "description": "Expense reference as entered.",
+    "placeholders": {
+      "reference": {
+        "type": "String"
+      }
+    }
+  },
+  "expensesCustomCategory": "Custom category",
+  "@expensesCustomCategory": {
+    "description": "Create category dialog title."
+  },
+  "expensesCategoryName": "Name",
+  "@expensesCategoryName": {
+    "description": "Category name field."
+  },
+  "expensesCategoryFailed": "Category could not be created.",
+  "@expensesCategoryFailed": {
+    "description": "Category not created."
+  },
+  "expensesSaved": "Expense saved locally.",
+  "@expensesSaved": {
+    "description": "Expense saved."
+  },
+  "expenseDescriptionRequired": "Description *",
+  "@expenseDescriptionRequired": {
+    "description": "Expense description, required."
+  },
+  "expenseAmountRequired": "Amount *",
+  "@expenseAmountRequired": {
+    "description": "Expense amount, required."
+  },
+  "expenseDate": "Expense date",
+  "@expenseDate": {
+    "description": "Date of the expense."
+  },
+  "expensesErrRequired": "Complete all required fields.",
+  "@expensesErrRequired": {
+    "description": "Expense form is incomplete."
+  },
+  "expenseCatRent": "Rent",
+  "@expenseCatRent": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatElectricity": "Electricity",
+  "@expenseCatElectricity": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatGas": "Gas",
+  "@expenseCatGas": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatInternet": "Internet",
+  "@expenseCatInternet": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatSalary": "Salary",
+  "@expenseCatSalary": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatTransport": "Transport",
+  "@expenseCatTransport": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatDelivery": "Delivery",
+  "@expenseCatDelivery": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatMaintenance": "Maintenance",
+  "@expenseCatMaintenance": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatFoodTea": "Food/Tea",
+  "@expenseCatFoodTea": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatPackaging": "Packaging",
+  "@expenseCatPackaging": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "expenseCatMiscellaneous": "Miscellaneous",
+  "@expenseCatMiscellaneous": {
+    "description": "Default expense category (fixed id per shop). English must equal the seeded name."
+  },
+  "dashTitle": "{shop} • Dashboard",
+  "@dashTitle": {
+    "description": "Dashboard title; shop name as entered.",
+    "placeholders": {
+      "shop": {
+        "type": "String"
+      }
+    }
+  },
+  "dashReportFailed": "Could not calculate this report.",
+  "@dashReportFailed": {
+    "description": "Report failed."
+  },
+  "reportPreset": "{key, select, other{{english}}}",
+  "@reportPreset": {
+    "description": "Report period chip. key is the stored preset (today, week, month, year, custom); english is shown unchanged in English.",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "english": {
+        "type": "String"
+      }
+    }
+  },
+  "dashCachedNote": "Cached device data • pending operations may not be reflected on other devices.",
+  "@dashCachedNote": {
+    "description": "Note above the dashboard."
+  },
+  "dashPartialReturns": "{count} partially returned sale(s) are excluded. Profit is provisional until returns accounting is implemented.",
+  "@dashPartialReturns": {
+    "description": "Warning about partially returned sales.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "dashNetSalesCard": "Net Sales",
+  "@dashNetSalesCard": {
+    "description": "Dashboard card."
+  },
+  "dashGrossProfit": "Gross Profit",
+  "@dashGrossProfit": {
+    "description": "Dashboard card."
+  },
+  "dashNetProfit": "Net Profit",
+  "@dashNetProfit": {
+    "description": "Dashboard card."
+  },
+  "dashCustomerUdhaar": "Customer Udhaar",
+  "@dashCustomerUdhaar": {
+    "description": "Dashboard card: owed by customers."
+  },
+  "dashSupplierPayable": "Supplier Payable",
+  "@dashSupplierPayable": {
+    "description": "Dashboard card: owed to suppliers."
+  },
+  "dashLowStockCard": "Low Stock",
+  "@dashLowStockCard": {
+    "description": "Dashboard card: products low on stock."
+  },
+  "dashSales": "Sales",
+  "@dashSales": {
+    "description": "Dashboard section."
+  },
+  "dashGrossSales": "Gross sales",
+  "@dashGrossSales": {
+    "description": "Dashboard row."
+  },
+  "dashReturnsVoids": "Returns / voids",
+  "@dashReturnsVoids": {
+    "description": "Dashboard row."
+  },
+  "dashNetSales": "Net sales",
+  "@dashNetSales": {
+    "description": "Dashboard row."
+  },
+  "dashAverageBill": "Average bill",
+  "@dashAverageBill": {
+    "description": "Dashboard row."
+  },
+  "dashUdhaarCreated": "Udhaar created",
+  "@dashUdhaarCreated": {
+    "description": "Dashboard row: new customer credit."
+  },
+  "dashPeriodPurchases": "Period purchases",
+  "@dashPeriodPurchases": {
+    "description": "Dashboard row."
+  },
+  "dashCreditCreated": "Credit created",
+  "@dashCreditCreated": {
+    "description": "Dashboard row: new supplier credit."
+  },
+  "dashTransactions": "Transactions",
+  "@dashTransactions": {
+    "description": "Dashboard row: number of purchases."
+  },
+  "dashSalesVsPurchases": "Sales vs Purchases",
+  "@dashSalesVsPurchases": {
+    "description": "Chart heading."
+  },
+  "dashTopSales": "Top products by sales",
+  "@dashTopSales": {
+    "description": "Ranking."
+  },
+  "dashTopQuantity": "Top products by quantity",
+  "@dashTopQuantity": {
+    "description": "Ranking."
+  },
+  "dashTopProfit": "Highest gross profit products",
+  "@dashTopProfit": {
+    "description": "Ranking."
+  },
+  "dashExpensesByCategory": "Expenses by category",
+  "@dashExpensesByCategory": {
+    "description": "Ranking."
+  },
+  "dashExpensesByMethod": "Expenses by payment method",
+  "@dashExpensesByMethod": {
+    "description": "Ranking."
+  },
+  "dashTopDebtors": "Top customer debtors",
+  "@dashTopDebtors": {
+    "description": "Ranking."
+  },
+  "dashTopSupplierPayable": "Top supplier payable",
+  "@dashTopSupplierPayable": {
+    "description": "Ranking."
+  },
+  "dashLowStockList": "Low stock (current / threshold)",
+  "@dashLowStockList": {
+    "description": "Ranking."
+  },
+  "dashNoData": "No data",
+  "@dashNoData": {
+    "description": "Empty ranking."
+  },
+  "dashMissingCost": "{count} sale lines excluded from profit because cost snapshots were invalid.",
+  "@dashMissingCost": {
+    "description": "Profit warning.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "dashCashierPerformance": "Cashier performance",
+  "@dashCashierPerformance": {
+    "description": "Dashboard section."
+  },
+  "dashCashierLine": "{bills} bills • Cash {cash} • Digital {digital} • Udhaar {udhaar}",
+  "@dashCashierLine": {
+    "description": "One cashier's bills and payments. Amounts are already formatted (e.g. Rs 350.00) and kept left to right.",
+    "placeholders": {
+      "bills": {
+        "type": "String"
+      },
+      "cash": {
+        "type": "String"
+      },
+      "digital": {
+        "type": "String"
+      },
+      "udhaar": {
+        "type": "String"
+      }
+    }
+  },
+  "dashNoActivity": "No period activity",
+  "@dashNoActivity": {
+    "description": "Empty chart."
+  },
+  "settingsOfflineUnavailable": "Settings are unavailable offline until the first sync.",
+  "@settingsOfflineUnavailable": {
+    "description": "Settings offline before the first sync."
+  },
+  "settingsShowingCached": "Showing cached settings.",
+  "@settingsShowingCached": {
+    "description": "Settings shown from this device."
+  },
+  "settingsErrRequired": "Enter a shop name and a non-negative stock threshold.",
+  "@settingsErrRequired": {
+    "description": "Settings form invalid."
+  },
+  "settingsSaveFailed": "Could not save settings. Check your connection.",
+  "@settingsSaveFailed": {
+    "description": "Settings not saved."
+  },
+  "settingsSaved": "Settings saved.",
+  "@settingsSaved": {
+    "description": "Settings saved."
+  },
+  "settingsSubscription": "Subscription",
+  "@settingsSubscription": {
+    "description": "Settings section."
+  },
+  "settingsShopDetails": "Shop details",
+  "@settingsShopDetails": {
+    "description": "Settings section."
+  },
+  "settingsShopName": "Shop name",
+  "@settingsShopName": {
+    "description": "Shop name field."
+  },
+  "settingsCurrency": "Currency",
+  "@settingsCurrency": {
+    "description": "Shop currency (PKR)."
+  },
+  "settingsTimeZone": "Time zone",
+  "@settingsTimeZone": {
+    "description": "Shop time zone."
+  },
+  "settingsTimeZoneValue": "Pakistan (Asia/Karachi)",
+  "@settingsTimeZoneValue": {
+    "description": "The shop time zone."
+  },
+  "settingsStock": "Stock",
+  "@settingsStock": {
+    "description": "Settings section."
+  },
+  "settingsAllowNegative": "Allow selling below zero stock",
+  "@settingsAllowNegative": {
+    "description": "Negative stock switch."
+  },
+  "settingsDefaultLowStock": "Default low-stock alert level",
+  "@settingsDefaultLowStock": {
+    "description": "Default low-stock level."
+  },
+  "settingsReceiptFooter": "Receipt footer",
+  "@settingsReceiptFooter": {
+    "description": "Text printed at the end of receipts."
+  },
+  "settingsPaperWidth": "Paper width",
+  "@settingsPaperWidth": {
+    "description": "Receipt paper width."
+  },
+  "settingsShowPhone": "Show phone on receipt",
+  "@settingsShowPhone": {
+    "description": "Receipt switch."
+  },
+  "settingsShowAddress": "Show address on receipt",
+  "@settingsShowAddress": {
+    "description": "Receipt switch."
+  },
+  "settingsNotifications": "Notifications",
+  "@settingsNotifications": {
+    "description": "Settings section."
+  },
+  "settingsOwnerAlerts": "Owner alerts",
+  "@settingsOwnerAlerts": {
+    "description": "Alerts switch."
+  },
+  "settingsAlertsHint": "Alerts are not available yet. Your choice is saved for when they are.",
+  "@settingsAlertsHint": {
+    "description": "Explains the alerts switch."
+  },
+  "settingsSave": "Save settings",
+  "@settingsSave": {
+    "description": "Saves settings."
+  },
+  "settingsDevices": "Registered devices",
+  "@settingsDevices": {
+    "description": "Settings section."
+  },
+  "settingsCashiers": "Cashiers",
+  "@settingsCashiers": {
+    "description": "Settings section and panel heading."
+  },
+  "settingsCheckingSubscription": "Checking subscription…",
+  "@settingsCheckingSubscription": {
+    "description": "Subscription loading."
+  },
+  "subStateTrial": "Trial active",
+  "@subStateTrial": {
+    "description": "Subscription state."
+  },
+  "subStateExpiringSoon": "Expires soon",
+  "@subStateExpiringSoon": {
+    "description": "Subscription state."
+  },
+  "subStateOfflineGrace": "Offline grace",
+  "@subStateOfflineGrace": {
+    "description": "Subscription state."
+  },
+  "subStateVerify": "Online verification required",
+  "@subStateVerify": {
+    "description": "Subscription state."
+  },
+  "subStateExpired": "Expired",
+  "@subStateExpired": {
+    "description": "Subscription state."
+  },
+  "subCanRecord": "This tablet can record sales",
+  "@subCanRecord": {
+    "description": "Subscription allows sales."
+  },
+  "subNeedsRenewal": "Verification or renewal needed",
+  "@subNeedsRenewal": {
+    "description": "Subscription blocks sales."
+  },
+  "subPlan": "Plan",
+  "@subPlan": {
+    "description": "Subscription plan."
+  },
+  "subUnavailable": "Unavailable",
+  "@subUnavailable": {
+    "description": "No plan information."
+  },
+  "subPeriodEnds": "Current period ends",
+  "@subPeriodEnds": {
+    "description": "Subscription end date."
+  },
+  "subOfflineUntil": "Works offline until",
+  "@subOfflineUntil": {
+    "description": "Offline grace end."
+  },
+  "subLastChecked": "Last checked online",
+  "@subLastChecked": {
+    "description": "Last online check."
+  },
+  "subNotYet": "Not yet",
+  "@subNotYet": {
+    "description": "Never checked online."
+  },
+  "subRenewUnavailable": "Online renewal is not available in the app yet.",
+  "@subRenewUnavailable": {
+    "description": "Renew tapped."
+  },
+  "subRenew": "Renew subscription",
+  "@subRenew": {
+    "description": "Renew button."
+  },
+  "deviceThisDevice": "{name} (this device)",
+  "@deviceThisDevice": {
+    "description": "This device in the device list; name as registered.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deviceRegistered": "{type} • Registered {date}",
+  "@deviceRegistered": {
+    "description": "Device type and registration date.",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "deviceAndroidTablet": "Android tablet",
+  "@deviceAndroidTablet": {
+    "description": "Device type."
+  },
+  "deviceWindows": "Windows computer",
+  "@deviceWindows": {
+    "description": "Device type."
+  },
+  "deviceMobile": "Mobile",
+  "@deviceMobile": {
+    "description": "Device type."
+  },
+  "settingsSyncHint": "Sync status for this tablet is shown at the top of the sales screen.",
+  "@settingsSyncHint": {
+    "description": "Explains where sync status is."
+  },
+  "settingsLanguageHint": "Saved on this device only. Changing it keeps you signed in.",
+  "@settingsLanguageHint": {
+    "description": "Explains the language setting."
+  },
+  "cashierCreate": "Create cashier",
+  "@cashierCreate": {
+    "description": "Creates a cashier."
+  },
+  "cashierDisabled": "Disabled",
+  "@cashierDisabled": {
+    "description": "Cashier cannot log in."
+  },
+  "cashierName": "Cashier name",
+  "@cashierName": {
+    "description": "Cashier name field."
+  },
+  "cashierNumericPin": "Numeric PIN",
+  "@cashierNumericPin": {
+    "description": "Cashier PIN field."
+  },
+  "cashierConfirmPin": "Confirm PIN",
+  "@cashierConfirmPin": {
+    "description": "Repeat the PIN."
+  },
+  "purchasesErrSaveFailed": "Could not save the purchase. Please try again.",
+  "@purchasesErrSaveFailed": {
+    "description": "Message: Could not save the purchase. Please try again."
+  },
+  "expensesErrSaveFailed": "Could not save the expense. Please try again.",
+  "@expensesErrSaveFailed": {
+    "description": "Message: Could not save the expense. Please try again."
+  },
+  "cashierErrName": "Enter the cashier name.",
+  "@cashierErrName": {
+    "description": "Message: Enter the cashier name."
+  },
+  "cashierErrPin": "PIN must contain 4 to 8 digits.",
+  "@cashierErrPin": {
+    "description": "Message: PIN must contain 4 to 8 digits."
+  },
+  "cashierErrPinMismatch": "PINs do not match.",
+  "@cashierErrPinMismatch": {
+    "description": "Message: PINs do not match."
+  },
+  "cashierErrCreate": "Could not create the cashier. Please try again.",
+  "@cashierErrCreate": {
+    "description": "Message: Could not create the cashier. Please try again."
+  },
+  "cashierErrUpdate": "Could not update the cashier. Please try again.",
+  "@cashierErrUpdate": {
+    "description": "Message: Could not update the cashier. Please try again."
+  },
+  "supplierPaymentSaved": "Supplier payment saved locally.",
+  "@supplierPaymentSaved": {
+    "description": "Supplier payment saved."
+  },
+  "supplierPaymentFailed": "Supplier payment could not be recorded. Nothing was changed.",
+  "@supplierPaymentFailed": {
+    "description": "Supplier payment refused."
+  },
+  "authOwnerSignIn": "Owner sign in",
+  "@authOwnerSignIn": {
+    "description": "Owner sign-in screen title and the lobby button that opens it."
+  },
+  "authCreateOwnerAccount": "Create owner account",
+  "@authCreateOwnerAccount": {
+    "description": "Sign-up screen title and the button that switches to sign-up."
+  },
+  "authFullName": "Full name",
+  "@authFullName": {
+    "description": "Owner sign-up: full name field."
+  },
+  "authEmail": "Email",
+  "@authEmail": {
+    "description": "Owner email field. The value is always typed left to right."
+  },
+  "authPassword": "Password",
+  "@authPassword": {
+    "description": "Owner password field."
+  },
+  "authPleaseWait": "Please wait…",
+  "@authPleaseWait": {
+    "description": "Sign-in button while the request is running."
+  },
+  "authSignUp": "Sign up",
+  "@authSignUp": {
+    "description": "Owner sign-up button."
+  },
+  "authSignIn": "Sign in",
+  "@authSignIn": {
+    "description": "Owner sign-in button."
+  },
+  "authHaveAccount": "Have an account? Sign in",
+  "@authHaveAccount": {
+    "description": "Switches the sign-up form back to sign-in."
+  },
+  "authErrWrongCredentials": "Wrong email or password.",
+  "@authErrWrongCredentials": {
+    "description": "Sign-in refused: wrong email or password."
+  },
+  "authErrNoConnection": "No connection to the server. Check your internet and try again.",
+  "@authErrNoConnection": {
+    "description": "Sign-in failed: no network."
+  },
+  "authErrSessionExpired": "Your session expired. Please sign in again.",
+  "@authErrSessionExpired": {
+    "description": "The owner's sign-in session expired."
+  },
+  "authErrSignInDetails": "Could not sign in. Please check your details and try again.",
+  "@authErrSignInDetails": {
+    "description": "Sign-in failed for another server reason."
+  },
+  "authErrSignInConnection": "Could not sign in. Check your connection and try again.",
+  "@authErrSignInConnection": {
+    "description": "Sign-in failed unexpectedly (usually the connection)."
+  },
+  "onboardLoadFailedTitle": "Bootstrap failed",
+  "@onboardLoadFailedTitle": {
+    "description": "Title when the owner's shop could not be loaded after sign-in."
+  },
+  "onboardLoadFailed": "Could not load your shop. Check your connection and try again.",
+  "@onboardLoadFailed": {
+    "description": "The owner's shop could not be loaded after sign-in."
+  },
+  "onboardCreateShopTitle": "Create your shop",
+  "@onboardCreateShopTitle": {
+    "description": "First-time setup: create shop screen title."
+  },
+  "onboardShopPhone": "Phone",
+  "@onboardShopPhone": {
+    "description": "Create shop: phone field."
+  },
+  "onboardShopAddress": "Address",
+  "@onboardShopAddress": {
+    "description": "Create shop: address field."
+  },
+  "onboardCreatingShop": "Creating shop…",
+  "@onboardCreatingShop": {
+    "description": "Create shop button while saving."
+  },
+  "onboardCreateShop": "Create shop",
+  "@onboardCreateShop": {
+    "description": "Create shop button."
+  },
+  "onboardErrCreateShop": "Could not create your shop. Please try again.",
+  "@onboardErrCreateShop": {
+    "description": "Shop creation failed."
+  },
+  "deviceName": "Device name",
+  "@deviceName": {
+    "description": "Register device: device name field."
+  },
+  "deviceRegistering": "Registering…",
+  "@deviceRegistering": {
+    "description": "Register device button while saving."
+  },
+  "deviceRegister": "Register this device",
+  "@deviceRegister": {
+    "description": "Register device button."
+  },
+  "deviceRevoked": "Device is revoked.",
+  "@deviceRevoked": {
+    "description": "This device was revoked by the owner."
+  },
+  "deviceActive": "Device active. Local sales foundation is ready.",
+  "@deviceActive": {
+    "description": "Shown on the owner hub when this device is registered and active."
+  },
+  "deviceErrCheck": "Could not check this device registration. Check your connection.",
+  "@deviceErrCheck": {
+    "description": "Device registration lookup failed."
+  },
+  "deviceErrRegister": "Could not register this device. Check your connection.",
+  "@deviceErrRegister": {
+    "description": "Device registration failed."
+  },
+  "deviceErrCashierNeedsOwner": "Unlock owner mode once to set up cashier mode on this device.",
+  "@deviceErrCashierNeedsOwner": {
+    "description": "Cashier mode needs one owner unlock to provision this device."
+  },
+  "deviceErrCashierSetup": "Could not set up cashier mode on this device. Check your connection.",
+  "@deviceErrCashierSetup": {
+    "description": "Cashier mode provisioning failed."
+  },
+  "deviceErrSecureOwner": "Could not secure owner mode on this device. Try again.",
+  "@deviceErrSecureOwner": {
+    "description": "Locking owner mode before cashier mode failed."
+  },
+  "deviceOpenFailed": "This device could not be opened. Try again.",
+  "@deviceOpenFailed": {
+    "description": "Startup could not resolve the device mode."
+  },
+  "deviceOwnerRemovalFailed": "Owner mode could not be closed safely on this device, so cashier mode was not opened. Restart the app and try again.",
+  "@deviceOwnerRemovalFailed": {
+    "description": "The owner session could not be removed before cashier mode."
+  },
+  "deviceWarnSetupOnce": "This device must be set up for cashier mode once. Ask the owner to sign in.",
+  "@deviceWarnSetupOnce": {
+    "description": "Device lobby warning: not yet provisioned for cashier mode."
+  },
+  "deviceWarnOfflineExpired": "The offline cashier session expired. Connect to the internet and sign in again.",
+  "@deviceWarnOfflineExpired": {
+    "description": "Device lobby warning: the cached cashier session expired."
+  },
+  "deviceWarnMismatch": "Offline cashier access is unavailable because this shop or device no longer matches. Connect to the internet and sign in again.",
+  "@deviceWarnMismatch": {
+    "description": "Device lobby warning: local shop or device data no longer matches."
+  },
+  "cashierLoginHeading": "Dukaan Pro — {shopName}",
+  "@cashierLoginHeading": {
+    "description": "Cashier login heading. The app name stays in English; shopName is shown as entered.",
+    "placeholders": {
+      "shopName": {
+        "type": "String"
+      }
+    }
+  },
+  "cashierLoadFailed": "Could not load cashiers. Please try again.",
+  "@cashierLoadFailed": {
+    "description": "Cashier list failed to load."
+  },
+  "cashierNoneCreated": "No cashier has been created yet.",
+  "@cashierNoneCreated": {
+    "description": "Cashier login: there are no cashiers."
+  },
+  "cashierNoneActive": "No active cashier is available.",
+  "@cashierNoneActive": {
+    "description": "Cashier login: every cashier is disabled."
+  },
+  "cashierAskOwner": "Ask the owner to sign in and add a cashier.",
+  "@cashierAskOwner": {
+    "description": "Cashier login: no cashier and no owner access."
+  },
+  "cashierCreateFirst": "Create first cashier",
+  "@cashierCreateFirst": {
+    "description": "Button: create the first cashier."
+  },
+  "cashierManage": "Manage cashiers",
+  "@cashierManage": {
+    "description": "Button: open cashier setup."
+  },
+  "cashierHideSetup": "Hide cashier setup",
+  "@cashierHideSetup": {
+    "description": "Button: close cashier setup."
+  },
+  "cashierSelect": "Select cashier",
+  "@cashierSelect": {
+    "description": "Cashier login: cashier dropdown."
+  },
+  "cashierPin": "PIN",
+  "@cashierPin": {
+    "description": "Cashier login: PIN field."
+  },
+  "cashierSigningIn": "Signing in…",
+  "@cashierSigningIn": {
+    "description": "Cashier login button while checking the PIN."
+  },
+  "cashierStartShift": "Start Shift / Login",
+  "@cashierStartShift": {
+    "description": "Cashier login button."
+  },
+  "cashierErrPinFormat": "Enter the cashier’s 4 to 8 digit PIN.",
+  "@cashierErrPinFormat": {
+    "description": "Cashier login: the PIN is not 4 to 8 digits."
+  },
+  "cashierAuthenticated": "Cashier authenticated. Offline billing remains available until local expiry.",
+  "@cashierAuthenticated": {
+    "description": "Cashier login succeeded."
+  },
+  "cashierLoginFailed": "Login failed or temporarily locked.",
+  "@cashierLoginFailed": {
+    "description": "Cashier login refused (wrong PIN or locked out)."
+  },
+  "ownerAccessRequired": "Owner access required",
+  "@ownerAccessRequired": {
+    "description": "Title of an owner screen opened while owner mode is locked."
+  },
+  "ownerLockedAskOwner": "Owner mode is locked on this device. Ask the owner to unlock it.",
+  "@ownerLockedAskOwner": {
+    "description": "Owner screen body while owner mode is locked."
+  },
+  "ownerLockedEnterPassword": "Owner mode is locked. Enter the owner password.",
+  "@ownerLockedEnterPassword": {
+    "description": "Owner hub prompt while owner mode is locked."
+  },
+  "ownerPassword": "Owner password",
+  "@ownerPassword": {
+    "description": "Owner unlock: password field."
+  },
+  "ownerChecking": "Checking…",
+  "@ownerChecking": {
+    "description": "Owner unlock button while checking."
+  },
+  "ownerUnlock": "Unlock owner mode",
+  "@ownerUnlock": {
+    "description": "Owner unlock button."
+  },
+  "ownerErrWrongPassword": "Wrong owner password.",
+  "@ownerErrWrongPassword": {
+    "description": "Owner unlock refused."
+  },
+  "ownerErrCheckPassword": "Could not check the password. Check your connection.",
+  "@ownerErrCheckPassword": {
+    "description": "Owner unlock could not reach the server."
+  },
+  "subMsgVerificationRequired": "Online subscription verification is required.",
+  "@subMsgVerificationRequired": {
+    "description": "Subscription: no stored proof on this device."
+  },
+  "subMsgProofInvalid": "Stored subscription proof is invalid. Verify online.",
+  "@subMsgProofInvalid": {
+    "description": "Subscription: the stored proof failed verification."
+  },
+  "subMsgClockChanged": "Device time changed significantly. Connect online to verify.",
+  "@subMsgClockChanged": {
+    "description": "Subscription: the device clock moved backwards."
+  },
+  "subMsgNeedsRenewal": "Shop subscription needs renewal. Please contact the owner.",
+  "@subMsgNeedsRenewal": {
+    "description": "Subscription expired: recording sales and stock is blocked."
+  },
+  "subMsgGrace": "Grace period active. Online verification is needed.",
+  "@subMsgGrace": {
+    "description": "Subscription: past its period, inside the offline grace."
+  },
+  "subMsgEndingSoon": "Subscription ending soon.",
+  "@subMsgEndingSoon": {
+    "description": "Subscription: ends within a few days."
+  },
+  "subMsgVerified": "Subscription verified.",
+  "@subMsgVerified": {
+    "description": "Subscription: active and verified."
+  },
+  "syncReasonInvalid": "The cloud rejected this record as invalid or out of date.",
+  "@syncReasonInvalid": {
+    "description": "Sync reason for code DPV01."
+  },
+  "syncReasonOtherVersion": "A different version of this record is already in the cloud.",
+  "@syncReasonOtherVersion": {
+    "description": "Sync reason for code DPC01."
+  },
+  "syncReasonConflict": "This change conflicts with the cloud and cannot be applied.",
+  "@syncReasonConflict": {
+    "description": "Sync reason for code DPX01."
+  },
+  "syncReasonDeviceNotAuthorised": "This device or cashier is no longer authorised.",
+  "@syncReasonDeviceNotAuthorised": {
+    "description": "Sync reason for code DPA01."
+  },
+  "syncReasonSessionNotAuthorised": "This device or session is not authorised to sync.",
+  "@syncReasonSessionNotAuthorised": {
+    "description": "Sync reason for codes 42501 and 403."
+  },
+  "syncReasonSessionExpired": "The sign-in session expired.",
+  "@syncReasonSessionExpired": {
+    "description": "Sync reason for codes PGRST301 and 401."
+  },
+  "syncReasonSessionMissing": "The sign-in session is missing.",
+  "@syncReasonSessionMissing": {
+    "description": "Sync reason for code PGRST302."
+  },
+  "syncReasonOldVersion": "This record was saved by an older app version and cannot be sent safely.",
+  "@syncReasonOldVersion": {
+    "description": "Sync reason: legacy timestamp payload."
+  },
+  "syncReasonOffline": "No connection to the cloud. It will retry automatically.",
+  "@syncReasonOffline": {
+    "description": "Sync reason: no network."
+  },
+  "syncReasonTemporary": "The cloud is temporarily unavailable. It will retry automatically.",
+  "@syncReasonTemporary": {
+    "description": "Sync reason: a temporary server error."
+  },
+  "syncReasonRejected": "The cloud could not accept this record.",
+  "@syncReasonRejected": {
+    "description": "Sync reason: an unknown server error."
+  },
+  "syncReasonParent": "An earlier record it depends on needs attention.",
+  "@syncReasonParent": {
+    "description": "Sync reason: a record it depends on needs attention."
+  },
+  "syncReasonFlagged": "Saved in the cloud, but it broke a shop rule ({rules}). Please review it.",
+  "@syncReasonFlagged": {
+    "description": "Synced but flagged by a shop rule. rules is a list of broken rules.",
+    "placeholders": {
+      "rules": {
+        "type": "String"
+      }
+    }
+  },
+  "syncFlagCreditLimit": "customer credit limit exceeded",
+  "@syncFlagCreditLimit": {
+    "description": "Shop rule broken by a synced sale."
+  },
+  "expensesWebOnly": "Offline expense management is available on Android and Windows.",
+  "@expensesWebOnly": {
+    "description": "Web preview placeholder for expenses."
+  },
+  "purchasesWebOnly": "Purchasing is available on Android and Windows.",
+  "@purchasesWebOnly": {
+    "description": "Web preview placeholder for purchases."
+  },
+  "dashboardWebTitle": "{shopName} Dashboard",
+  "@dashboardWebTitle": {
+    "description": "Web preview dashboard title; shopName is shown as entered.",
+    "placeholders": {
+      "shopName": {
+        "type": "String"
+      }
+    }
+  },
+  "dashboardWebOnly": "Offline owner reports are available on Android and Windows.",
+  "@dashboardWebOnly": {
+    "description": "Web preview placeholder for the dashboard."
+  },
+  "saleErrNotEnoughStock": "Not enough stock for {product}. Available: {available}.",
+  "@saleErrNotEnoughStock": {
+    "description": "Checkout or cart refused: the product has less stock than requested. product is shown as entered; available is a formatted quantity.",
+    "placeholders": {
+      "product": {
+        "type": "String"
+      },
+      "available": {
+        "type": "String"
+      }
+    }
+  },
+  "saleErrStockBelowZero": "Stock for {product} is below zero ({stock}). Correct the stock in Inventory before selling it.",
+  "@saleErrStockBelowZero": {
+    "description": "Checkout or cart refused: the product's recorded stock is already negative from earlier sales.",
+    "placeholders": {
+      "product": {
+        "type": "String"
+      },
+      "stock": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryErrQuantityMissing": "Enter a quantity, for example 20, +20 or -5.",
+  "@inventoryErrQuantityMissing": {
+    "description": "Stock adjustment: the quantity field is empty."
+  },
+  "inventoryErrQuantityFormat": "Enter a number such as 20, +20, -5 or 2.5 (up to 3 decimals).",
+  "@inventoryErrQuantityFormat": {
+    "description": "Stock adjustment: the quantity is not a number."
+  },
+  "inventoryErrQuantityZero": "Quantity cannot be zero.",
+  "@inventoryErrQuantityZero": {
+    "description": "Stock adjustment: quantity is zero."
+  },
+  "inventoryErrQuantitySign": "Enter this quantity without a minus sign. To remove stock, choose Manual correction or Damaged / wastage.",
+  "@inventoryErrQuantitySign": {
+    "description": "Stock adjustment: a negative quantity for opening stock or damage."
+  },
+  "inventoryErrWholeUnits": "This product is counted in whole units. Enter a whole number.",
+  "@inventoryErrWholeUnits": {
+    "description": "Stock adjustment: a decimal quantity for a piece product."
+  },
+  "inventoryErrReasonRequired": "Enter a reason for this adjustment.",
+  "@inventoryErrReasonRequired": {
+    "description": "Stock adjustment: the reason/note is empty."
+  },
+  "inventoryErrWouldGoNegative": "This adjustment would make stock negative.",
+  "@inventoryErrWouldGoNegative": {
+    "description": "Stock adjustment refused by the shop's negative-stock rule."
+  },
+  "inventorySaving": "Saving…",
+  "@inventorySaving": {
+    "description": "Stock adjustment Save button while saving."
+  },
+  "editFamilyShared": "This is one pack size. Its name and category are shared by every size and cannot be changed here yet.",
+  "@editFamilyShared": {
+    "description": "Edit product: a pack variant cannot change the family name or category (no atomic server update yet)."
+  },
+  "editUnitLocked": "The unit is fixed once the product has stock or sales.",
+  "@editUnitLocked": {
+    "description": "Edit product: the unit cannot change after stock history exists."
+  },
+  "editStockSection": "Stock",
+  "@editStockSection": {
+    "description": "Edit product: stock section heading."
+  },
+  "editStockHint": "Stock changes only through Adjust stock, so every change is recorded.",
+  "@editStockHint": {
+    "description": "Edit product: stock is not edited directly."
+  },
+  "editAdjustStock": "Adjust stock",
+  "@editAdjustStock": {
+    "description": "Edit product: opens the stock adjustment dialog."
+  },
+  "editArchive": "Archive Product",
+  "@editArchive": {
+    "description": "Edit product: owner action that archives the product (hidden from new sales, history kept)."
+  },
+  "archiveTitle": "Archive {name}?",
+  "@archiveTitle": {
+    "description": "Archive confirmation title; name is shown as entered.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "archiveChecking": "Checking where this product is used…",
+  "@archiveChecking": {
+    "description": "Delete confirmation while counting history."
+  },
+  "archiveHistoryCounts": "Bill lines: {bills} · Purchase lines: {purchases} · Returns: {returns} · Stock movements: {movements}",
+  "@archiveHistoryCounts": {
+    "description": "Delete confirmation: how often the product appears in history.",
+    "placeholders": {
+      "bills": {
+        "type": "String"
+      },
+      "purchases": {
+        "type": "String"
+      },
+      "returns": {
+        "type": "String"
+      },
+      "movements": {
+        "type": "String"
+      }
+    }
+  },
+  "archiveHistoryExplain": "This product has sales or stock history. Archiving hides it from new sales; old bills, stock history and reports keep it. You can restore it at any time.",
+  "@archiveHistoryExplain": {
+    "description": "Archive confirmation for a product with history."
+  },
+  "archiveUnusedExplain": "This product has no sales or stock history. Archiving hides it from new sales. You can restore it at any time.",
+  "@archiveUnusedExplain": {
+    "description": "Archive confirmation for a product without history."
+  },
+  "archiveConfirm": "Archive Product",
+  "@archiveConfirm": {
+    "description": "Archive confirmation button."
+  },
+  "archiveWorking": "Archiving…",
+  "@archiveWorking": {
+    "description": "Delete confirmation button while archiving."
+  },
+  "archiveDone": "{name} archived. It is no longer sold; its history is kept.",
+  "@archiveDone": {
+    "description": "After archiving; name is shown as entered.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "archiveFailed": "Could not archive the product. Check your connection and try again.",
+  "@archiveFailed": {
+    "description": "Archiving failed (it needs the internet)."
+  },
+  "restoreAction": "Restore",
+  "@restoreAction": {
+    "description": "Restore an archived product."
+  },
+  "restoreDone": "{name} restored and available for sale.",
+  "@restoreDone": {
+    "description": "After restoring; name is shown as entered.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "restoreFailed": "Could not restore the product. Check your connection and try again.",
+  "@restoreFailed": {
+    "description": "Restoring failed."
+  },
+  "productsStatusLabel": "Show",
+  "@productsStatusLabel": {
+    "description": "Products list: status filter label."
+  },
+  "productsStatusAll": "All products",
+  "@productsStatusAll": {
+    "description": "Products list filter: all."
+  },
+  "productsStatusActive": "For sale",
+  "@productsStatusActive": {
+    "description": "Products list filter: active products."
+  },
+  "productsStatusArchived": "Archived",
+  "@productsStatusArchived": {
+    "description": "Products list filter and badge: archived products."
+  },
+  "productUrduNameAction": "Urdu name",
+  "@productUrduNameAction": {"description": "Product card button: set the Urdu display name of a product."},
+  "productUrduNameTitle": "Urdu name for {name}",
+  "@productUrduNameTitle": {"description": "Title of the Urdu display name dialog. name is the product name.", "placeholders": {"name": {"type": "String"}}},
+  "productUrduNameHint": "Shown only when the app is in Urdu. The English product name is not changed.",
+  "@productUrduNameHint": {"description": "Explains that the Urdu name is display-only."},
+  "productUrduNameAutoOff": "Automatic translation is off until the translation models are downloaded in Settings. You can enter the Urdu name yourself.",
+  "@productUrduNameAutoOff": {"description": "Shown when no automatic translation service is available."},
+  "productUrduNameRemove": "Remove Urdu name",
+  "@productUrduNameRemove": {"description": "Button that deletes the owner's Urdu name for a product."},
+  "productUrduNameSaved": "Urdu name saved",
+  "@productUrduNameSaved": {"description": "Snackbar after saving a product's Urdu name."},
+  "offlineTranslationHeading": "Offline Urdu Translation",
+  "@offlineTranslationHeading": {"description": "Settings section heading for on-device Urdu product name translation."},
+  "offlineTranslationUnsupported": "Automatic Urdu product names work on Android tablets only. Urdu names entered by hand still work.",
+  "@offlineTranslationUnsupported": {"description": "Shown on devices without on-device translation (Windows, web)."},
+  "offlineTranslationChecking": "Checking translation models…",
+  "@offlineTranslationChecking": {"description": "Shown while checking whether the translation models are on the device."},
+  "offlineTranslationNotDownloaded": "Models not downloaded. Download required to show product names in Urdu automatically.",
+  "@offlineTranslationNotDownloaded": {"description": "Translation models are not on this device yet."},
+  "offlineTranslationSize": "One-time download of about 60 MB (English and Urdu models, about 30 MB each) over Wi-Fi. After that, product names are translated on this tablet without internet.",
+  "@offlineTranslationSize": {"description": "Explains the model download size and Wi-Fi use."},
+  "offlineTranslationDownload": "Download Translation Models",
+  "@offlineTranslationDownload": {"description": "Button that starts the translation model download."},
+  "offlineTranslationDownloading": "Downloading translation models… You can keep using the app.",
+  "@offlineTranslationDownloading": {"description": "Shown during the model download (no percentage is available)."},
+  "offlineTranslationReady": "Ready for offline translation. Product names are translated on this tablet without internet.",
+  "@offlineTranslationReady": {"description": "Models are downloaded and translation works offline."},
+  "offlineTranslationFailed": "Download failed. Check the Wi-Fi connection and retry.",
+  "@offlineTranslationFailed": {"description": "Shown when the model download failed or timed out."},
+  "offlineTranslationRetry": "Retry",
+  "@offlineTranslationRetry": {"description": "Button to retry the model download over Wi-Fi."},
+  "offlineTranslationUseMobileData": "Download using mobile data",
+  "@offlineTranslationUseMobileData": {"description": "Button to retry the model download allowing mobile data."},
+  "offlineTranslationConfirmTitle": "Download translation models?",
+  "@offlineTranslationConfirmTitle": {"description": "Title of the confirmation dialog before downloading the models."},
+  "offlineTranslationConfirmDownload": "Download",
+  "@offlineTranslationConfirmDownload": {"description": "Confirm button in the download dialog."},
+  "offlineTranslationMachineNote": "Machine translations can be wrong. Correct any name with the Urdu name button in Products.",
+  "@offlineTranslationMachineNote": {"description": "Note that machine translations can be corrected by hand."},
+  "activationContactSupport": "Contact Dokan Pro Support for Activation",
+  "@activationContactSupport": {"description": "Shown where self-registration used to be; shops are created by support only."},
+  "activationSupportNote": "New shops and owner accounts are created by Dokan Pro Support.",
+  "@activationSupportNote": {"description": "Explains why there is no sign-up."},
+  "authForgotPassword": "Forgot password?",
+  "@authForgotPassword": {"description": "Button that emails a password reset link."},
+  "authResetSent": "If this email has an account, a password reset link has been sent.",
+  "@authResetSent": {"description": "Neutral confirmation after requesting a reset."},
+  "authResetNeedsEmail": "Enter your email first.",
+  "@authResetNeedsEmail": {"description": "Reset requested with an empty email field."},
+  "activationNoShopTitle": "No shop on this account",
+  "@activationNoShopTitle": {"description": "Signed-in user has no shop membership."},
+  "activationNoShopBody": "This account is not linked to a shop yet. Contact Dokan Pro Support for Activation.",
+  "@activationNoShopBody": {"description": "Body for an account with no shop."},
+  "activationShopPending": "This shop is waiting for activation by Dokan Pro Support.",
+  "@activationShopPending": {"description": "Licence status pending."},
+  "activationShopSuspended": "This shop is suspended. Billing stops once the offline grace ends. Contact Dokan Pro Support.",
+  "@activationShopSuspended": {"description": "Licence status suspended."},
+  "activationShopActive": "Shop active",
+  "@activationShopActive": {"description": "Licence status active."},
+  "activationValidUntil": "Subscription valid until {date}",
+  "@activationValidUntil": {"description": "Subscription end date.", "placeholders": {"date": {"type": "String"}}},
+  "activationExpiredOn": "Subscription ended on {date}. Contact Dokan Pro Support to renew.",
+  "@activationExpiredOn": {"description": "Subscription already ended.", "placeholders": {"date": {"type": "String"}}},
+  "deviceApprovalPending": "Device replacement requires admin approval. This shop already uses its device slots (1 mobile and 1 tablet), so this new registration is waiting. Contact Dokan Pro Support and give them the device code below.",
+  "@deviceApprovalPending": {"description": "Device registered beyond the two-device limit, e.g. after an uninstall/reinstall or cleared app data."},
+  "deviceApprovalCode": "Device code: {code}",
+  "@deviceApprovalCode": {"description": "Short code of this device registration for support. code is 8 letters/digits, never translated.", "placeholders": {"code": {"type": "String"}}},
+  "deviceApprovalCheckAgain": "Check again",
+  "@deviceApprovalCheckAgain": {"description": "Button: re-check approval after support approved the device."},
+  "deviceApprovalRejected": "This device was not approved. Contact Dokan Pro Support.",
+  "@deviceApprovalRejected": {"description": "Device rejected by support."},
+  "subMsgShopNotActive": "This shop is not active. Contact Dokan Pro Support.",
+  "@subMsgShopNotActive": {"description": "Policy message: server refused because the shop is pending or suspended."},
+  "subMsgDeviceNotApproved": "This device is not approved. Contact Dokan Pro Support.",
+  "@subMsgDeviceNotApproved": {"description": "Policy message: server refused this device."},
+  "subStateBlocked": "Blocked",
+  "@subStateBlocked": {"description": "Subscription state label: refused by the server."},
+  "updateTitle": "Dokan Pro update available",
+  "@updateTitle": {"description": "Title of the in-app update dialog."},
+  "updateRequiredTitle": "Dokan Pro update required",
+  "@updateRequiredTitle": {"description": "Title when the signed release marks the update as required."},
+  "updateInstalledVersion": "Installed version: {version}",
+  "@updateInstalledVersion": {"description": "version is like 1.0.3 (never translated).", "placeholders": {"version": {"type": "String"}}},
+  "updateNewVersion": "New version: {version}",
+  "@updateNewVersion": {"description": "version is like 1.0.4 (never translated).", "placeholders": {"version": {"type": "String"}}},
+  "updateDownloadSize": "Download size: {size}",
+  "@updateDownloadSize": {"description": "size is like 45.2 MB.", "placeholders": {"size": {"type": "String"}}},
+  "updateWhatsNew": "What's new",
+  "@updateWhatsNew": {"description": "Heading above the release notes."},
+  "updateDataSafe": "The app is updated in place: sales, Udhaar, products and settings stay on this device.",
+  "@updateDataSafe": {"description": "Reassurance that updating keeps business data."},
+  "updateRequiredNote": "This version is no longer supported. Please update soon. Billing and your records stay available until then.",
+  "@updateRequiredNote": {"description": "Shown for required updates; the app is never locked."},
+  "updateNow": "Update now",
+  "@updateNow": {"description": "Button: start downloading the update."},
+  "updateLater": "Later",
+  "@updateLater": {"description": "Button: postpone an optional update."},
+  "updateContinue": "Continue for now",
+  "@updateContinue": {"description": "Button on a required update: keep using the app."},
+  "updateCancel": "Cancel download",
+  "@updateCancel": {"description": "Button: stop the download."},
+  "updateRetry": "Try again",
+  "@updateRetry": {"description": "Button after a failed download or install."},
+  "updateClose": "Close",
+  "@updateClose": {"description": "Button: close the update dialog."},
+  "updateDownloading": "Downloading… {percent}%",
+  "@updateDownloading": {"description": "percent is 0-100.", "placeholders": {"percent": {"type": "String"}}},
+  "updateVerifying": "Checking the downloaded file…",
+  "@updateVerifying": {"description": "After download, before install."},
+  "updateInstalling": "Confirm the installation in the Android window. Dokan Pro restarts as the new version.",
+  "@updateInstalling": {"description": "Android shows its own install confirmation."},
+  "updatePermissionTitle": "Allow Dokan Pro to install updates",
+  "@updatePermissionTitle": {"description": "Android \"Install unknown apps\" permission needed."},
+  "updatePermissionBody": "Android needs your permission once. Tap Open settings, turn on \"Allow from this source\", come back and tap Update now.",
+  "@updatePermissionBody": {"description": "The quoted switch name is Android's own (English) label."},
+  "updateOpenSettings": "Open settings",
+  "@updateOpenSettings": {"description": "Button: open Android install permission screen."},
+  "updateCheckNow": "Check for updates",
+  "@updateCheckNow": {"description": "Settings action."},
+  "updateChecking": "Checking for updates…",
+  "@updateChecking": {"description": "While the manual check runs."},
+  "updateUpToDate": "Dokan Pro is up to date.",
+  "@updateUpToDate": {"description": "Manual check found nothing newer."},
+  "updateErrOffline": "Could not check for updates. Check the internet connection and try again.",
+  "@updateErrOffline": {"description": "Manifest unreachable."},
+  "updateErrManifest": "The update information could not be verified, so nothing was changed.",
+  "@updateErrManifest": {"description": "Manifest signature or fields invalid."},
+  "updateErrDownload": "The download did not finish. Check the internet and try again.",
+  "@updateErrDownload": {"description": "Network error or timeout during download."},
+  "updateErrCorrupt": "The downloaded file failed the safety check and was deleted. Try again.",
+  "@updateErrCorrupt": {"description": "Size or SHA-256 mismatch."},
+  "updateErrPackage": "This file is not a valid Dokan Pro update and was not installed.",
+  "@updateErrPackage": {"description": "Wrong package or version in the APK."},
+  "updateErrSigner": "This update is not signed by Dokan Pro and was not installed. Contact Dokan Pro Support.",
+  "@updateErrSigner": {"description": "Signing certificate does not match the installed app."},
+  "updateErrInstall": "Android could not install the update. The current app and its data are unchanged.",
+  "@updateErrInstall": {"description": "Installer failure."},
+  "updateInstallCancelled": "Installation cancelled. You can update later.",
+  "@updateInstallCancelled": {"description": "User cancelled the Android confirmation."},
+  "productsNameInShop": "Name in your shop",
+  "@productsNameInShop": {"description": "Editable product name when adding a catalog product; the catalog keeps its own name."},
+  "productsCatalogShowMore": "Show more",
+  "@productsCatalogShowMore": {"description": "Loads the next page of catalog products."},
+  "productsAddedNameNotSaved": "Product added, but its new name was not saved. Change it from My Products.",
+  "@productsAddedNameNotSaved": {"description": "Catalog product added but the shop name failed to save."}
+}

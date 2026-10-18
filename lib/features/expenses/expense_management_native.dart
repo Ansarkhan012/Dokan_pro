@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
+import '../../subscription/entitlement_policy.dart';
 import '../../subscription/subscription_runtime.dart';
 import '../../core/errors/safe_error_message.dart';
 import '../../database/app_database.dart';
@@ -16,6 +17,11 @@ import '../pos/pos_state.dart';
 import 'drift_expense_repository.dart';
 import 'expense_models.dart';
 import 'local_expense_service.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/messages.dart';
+import 'expense_category_l10n.dart';
 
 class ExpenseManagementScreen extends StatefulWidget {
   const ExpenseManagementScreen({
@@ -23,9 +29,15 @@ class ExpenseManagementScreen extends StatefulWidget {
     required this.client,
     required this.shopId,
     required this.deviceId,
+    this.authorizer,
   });
   final SupabaseClient client;
   final String shopId, deviceId;
+
+  /// Gate for saving financial records; null means the subscription-checked
+  /// production authorizer (always, in the app). Tests inject one, as the
+  /// local services themselves allow.
+  final FinancialMutationAuthorizer? authorizer;
   @override
   State<ExpenseManagementScreen> createState() => _State();
 }
@@ -87,7 +99,11 @@ class _State extends State<ExpenseManagementScreen> {
     );
   }
 
-  void refresh() => setState(() => data = load());
+  // Block body: returning the Future made setState throw in debug builds,
+  // so a saved expense was reported as "Could not save the expense".
+  void refresh() => setState(() {
+    data = load();
+  });
   @override
   void dispose() {
     search.dispose();
@@ -98,11 +114,11 @@ class _State extends State<ExpenseManagementScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Expenses'),
+      title: Text(context.l10n.ownerNavExpenses),
       actions: [
         IconButton(
           onPressed: customCategory,
-          tooltip: 'Add category',
+          tooltip: context.l10n.expensesAddCategory,
           icon: const Icon(Icons.category_outlined),
         ),
       ],
@@ -110,7 +126,7 @@ class _State extends State<ExpenseManagementScreen> {
     floatingActionButton: FloatingActionButton.extended(
       onPressed: add,
       icon: const Icon(Icons.add),
-      label: const Text('Add Expense'),
+      label: Text(context.l10n.expensesAdd),
     ),
     body: FutureBuilder<_Data>(
       future: data,
@@ -125,16 +141,16 @@ class _State extends State<ExpenseManagementScreen> {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  _total('Today', d.snapshot.todayMinor),
-                  _total('This month', d.snapshot.monthMinor),
+                  _total(context.l10n.billsToday, d.snapshot.todayMinor),
+                  _total(context.l10n.expensesThisMonth, d.snapshot.monthMinor),
                   SizedBox(
                     width: 280,
                     child: TextField(
                       controller: search,
                       onChanged: (_) => refresh(),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        labelText: 'Search description/category',
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        labelText: context.l10n.expensesSearch,
                       ),
                     ),
                   ),
@@ -143,14 +159,16 @@ class _State extends State<ExpenseManagementScreen> {
                     child: DropdownButtonFormField<String?>(
                       initialValue: category,
                       items: [
-                        const DropdownMenuItem(
+                        DropdownMenuItem(
                           value: null,
-                          child: Text('All categories'),
+                          child: Text(context.l10n.productsAllCategories),
                         ),
                         ...d.categories.map(
                           (c) => DropdownMenuItem(
                             value: c.id,
-                            child: Text(c.name),
+                            child: Text(
+                              _categoryName(context, c, shopId: widget.shopId),
+                            ),
                           ),
                         ),
                       ],
@@ -158,7 +176,9 @@ class _State extends State<ExpenseManagementScreen> {
                         category = v;
                         refresh();
                       },
-                      decoration: const InputDecoration(labelText: 'Category'),
+                      decoration: InputDecoration(
+                        labelText: context.l10n.productsCategoryLabel,
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -172,7 +192,11 @@ class _State extends State<ExpenseManagementScreen> {
                       if (mounted) refresh();
                     },
                     icon: const Icon(Icons.calendar_month),
-                    label: Text(date == null ? 'Any date' : _date(date!)),
+                    label: Text(
+                      date == null
+                          ? context.l10n.expensesAnyDate
+                          : bidiId(context, _date(date!)),
+                    ),
                   ),
                   if (date != null)
                     IconButton(
@@ -187,32 +211,39 @@ class _State extends State<ExpenseManagementScreen> {
             ),
             Expanded(
               child: d.snapshot.rows.isEmpty
-                  ? const Center(child: Text('No expenses found.'))
+                  ? Center(child: Text(context.l10n.expensesEmpty))
                   : ListView.builder(
                       itemCount: d.snapshot.rows.length,
                       itemBuilder: (_, i) {
                         final e = d.snapshot.rows[i];
                         return ListTile(
                           leading: const Icon(Icons.receipt_long),
-                          title: Text(e.description),
+                          title: Text(bidiName(context, e.description)),
                           subtitle: Text(
-                            '${e.category} • ${e.paymentMethod.name} • ${_dateTime(e.expenseAt)}',
+                            '${bidiName(context, e.category)} • '
+                            '${_method(context, e.paymentMethod)} • '
+                            '${bidiId(context, _dateTime(e.expenseAt))}',
                           ),
                           trailing: Text(
-                            formatPkr(e.amountMinor),
+                            bidiMoney(context, formatPkr(e.amountMinor)),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           onTap: () => showDialog<void>(
                             context: context,
                             builder: (_) => AlertDialog(
-                              title: Text(e.description),
+                              title: Text(bidiName(context, e.description)),
                               content: Text(
-                                '${e.category}\n${formatPkr(e.amountMinor)} • ${e.paymentMethod.name}\n${_dateTime(e.expenseAt)}${e.reference == null ? '' : '\nReference: ${e.reference}'}${e.note == null ? '' : '\n${e.note}'}',
+                                '${bidiName(context, e.category)}\n'
+                                '${bidiMoney(context, formatPkr(e.amountMinor))} • '
+                                '${_method(context, e.paymentMethod)}\n'
+                                '${bidiId(context, _dateTime(e.expenseAt))}'
+                                '${e.reference == null ? '' : '\n${context.l10n.expensesReferenceLine(bidiName(context, e.reference!))}'}'
+                                '${e.note == null ? '' : '\n${bidiName(context, e.note!)}'}',
                               ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text('Close'),
+                                  child: Text(context.l10n.commonClose),
                                 ),
                               ],
                             ),
@@ -234,7 +265,7 @@ class _State extends State<ExpenseManagementScreen> {
         children: [
           Text(label),
           Text(
-            formatPkr(value),
+            bidiMoney(context, formatPkr(value)),
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ],
@@ -246,15 +277,17 @@ class _State extends State<ExpenseManagementScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Custom category'),
+        title: Text(context.l10n.expensesCustomCategory),
         content: TextField(
           controller: c,
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: InputDecoration(
+            labelText: context.l10n.expensesCategoryName,
+          ),
         ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(context, c.text.trim()),
-            child: const Text('Add'),
+            child: Text(context.l10n.posAdd),
           ),
         ],
       ),
@@ -271,7 +304,7 @@ class _State extends State<ExpenseManagementScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Category could not be created.')),
+          SnackBar(content: Text(context.l10n.expensesCategoryFailed)),
         );
       }
     }
@@ -282,14 +315,16 @@ class _State extends State<ExpenseManagementScreen> {
     if (!mounted) return;
     final draft = await showDialog<_Input>(
       context: context,
-      builder: (_) => _ExpenseForm(categories: categories),
+      builder: (_) =>
+          _ExpenseForm(categories: categories, shopId: widget.shopId),
     );
     if (draft == null) return;
     try {
       await LocalExpenseService(
         db!,
         const UuidV7Generator(),
-        authorizer: productionFinancialMutationAuthorizer(),
+        authorizer:
+            widget.authorizer ?? productionFinancialMutationAuthorizer(),
       ).create(
         ExpenseDraft(
           shopId: widget.shopId,
@@ -314,16 +349,19 @@ class _State extends State<ExpenseManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Expense saved locally.')));
+        ).showSnackBar(SnackBar(content: Text(context.l10n.expensesSaved)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              safeUserMessage(
-                e,
-                fallback: 'Could not save the expense. Please try again.',
+              localizedMessage(
+                context.l10n,
+                safeUserMessage(
+                  e,
+                  fallback: 'Could not save the expense. Please try again.',
+                ),
               ),
             ),
           ),
@@ -334,8 +372,9 @@ class _State extends State<ExpenseManagementScreen> {
 }
 
 class _ExpenseForm extends StatefulWidget {
-  const _ExpenseForm({required this.categories});
+  const _ExpenseForm({required this.categories, required this.shopId});
   final List<ExpenseCategoryModel> categories;
+  final String shopId;
   @override
   State<_ExpenseForm> createState() => _ExpenseFormState();
 }
@@ -358,7 +397,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Add Expense'),
+    title: Text(context.l10n.expensesAdd),
     content: SizedBox(
       width: 440,
       child: SingleChildScrollView(
@@ -368,39 +407,54 @@ class _ExpenseFormState extends State<_ExpenseForm> {
             DropdownButtonFormField<ExpenseCategoryModel>(
               initialValue: category,
               items: widget.categories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        _categoryName(context, c, shopId: widget.shopId),
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) => setState(() => category = v),
-              decoration: const InputDecoration(labelText: 'Category *'),
+              decoration: InputDecoration(
+                labelText: context.l10n.customCategoryRequired,
+              ),
             ),
             TextField(
               controller: description,
-              decoration: const InputDecoration(labelText: 'Description *'),
+              decoration: InputDecoration(
+                labelText: context.l10n.expenseDescriptionRequired,
+              ),
             ),
             TextField(
               controller: amount,
+              inputFormatters: const [AsciiDigitsFormatter()],
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Amount *',
+              decoration: InputDecoration(
+                labelText: context.l10n.expenseAmountRequired,
                 prefixText: 'Rs ',
               ),
             ),
             SegmentedButton<PaymentMethod>(
-              segments: const [
-                ButtonSegment(value: PaymentMethod.cash, label: Text('Cash')),
+              segments: [
+                ButtonSegment(
+                  value: PaymentMethod.cash,
+                  label: Text(context.l10n.paymentCash),
+                ),
                 ButtonSegment(
                   value: PaymentMethod.digital,
-                  label: Text('Digital'),
+                  label: Text(context.l10n.paymentDigital),
                 ),
               ],
               selected: {method},
               onSelectionChanged: (v) => setState(() => method = v.single),
             ),
             ListTile(
-              title: const Text('Expense date'),
-              subtitle: Text(_date(date)),
+              title: Text(context.l10n.expenseDate),
+              subtitle: Text(bidiId(context, _date(date))),
               onTap: () async {
                 final v = await showDatePicker(
                   context: context,
@@ -413,11 +467,13 @@ class _ExpenseFormState extends State<_ExpenseForm> {
             ),
             TextField(
               controller: reference,
-              decoration: const InputDecoration(labelText: 'Reference'),
+              decoration: InputDecoration(
+                labelText: context.l10n.commonReference,
+              ),
             ),
             TextField(
               controller: note,
-              decoration: const InputDecoration(labelText: 'Note'),
+              decoration: InputDecoration(labelText: context.l10n.commonNote),
             ),
           ],
         ),
@@ -426,7 +482,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: () {
@@ -436,7 +492,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
               a <= 0 ||
               description.text.trim().isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Complete all required fields.')),
+              SnackBar(content: Text(context.l10n.expensesErrRequired)),
             );
             return;
           }
@@ -453,7 +509,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
             ),
           );
         },
-        child: const Text('Save'),
+        child: Text(context.l10n.commonSave),
       ),
     ],
   );
@@ -477,6 +533,22 @@ final class _Input {
   final String? note, reference;
 }
 
+/// Default categories translated by their stable id in [shopId]; the shop's
+/// own categories exactly as entered.
+String _categoryName(
+  BuildContext context,
+  ExpenseCategoryModel category, {
+  required String shopId,
+}) => bidiName(
+  context,
+  localizedExpenseCategory(
+    context.l10n,
+    shopId: shopId,
+    id: category.id,
+    name: category.name,
+  ),
+);
+
 final class _Data {
   const _Data(this.categories, this.snapshot);
   final List<ExpenseCategoryModel> categories;
@@ -484,6 +556,10 @@ final class _Data {
 }
 
 String? _o(String s) => s.trim().isEmpty ? null : s.trim();
+
+/// A payment method as stored (`cash`), translated in Urdu.
+String _method(BuildContext context, PaymentMethod method) =>
+    context.l10n.paymentStored(method.name, method.name);
 String _date(DateTime d) => '${d.day}/${d.month}/${d.year}';
 String _dateTime(DateTime d) =>
     '${_date(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';

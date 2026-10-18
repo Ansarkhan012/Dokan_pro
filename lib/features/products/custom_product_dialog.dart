@@ -13,6 +13,11 @@ import 'product_image_picker.dart';
 import 'product_management_models.dart';
 import 'product_management_native.dart' show parseQuantity;
 import 'product_management_service.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 /// What the Create Custom Product dialog returns: the synced product input
 /// plus an optional, already-compressed local thumbnail.
@@ -286,20 +291,27 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
 
   @override
   Widget build(BuildContext context) => PosFormDialog(
-    title: 'Create Custom Product',
-    subtitle: 'For items that are not in the master catalog.',
+    title: context.l10n.productsCreateCustom,
+    subtitle: context.l10n.customSubtitle,
     locked: saving,
-    message: formFooterMessage(context, error),
+    // Errors are kept as their English source and translated here, so a
+    // language switch re-translates a message already on screen.
+    message: formFooterMessage(
+      context,
+      error == null ? null : localizedMessage(context.l10n, error!),
+    ),
     body: (context, wide) => _body(wide),
     actions: [
       TextButton(
         onPressed: saving ? null : () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         key: const ValueKey('custom-product-create'),
         onPressed: processingImage || saving ? null : _submit,
-        child: Text(saving ? 'Creating…' : 'Create Product'),
+        child: Text(
+          saving ? context.l10n.customCreating : context.l10n.customCreate,
+        ),
       ),
     ],
   );
@@ -335,40 +347,47 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
   }
 
   Widget _fields() {
-    final per = loose ? ' per ${measure.wholeLabel}' : '';
-    final stockUnit = loose ? ' (${measure.wholeLabel})' : '';
+    final l10n = context.l10n;
+    final unitLabel = localizedWholeUnit(l10n, measure);
     final barcodeField = TextField(
       key: const ValueKey('custom-product-barcode'),
       controller: barcode,
+      inputFormatters: const [AsciiDigitsFormatter()],
       textInputAction: TextInputAction.next,
-      decoration: const InputDecoration(
-        labelText: 'Barcode',
-        hintText: 'Optional',
+      decoration: InputDecoration(
+        labelText: l10n.fieldBarcode,
+        hintText: l10n.commonOptional,
       ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const FormSectionLabel('Product details'),
+        FormSectionLabel(l10n.customProductDetails),
         SegmentedButton<SellingType>(
           key: const ValueKey('custom-product-selling-type'),
-          segments: const [
+          segments: [
             ButtonSegment(
               value: SellingType.piece,
-              icon: Icon(Icons.inventory_2_outlined),
-              label: Text('Single Piece', key: ValueKey('selling-piece')),
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: Text(
+                l10n.sellingPiece,
+                key: const ValueKey('selling-piece'),
+              ),
             ),
             ButtonSegment(
               value: SellingType.loose,
-              icon: Icon(Icons.scale_outlined),
-              label: Text('Loose / Measured', key: ValueKey('selling-loose')),
+              icon: const Icon(Icons.scale_outlined),
+              label: Text(
+                l10n.sellingLoose,
+                key: const ValueKey('selling-loose'),
+              ),
             ),
             ButtonSegment(
               value: SellingType.packaged,
-              icon: Icon(Icons.layers_outlined),
+              icon: const Icon(Icons.layers_outlined),
               label: Text(
-                'Packaged Variants',
-                key: ValueKey('selling-packaged'),
+                l10n.sellingPackaged,
+                key: const ValueKey('selling-packaged'),
               ),
             ),
           ],
@@ -385,15 +404,17 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(
-            labelText: packaged ? 'Product family name *' : 'Product name *',
-            hintText: packaged ? 'e.g. Tapal Danedar' : null,
+            labelText: packaged
+                ? l10n.customFamilyName
+                : l10n.customProductName,
+            hintText: packaged ? l10n.customFamilyHint : null,
           ),
         ),
         const SizedBox(height: 12),
         if (packaged) ...[
           _categoryField(),
           const SizedBox(height: 24),
-          const FormSectionLabel('Pack sizes'),
+          FormSectionLabel(l10n.customPackSizes),
           PackFamilyEditor(
             key: const ValueKey('custom-product-packs'),
             rows: packs,
@@ -411,12 +432,17 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
               key: const ValueKey('custom-product-category'),
               initialValue: categoryId,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Category *'),
+              decoration: InputDecoration(
+                labelText: l10n.customCategoryRequired,
+              ),
               items: widget.categories
                   .map(
                     (c) => DropdownMenuItem(
                       value: c.id,
-                      child: Text(c.name, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        _category(context, c),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   )
                   .toList(),
@@ -426,16 +452,19 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
                 ? SegmentedButton<MeasureUnit>(
                     key: const ValueKey('custom-product-measure'),
                     showSelectedIcon: false,
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: MeasureUnit.kg,
-                        label: Text('Weight (kg)', key: ValueKey('measure-kg')),
+                        label: Text(
+                          l10n.measureWeightKg,
+                          key: const ValueKey('measure-kg'),
+                        ),
                       ),
                       ButtonSegment(
                         value: MeasureUnit.liter,
                         label: Text(
-                          'Volume (L)',
-                          key: ValueKey('measure-liter'),
+                          l10n.measureVolumeL,
+                          key: const ValueKey('measure-liter'),
                         ),
                       ),
                     ],
@@ -446,11 +475,15 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
                 : DropdownButtonFormField<ProductUnit>(
                     initialValue: unit,
                     isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Unit *'),
+                    decoration: InputDecoration(
+                      labelText: l10n.customUnitRequired,
+                    ),
                     items: ProductUnit.values
                         .map(
-                          (u) =>
-                              DropdownMenuItem(value: u, child: Text(u.label)),
+                          (u) => DropdownMenuItem(
+                            value: u,
+                            child: Text(l10n.unitName(u.name, u.label)),
+                          ),
                         )
                         .toList(),
                     onChanged: (v) => setState(() => unit = v!),
@@ -465,23 +498,23 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
               TextField(
                 controller: pack,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Pack size / label',
-                  hintText: 'e.g. 500 g',
+                decoration: InputDecoration(
+                  labelText: l10n.customPackLabel,
+                  hintText: l10n.customPackLabelHint,
                 ),
               ),
             ),
           const SizedBox(height: 24),
-          const FormSectionLabel('Pricing & stock'),
+          FormSectionLabel(l10n.customPricingStock),
           FieldPair(
             moneyField(
               purchase,
-              'Purchase price$per *',
+              '${loose ? l10n.fieldPurchasePricePer(unitLabel) : l10n.fieldPurchasePrice} *',
               key: const ValueKey('custom-product-purchase'),
             ),
             moneyField(
               sale,
-              'Sale price$per *',
+              '${loose ? l10n.fieldSalePricePer(unitLabel) : l10n.fieldSalePrice} *',
               key: const ValueKey('custom-product-sale'),
             ),
           ),
@@ -489,19 +522,23 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
           FieldPair(
             quantityField(
               opening,
-              'Opening stock$stockUnit',
+              loose
+                  ? l10n.fieldOpeningStockIn(unitLabel)
+                  : l10n.fieldOpeningStock,
               key: const ValueKey('custom-product-opening'),
             ),
             quantityField(
               low,
-              'Low-stock alert at$stockUnit',
+              loose
+                  ? l10n.fieldLowStockAlertIn(unitLabel)
+                  : l10n.fieldLowStockAlert,
               key: const ValueKey('custom-product-low'),
               onSubmitted: loose ? null : _submit,
             ),
           ),
           if (loose) ...[
             const SizedBox(height: 24),
-            const FormSectionLabel('Quick quantities'),
+            FormSectionLabel(l10n.customQuickQuantities),
             MeasurePresetEditor(
               key: const ValueKey('custom-product-presets'),
               unit: measure,
@@ -514,10 +551,8 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
               contentPadding: EdgeInsets.zero,
               value: allowCustomQuantity,
               onChanged: (value) => setState(() => allowCustomQuantity = value),
-              title: const Text('Allow custom quantity'),
-              subtitle: const Text(
-                'Cashier may type any amount, not only quick quantities.',
-              ),
+              title: Text(l10n.customAllowCustom),
+              subtitle: Text(l10n.customAllowCustomHint),
             ),
           ],
         ],
@@ -529,12 +564,12 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
     key: const ValueKey('custom-product-category'),
     initialValue: categoryId,
     isExpanded: true,
-    decoration: const InputDecoration(labelText: 'Category *'),
+    decoration: InputDecoration(labelText: context.l10n.customCategoryRequired),
     items: widget.categories
         .map(
           (c) => DropdownMenuItem(
             value: c.id,
-            child: Text(c.name, overflow: TextOverflow.ellipsis),
+            child: Text(_category(context, c), overflow: TextOverflow.ellipsis),
           ),
         )
         .toList(),
@@ -543,6 +578,12 @@ class _CustomProductDialogState extends State<CustomProductDialog> {
         : (v) => setState(() => categoryId = v),
   );
 }
+
+/// A category option: built-ins translated by id, shop categories as entered.
+String _category(BuildContext context, ProductCategory category) => bidiName(
+  context,
+  localizedCategoryName(context.l10n, category.id, category.name),
+);
 
 /// Numeric money input shared by Create and Edit product.
 Widget moneyField(
@@ -576,7 +617,10 @@ Widget _numberField(
   key: key,
   controller: controller,
   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+  inputFormatters: [
+    const AsciiDigitsFormatter(),
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+  ],
   textInputAction: onSubmitted == null
       ? TextInputAction.next
       : TextInputAction.done,
@@ -609,7 +653,7 @@ class ProductImagePickerCard extends StatelessWidget {
     final bytes = image;
     final frame = Semantics(
       button: true,
-      label: bytes == null ? null : 'Change product image',
+      label: bytes == null ? null : context.l10n.imageChangeSemantics,
       child: AspectRatio(
         aspectRatio: 1,
         child: Material(
@@ -631,7 +675,7 @@ class ProductImagePickerCard extends StatelessWidget {
                     key: const ValueKey('product-image-preview'),
                     fit: BoxFit.cover,
                     gaplessPlayback: true,
-                    semanticLabel: 'Product image preview',
+                    semanticLabel: context.l10n.imagePreviewSemantics,
                     errorBuilder: (_, _, _) => const _EmptyImageHint(),
                   )
                 else
@@ -651,7 +695,7 @@ class ProductImagePickerCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Product image',
+          context.l10n.imageSection,
           style: theme.textTheme.titleSmall?.copyWith(
             color: scheme.primary,
             fontWeight: FontWeight.w700,
@@ -662,7 +706,7 @@ class ProductImagePickerCard extends StatelessWidget {
         const SizedBox(height: 10),
         if (bytes == null)
           Text(
-            'Optional · JPG, PNG or WebP',
+            context.l10n.imageFormats,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
@@ -678,14 +722,14 @@ class ProductImagePickerCard extends StatelessWidget {
                 key: const ValueKey('product-image-change'),
                 onPressed: busy ? null : onChoose,
                 icon: const Icon(Icons.photo_library_outlined, size: 18),
-                label: const Text('Change'),
+                label: Text(context.l10n.imageChange),
               ),
               TextButton.icon(
                 key: const ValueKey('product-image-remove'),
                 onPressed: busy ? null : onRemove,
                 style: TextButton.styleFrom(foregroundColor: scheme.error),
                 icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('Remove'),
+                label: Text(context.l10n.commonRemove),
               ),
             ],
           ),
@@ -693,7 +737,7 @@ class ProductImagePickerCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              error!,
+              localizedMessage(context.l10n, error!),
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.error),
             ),
@@ -721,7 +765,7 @@ class _EmptyImageHint extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Choose product image',
+              context.l10n.imageChoose,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: scheme.onSurface,

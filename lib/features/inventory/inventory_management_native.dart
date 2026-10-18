@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/domain/enums.dart';
@@ -5,6 +7,7 @@ import '../../core/format/display_format.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/ui/pos_ui.dart';
 import '../pos/product_thumbnail.dart';
+import '../../subscription/entitlement_policy.dart';
 import '../../subscription/subscription_runtime.dart';
 import '../../database/app_database.dart';
 import '../../database/repositories/sync_queue_repository.dart';
@@ -15,6 +18,12 @@ import '../products/product_management_native.dart' show parseQuantity;
 import 'drift_inventory_repository.dart';
 import 'inventory_models.dart';
 import 'local_inventory_adjustment_service.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({
@@ -22,9 +31,15 @@ class InventoryManagementScreen extends StatefulWidget {
     required this.client,
     required this.shopId,
     required this.deviceId,
+    this.authorizer,
   });
   final SupabaseClient client;
   final String shopId, deviceId;
+
+  /// Gate for saving financial records; null means the subscription-checked
+  /// production authorizer (always, in the app). Tests inject one, as the
+  /// local services themselves allow.
+  final FinancialMutationAuthorizer? authorizer;
   @override
   State<InventoryManagementScreen> createState() =>
       _InventoryManagementScreenState();
@@ -47,7 +62,11 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
     );
   }
 
-  void refresh() => setState(() => data = _open());
+  // Block body: returning the Future made setState throw in debug builds,
+  // so a saved adjustment was reported as "could not be saved".
+  void refresh() => setState(() {
+    data = _open();
+  });
   @override
   void dispose() {
     search.dispose();
@@ -57,7 +76,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Inventory')),
+    appBar: AppBar(title: Text(context.l10n.ownerNavInventory)),
     body:
         FutureBuilder<(List<InventoryProductRow>, List<InventoryMovementRow>)>(
           future: data,
@@ -67,10 +86,10 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Inventory could not be loaded.'),
+                    Text(context.l10n.inventoryLoadFailed),
                     FilledButton(
                       onPressed: refresh,
-                      child: const Text('Try again'),
+                      child: Text(context.l10n.commonTryAgain),
                     ),
                   ],
                 ),
@@ -84,10 +103,10 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
               length: 2,
               child: Column(
                 children: [
-                  const TabBar(
+                  TabBar(
                     tabs: [
-                      Tab(text: 'Current Stock'),
-                      Tab(text: 'Movement History'),
+                      Tab(text: context.l10n.inventoryTabCurrent),
+                      Tab(text: context.l10n.inventoryTabHistory),
                     ],
                   ),
                   Expanded(
@@ -127,25 +146,25 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
                         controller: search,
                         textInputAction: TextInputAction.search,
                         onSubmitted: (_) => refresh(),
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          labelText: 'Search product or barcode',
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search),
+                          labelText: context.l10n.inventorySearchLabel,
                         ),
                       ),
                     ),
                     SegmentedButton<InventoryFilter>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(
                           value: InventoryFilter.all,
-                          label: Text('All'),
+                          label: Text(context.l10n.posCategoryAll),
                         ),
                         ButtonSegment(
                           value: InventoryFilter.lowStock,
-                          label: Text('Low'),
+                          label: Text(context.l10n.inventoryFilterLow),
                         ),
                         ButtonSegment(
                           value: InventoryFilter.outOfStock,
-                          label: Text('Out'),
+                          label: Text(context.l10n.inventoryFilterOut),
                         ),
                       ],
                       selected: {filter},
@@ -160,9 +179,9 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
             ),
           ),
           if (products.isEmpty)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(child: Text('No products match this filter.')),
+              child: Center(child: Text(context.l10n.productsNoMatch)),
             )
           else
             SliverPadding(
@@ -182,7 +201,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   );
 
   Widget _historyTab(List<InventoryMovementRow> history) => history.isEmpty
-      ? const Center(child: Text('No stock movements yet.'))
+      ? Center(child: Text(context.l10n.inventoryNoMovements))
       : LayoutBuilder(
           builder: (context, constraints) {
             final side = _side(constraints.maxWidth);
@@ -196,62 +215,154 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
           },
         );
 
+  bool _adjusting = false;
+
   Future<void> _adjust(InventoryProductRow product) async {
-    final input = await showDialog<(InventoryMovementType, int, String)>(
-      context: context,
-      builder: (_) => _AdjustmentDialog(product: product),
-    );
-    if (input == null || db == null) return;
+    final database = db;
+    // One adjustment at a time: a second tap on Adjust opens nothing.
+    if (database == null || _adjusting) return;
+    _adjusting = true;
     try {
-      await LocalInventoryAdjustmentService(
-        db!,
-        const UuidV7Generator(),
-        authorizer: productionFinancialMutationAuthorizer(),
-      ).record(
-        shopId: widget.shopId,
-        productId: product.id,
-        ownerId: widget.client.auth.currentUser!.id,
-        deviceId: widget.deviceId,
-        type: input.$1,
-        quantity: input.$2,
-        note: input.$3,
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (_) => InventoryAdjustmentDialog(
+          product: product,
+          onSave: (type, quantity, note) =>
+              LocalInventoryAdjustmentService(
+                database,
+                const UuidV7Generator(),
+                authorizer:
+                    widget.authorizer ??
+                    productionFinancialMutationAuthorizer(),
+              ).record(
+                shopId: widget.shopId,
+                productId: product.id,
+                ownerId: widget.client.auth.currentUser!.id,
+                deviceId: widget.deviceId,
+                type: type,
+                quantity: quantity,
+                note: note,
+              ),
+        ),
       );
+      if (saved != true || !mounted) return;
+      // Committed locally: stock and history show it now. The upload is best
+      // effort (the change is queued) and can never turn this into a failure.
+      refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.inventoryAdjustSaved)),
+      );
+      unawaited(_upload(database));
+    } finally {
+      _adjusting = false;
+    }
+  }
+
+  Future<void> _upload(AppDatabase database) async {
+    try {
       await SyncWorker(
-        queue: SyncQueueRepository(db!, shopId: widget.shopId),
+        queue: SyncQueueRepository(database, shopId: widget.shopId),
         gateway: SupabaseSaleUploadGateway(widget.client),
         workerId: uniqueSyncWorkerId('owner-${widget.deviceId}'),
       ).runOnce();
-      refresh();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Stock adjustment saved locally.')),
-        );
-      }
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Stock adjustment could not be saved. Check the quantity and try again.',
-            ),
-          ),
-        );
-      }
+      // Offline or refused: it stays queued and shows under Sync issues.
     }
   }
 }
 
-class _AdjustmentDialog extends StatefulWidget {
-  const _AdjustmentDialog({required this.product});
-  final InventoryProductRow product;
-  @override
-  State<_AdjustmentDialog> createState() => _AdjustmentDialogState();
+/// Thousandths typed for a stock adjustment: `20`, `+20`, `-5`, `2.5`
+/// (Urdu or Arabic digits too). Null when it is not a number.
+int? parseSignedQuantity(String input) {
+  var text = normalizeDigits(input).trim();
+  var negative = false;
+  if (text.startsWith('+')) {
+    text = text.substring(1).trimLeft();
+  } else if (text.startsWith('-') || text.startsWith('\u2212')) {
+    negative = true;
+    text = text.substring(1).trimLeft();
+  }
+  final value = parseQuantity(text);
+  if (value == null) return null;
+  return negative ? -value : value;
 }
 
-class _AdjustmentDialogState extends State<_AdjustmentDialog> {
+/// The first problem with an adjustment the owner typed, or null when it can
+/// be saved. Manual correction takes a signed quantity; opening stock and
+/// damage take a plain one (damage always removes stock).
+String Function(AppLocalizations)? adjustmentInputError({
+  required InventoryMovementType type,
+  required String quantity,
+  required String note,
+  required bool measured,
+}) {
+  if (quantity.trim().isEmpty) {
+    return (l10n) => l10n.inventoryErrQuantityMissing;
+  }
+  final value = parseSignedQuantity(quantity);
+  if (value == null) return (l10n) => l10n.inventoryErrQuantityFormat;
+  if (value == 0) return (l10n) => l10n.inventoryErrQuantityZero;
+  if (value < 0 && type != InventoryMovementType.manualAdjustment) {
+    return (l10n) => l10n.inventoryErrQuantitySign;
+  }
+  if (!measured && value % 1000 != 0) {
+    return (l10n) => l10n.inventoryErrWholeUnits;
+  }
+  if (note.trim().isEmpty) return (l10n) => l10n.inventoryErrReasonRequired;
+  return null;
+}
+
+/// Why the service refused an adjustment, in the owner's language.
+String Function(AppLocalizations) _adjustmentRefusal(Object error) {
+  final message = switch (error) {
+    ArgumentError(:final message) => '$message',
+    StateError(:final message) => message,
+    SubscriptionMutationBlocked(:final message) => message,
+    _ => null,
+  };
+  return switch (message) {
+    'Quantity cannot be zero.' => (l10n) => l10n.inventoryErrQuantityZero,
+    'Quantity must be positive for this adjustment.' =>
+      (l10n) => l10n.inventoryErrQuantitySign,
+    'A reason is required.' => (l10n) => l10n.inventoryErrReasonRequired,
+    'Piece products are adjusted in whole units.' =>
+      (l10n) => l10n.inventoryErrWholeUnits,
+    'This adjustment would make stock negative.' =>
+      (l10n) => l10n.inventoryErrWouldGoNegative,
+    final String text when error is SubscriptionMutationBlocked =>
+      (l10n) => localizedMessage(l10n, text),
+    _ => (l10n) => l10n.inventoryAdjustFailed,
+  };
+}
+
+/// Records one stock adjustment. [onSave] runs once per Save (the button is
+/// locked while it runs); the dialog closes with `true` only after it
+/// succeeds, and shows the actual problem when it is refused.
+class InventoryAdjustmentDialog extends StatefulWidget {
+  const InventoryAdjustmentDialog({
+    super.key,
+    required this.product,
+    required this.onSave,
+  });
+  final InventoryProductRow product;
+  final Future<void> Function(
+    InventoryMovementType type,
+    int quantity,
+    String note,
+  )
+  onSave;
+  @override
+  State<InventoryAdjustmentDialog> createState() =>
+      _InventoryAdjustmentDialogState();
+}
+
+class _InventoryAdjustmentDialogState extends State<InventoryAdjustmentDialog> {
   InventoryMovementType type = InventoryMovementType.manualAdjustment;
   final quantity = TextEditingController(), note = TextEditingController();
-  String? error;
+  bool saving = false;
+
+  /// Resolved when shown, so a language switch also translates it.
+  String Function(AppLocalizations)? error;
   @override
   void dispose() {
     quantity.dispose();
@@ -259,77 +370,139 @@ class _AdjustmentDialogState extends State<_AdjustmentDialog> {
     super.dispose();
   }
 
+  Future<void> save() async {
+    if (saving) return;
+    final problem = adjustmentInputError(
+      type: type,
+      quantity: quantity.text,
+      note: note.text,
+      measured: widget.product.measured,
+    );
+    if (problem != null) {
+      setState(() => error = problem);
+      return;
+    }
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      await widget.onSave(
+        type,
+        parseSignedQuantity(quantity.text)!,
+        note.text.trim(),
+      );
+    } catch (e) {
+      // Nothing was written: the service checks before its transaction ends.
+      if (mounted) {
+        setState(() {
+          saving = false;
+          error = _adjustmentRefusal(e);
+        });
+      }
+      return;
+    }
+    if (mounted) Navigator.pop(context, true);
+  }
+
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Adjust ${widget.product.name}'),
-    content: SizedBox(
-      width: 420,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<InventoryMovementType>(
-            initialValue: type,
-            decoration: const InputDecoration(labelText: 'Reason'),
-            items: const [
-              DropdownMenuItem(
-                value: InventoryMovementType.manualAdjustment,
-                child: Text('Manual correction (+ / -)'),
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return PopScope(
+      canPop: !saving,
+      child: AlertDialog(
+        // Scrolls above the soft keyboard; the actions stay visible.
+        scrollable: true,
+        title: Text(
+          l10n.inventoryAdjustTitle(
+            productDisplayName(
+              context,
+              widget.product.name,
+              productId: widget.product.id,
+            ),
+          ),
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<InventoryMovementType>(
+                initialValue: type,
+                decoration: InputDecoration(labelText: l10n.inventoryReason),
+                items: [
+                  DropdownMenuItem(
+                    value: InventoryMovementType.manualAdjustment,
+                    child: Text(l10n.inventoryManualCorrection),
+                  ),
+                  DropdownMenuItem(
+                    value: InventoryMovementType.damage,
+                    child: Text(l10n.movementDamage),
+                  ),
+                  DropdownMenuItem(
+                    value: InventoryMovementType.openingStock,
+                    child: Text(l10n.movementOpening),
+                  ),
+                ],
+                onChanged: saving
+                    ? null
+                    : (v) => setState(() {
+                        type = v!;
+                        error = null;
+                      }),
               ),
-              DropdownMenuItem(
-                value: InventoryMovementType.damage,
-                child: Text('Damaged / wastage'),
+              TextField(
+                key: const ValueKey('adjust-quantity'),
+                controller: quantity,
+                enabled: !saving,
+                textDirection: TextDirection.ltr,
+                inputFormatters: const [AsciiDigitsFormatter()],
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: type == InventoryMovementType.manualAdjustment
+                      ? l10n.inventoryQuantitySigned
+                      : l10n.measureQuantityLabel,
+                ),
               ),
-              DropdownMenuItem(
-                value: InventoryMovementType.openingStock,
-                child: Text('Opening stock'),
+              TextField(
+                key: const ValueKey('adjust-note'),
+                controller: note,
+                enabled: !saving,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => save(),
+                decoration: InputDecoration(
+                  labelText: l10n.inventoryReasonNote,
+                ),
               ),
+              if (error case final error?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    error(l10n),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
             ],
-            onChanged: (v) => setState(() => type = v!),
           ),
-          TextField(
-            controller: quantity,
-            decoration: InputDecoration(
-              labelText: type == InventoryMovementType.manualAdjustment
-                  ? 'Quantity (+ / -)'
-                  : 'Quantity',
+        ),
+        actions: [
+          TextButton(
+            onPressed: saving ? null : () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            key: const ValueKey('adjust-save'),
+            onPressed: saving ? null : save,
+            child: Text(
+              saving ? l10n.inventorySaving : l10n.inventorySaveAdjustment,
             ),
           ),
-          TextField(
-            controller: note,
-            decoration: const InputDecoration(labelText: 'Reason / note *'),
-          ),
-          if (error != null)
-            Text(
-              error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
         ],
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          final raw = quantity.text.trim();
-          final negative = raw.startsWith('-');
-          final parsed = parseQuantity(negative ? raw.substring(1) : raw);
-          final value = parsed == null ? null : (negative ? -parsed : parsed);
-          if (value == null ||
-              value == 0 ||
-              note.text.trim().isEmpty ||
-              (type != InventoryMovementType.manualAdjustment && value < 0)) {
-            setState(() => error = 'Enter a valid quantity and reason.');
-            return;
-          }
-          Navigator.pop(context, (type, value, note.text.trim()));
-        },
-        child: const Text('Save Adjustment'),
-      ),
-    ],
-  );
+    );
+  }
 }
 
 /// One Current Stock row: identity on the left, stock and Adjust together on
@@ -346,9 +519,10 @@ class InventoryStockRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = product;
+    final l10n = context.l10n;
     final secondary = [
-      humanizeIdentifier(p.unit),
-      p.barcode ?? 'No barcode',
+      l10n.unitName(p.unit, humanizeIdentifier(p.unit)),
+      p.barcode == null ? l10n.posNoBarcode : bidiId(context, p.barcode!),
     ].join(' • ');
     final stockColor = p.isOutOfStock
         ? StatusPill.colorFor(StatusTone.danger)
@@ -371,7 +545,7 @@ class InventoryStockRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  p.name,
+                  productDisplayName(context, p.name, productId: p.id),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -394,7 +568,7 @@ class InventoryStockRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                formatDisplayQuantity(p.stockQuantity),
+                bidiQuantity(context, formatDisplayQuantity(p.stockQuantity)),
                 key: ValueKey('stock-${p.id}'),
                 style: TextStyle(
                   fontSize: 20,
@@ -403,18 +577,21 @@ class InventoryStockRow extends StatelessWidget {
                 ),
               ),
               if (p.isOutOfStock)
-                const StatusPill('Out of stock', tone: StatusTone.danger)
+                StatusPill(l10n.inventoryOutOfStock, tone: StatusTone.danger)
               else if (p.isLowStock)
-                const StatusPill('Low stock', tone: StatusTone.warning)
+                StatusPill(l10n.posLowStock, tone: StatusTone.warning)
               else
-                const Text(
-                  'in stock',
-                  style: TextStyle(color: posMuted, fontSize: 12),
+                Text(
+                  l10n.inventoryInStock,
+                  style: const TextStyle(color: posMuted, fontSize: 12),
                 ),
               if (!p.isActive)
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: StatusPill('Inactive', tone: StatusTone.neutral),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: StatusPill(
+                    l10n.productsInactive,
+                    tone: StatusTone.neutral,
+                  ),
                 ),
             ],
           ),
@@ -422,7 +599,7 @@ class InventoryStockRow extends StatelessWidget {
           OutlinedButton(
             onPressed: onAdjust,
             style: OutlinedButton.styleFrom(minimumSize: const Size(88, 44)),
-            child: const Text('Adjust'),
+            child: Text(l10n.inventoryAdjust),
           ),
         ],
       ),
@@ -446,6 +623,22 @@ String inventoryMovementLabel(
   InventoryMovementType.stockCorrection => 'Stock correction',
 };
 
+/// [inventoryMovementLabel] in the UI language.
+String localizedInventoryMovementLabel(
+  AppLocalizations l10n,
+  InventoryMovementType type, {
+  String? referenceType,
+}) => switch (type) {
+  InventoryMovementType.openingStock => l10n.movementOpening,
+  InventoryMovementType.purchase => l10n.movementPurchase,
+  InventoryMovementType.sale => l10n.movementSale,
+  InventoryMovementType.returnIn =>
+    referenceType == 'sale_void' ? l10n.movementVoid : l10n.movementReturn,
+  InventoryMovementType.damage => l10n.movementDamage,
+  InventoryMovementType.manualAdjustment => l10n.movementAdjustment,
+  InventoryMovementType.stockCorrection => l10n.movementCorrection,
+};
+
 class InventoryMovementTile extends StatelessWidget {
   const InventoryMovementTile({super.key, required this.movement});
   final InventoryMovementRow movement;
@@ -453,14 +646,20 @@ class InventoryMovementTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = movement;
-    final label = inventoryMovementLabel(
+    final l10n = context.l10n;
+    final label = localizedInventoryMovementLabel(
+      l10n,
       m.type,
       referenceType: m.referenceType,
     );
     final details = [
       label,
-      if (m.reference != null) m.reference!,
-      formatDisplayDateTime(m.createdAt, separator: ', '),
+      if (m.reference != null) bidiId(context, m.reference!),
+      // `5 Oct 2026, 1:17 PM`; Urdu uses its own comma.
+      l10n.dateWithTime(
+        localizedDate(l10n, m.createdAt),
+        localizedTime(l10n, m.createdAt),
+      ),
     ].join(' • ');
     final note = m.note?.trim();
     final incoming = m.quantity > 0;
@@ -473,7 +672,7 @@ class InventoryMovementTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  m.productName,
+                  productDisplayName(context, m.productName),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700),
@@ -485,7 +684,7 @@ class InventoryMovementTile extends StatelessWidget {
                 ),
                 if (note != null && note.isNotEmpty)
                   Text(
-                    note,
+                    bidiName(context, note),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13),
@@ -495,7 +694,7 @@ class InventoryMovementTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text(
-            formatSignedQuantity(m.quantity),
+            bidiQuantity(context, formatSignedQuantity(m.quantity)),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,

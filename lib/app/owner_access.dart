@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../auth/owner_mode_lock.dart';
+import '../core/l10n/l10n.dart';
 
 final class OwnerAction {
   const OwnerAction({
@@ -33,12 +34,12 @@ class OwnerOnlyGuard extends StatelessWidget {
     builder: (context, _) => lock.ownerAccessAllowed
         ? builder(context)
         : Scaffold(
-            appBar: AppBar(title: const Text('Owner access required')),
-            body: const Center(
+            appBar: AppBar(title: Text(context.l10n.ownerAccessRequired)),
+            body: Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Owner mode is locked on this device. Ask the owner to unlock it.',
+                  context.l10n.ownerLockedAskOwner,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -66,7 +67,9 @@ class OwnerModeSection extends StatefulWidget {
 class _OwnerModeSectionState extends State<OwnerModeSection> {
   final password = TextEditingController();
   bool unlocking = false;
-  String? error;
+
+  /// Resolved when shown, so a language switch also translates the error.
+  String Function(AppLocalizations)? error;
 
   Future<void> unlock() async {
     if (unlocking) return;
@@ -79,13 +82,11 @@ class _OwnerModeSectionState extends State<OwnerModeSection> {
         await widget.lock.release();
         password.clear();
       } else if (mounted) {
-        setState(() => error = 'Wrong owner password.');
+        setState(() => error = (l10n) => l10n.ownerErrWrongPassword);
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => error = 'Could not check the password. Check your connection.',
-        );
+        setState(() => error = (l10n) => l10n.ownerErrCheckPassword);
       }
     } finally {
       if (mounted) setState(() => unlocking = false);
@@ -106,27 +107,29 @@ class _OwnerModeSectionState extends State<OwnerModeSection> {
         return const Center(child: CircularProgressIndicator());
       }
       if (!widget.lock.ownerAccessAllowed) {
+        final l10n = context.l10n;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Owner mode is locked. Enter the owner password.'),
+            Text(l10n.ownerLockedEnterPassword),
             TextField(
               key: const ValueKey('owner-unlock-password'),
               controller: password,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Owner password'),
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(labelText: l10n.ownerPassword),
               onSubmitted: (_) => unlock(),
             ),
-            if (error != null)
+            if (error case final error?)
               Text(
-                error!,
+                error(l10n),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: unlocking ? null : unlock,
               icon: const Icon(Icons.lock_open_outlined),
-              label: Text(unlocking ? 'Checking…' : 'Unlock owner mode'),
+              label: Text(unlocking ? l10n.ownerChecking : l10n.ownerUnlock),
             ),
           ],
         );

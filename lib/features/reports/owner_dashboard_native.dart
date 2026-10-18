@@ -4,6 +4,9 @@ import '../../database/app_database.dart';
 import '../pos/pos_state.dart';
 import 'drift_reporting_repository.dart';
 import 'report_models.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({
@@ -41,7 +44,9 @@ class _State extends State<OwnerDashboardScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('${widget.shopName} • Dashboard')),
+    appBar: AppBar(
+      title: Text(context.l10n.dashTitle(bidiName(context, widget.shopName))),
+    ),
     body: FutureBuilder<OwnerReport>(
       future: report,
       builder: (context, s) {
@@ -52,12 +57,16 @@ class _State extends State<OwnerDashboardScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Could not calculate this report.'),
+                  Text(context.l10n.dashReportFailed),
                   const SizedBox(height: 8),
                   Text('${s.error}', textAlign: TextAlign.center),
                   FilledButton(
-                    onPressed: () => setState(() => report = load()),
-                    child: const Text('Retry'),
+                    // Block body: returning the Future made setState throw
+                    // in debug builds, so Retry did nothing.
+                    onPressed: () => setState(() {
+                      report = load();
+                    }),
+                    child: Text(context.l10n.commonRetry),
                   ),
                 ],
               ),
@@ -66,6 +75,7 @@ class _State extends State<OwnerDashboardScreen> {
         }
         if (!s.hasData) return const Center(child: CircularProgressIndicator());
         final r = s.data!, m = r.summary;
+        final l10n = context.l10n;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -75,19 +85,17 @@ class _State extends State<OwnerDashboardScreen> {
               children: [
                 for (final p in ReportRangePreset.values)
                   ChoiceChip(
-                    label: Text(p.name),
+                    label: Text(l10n.reportPreset(p.name, p.name)),
                     selected: preset == p,
                     onSelected: (_) => select(p),
                   ),
               ],
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Cached device data • pending operations may not be reflected on other devices.',
-            ),
+            Text(l10n.dashCachedNote),
             if (m.partialReturnCount > 0)
               Text(
-                '${m.partialReturnCount} partially returned sale(s) are excluded. Profit is provisional until returns accounting is implemented.',
+                l10n.dashPartialReturns('${m.partialReturnCount}'),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             const SizedBox(height: 14),
@@ -104,97 +112,137 @@ class _State extends State<OwnerDashboardScreen> {
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 children: [
-                  _card('Net Sales', m.sales),
-                  _card('Purchases', m.purchases),
-                  _card('Gross Profit', m.grossProfit),
-                  _card('Expenses', m.expenses),
-                  _card('Net Profit', m.netProfit),
-                  _card('Customer Udhaar', m.receivables),
-                  _card('Supplier Payable', m.payables),
-                  _card('Bills', m.billCount, money: false),
-                  _card('Low Stock', m.lowStockCount, money: false),
+                  _card(l10n.dashNetSalesCard, m.sales),
+                  _card(l10n.purchasesTabPurchases, m.purchases),
+                  _card(l10n.dashGrossProfit, m.grossProfit),
+                  _card(l10n.ownerNavExpenses, m.expenses),
+                  _card(l10n.dashNetProfit, m.netProfit),
+                  _card(l10n.dashCustomerUdhaar, m.receivables),
+                  _card(l10n.dashSupplierPayable, m.payables),
+                  _card(l10n.navBills, m.billCount, money: false),
+                  _card(l10n.dashLowStockCard, m.lowStockCount, money: false),
                 ],
               ),
             ),
             const SizedBox(height: 18),
-            _section('Sales', [
-              _row('Gross sales', m.grossSales),
-              _row('Returns / voids', m.returns),
-              _row('Net sales', m.sales),
-              _row('Average bill', m.averageBill),
-              _row('Cash', m.cash),
-              _row('Digital', m.digital),
-              _row('Udhaar created', m.credit),
+            _section(l10n.dashSales, [
+              _row(l10n.dashGrossSales, m.grossSales),
+              _row(l10n.dashReturnsVoids, m.returns),
+              _row(l10n.dashNetSales, m.sales),
+              _row(l10n.dashAverageBill, m.averageBill),
+              _row(l10n.paymentCash, m.cash),
+              _row(l10n.paymentDigital, m.digital),
+              _row(l10n.dashUdhaarCreated, m.credit),
             ]),
-            _section('Purchases', [
-              _row('Period purchases', m.purchases),
-              _row('Paid', m.purchasePaid),
-              _row('Credit created', m.purchaseCredit),
-              _row('Transactions', m.purchaseCount, money: false),
+            _section(l10n.purchasesTabPurchases, [
+              _row(l10n.dashPeriodPurchases, m.purchases),
+              _row(l10n.purchaseStatusPaid, m.purchasePaid),
+              _row(l10n.dashCreditCreated, m.purchaseCredit),
+              _row(l10n.dashTransactions, m.purchaseCount, money: false),
             ]),
             Text(
-              'Sales vs Purchases',
+              l10n.dashSalesVsPurchases,
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            SizedBox(height: 230, child: _TrendChart(r.trend)),
-            _rank('Top products by sales', r.topSalesProducts),
+            // Charts stay left to right (time runs left to right) in Urdu.
+            SizedBox(
+              height: 230,
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: _TrendChart(r.trend),
+              ),
+            ),
             _rank(
-              'Top products by quantity',
+              l10n.dashTopSales,
+              r.topSalesProducts,
+              label: (v) => productDisplayName(context, v),
+            ),
+            _rank(
+              l10n.dashTopQuantity,
               r.topQuantityProducts,
               money: false,
+              label: (v) => productDisplayName(context, v),
             ),
-            _rank('Highest gross profit products', r.topProfitProducts),
-            _rank('Expenses by category', r.expensesByCategory),
-            _rank('Expenses by payment method', r.expensesByMethod),
-            _rank('Top customer debtors', r.topDebtors),
-            _rank('Top supplier payable', r.topSuppliers),
             _rank(
-              'Low stock (current / threshold)',
+              l10n.dashTopProfit,
+              r.topProfitProducts,
+              label: (v) => productDisplayName(context, v),
+            ),
+            _rank(l10n.dashExpensesByCategory, r.expensesByCategory),
+            _rank(
+              l10n.dashExpensesByMethod,
+              r.expensesByMethod,
+              label: (v) => l10n.paymentStored(v, v),
+            ),
+            _rank(l10n.dashTopDebtors, r.topDebtors),
+            _rank(l10n.dashTopSupplierPayable, r.topSuppliers),
+            _rank(
+              l10n.dashLowStockList,
               r.lowStock,
               money: false,
               secondary: true,
+              label: (v) => productDisplayName(context, v),
             ),
             if (m.missingCostLines > 0)
               Text(
-                '${m.missingCostLines} sale lines excluded from profit because cost snapshots were invalid.',
+                l10n.dashMissingCost('${m.missingCostLines}'),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             Text(
-              'Cashier performance',
+              l10n.dashCashierPerformance,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             for (final c in r.cashiers)
               ListTile(
-                title: Text(c.name),
+                title: Text(bidiName(context, c.name)),
                 subtitle: Text(
-                  '${c.bills} bills • Cash ${formatPkr(c.cash)} • Digital ${formatPkr(c.digital)} • Udhaar ${formatPkr(c.credit)}',
+                  l10n.dashCashierLine(
+                    '${c.bills}',
+                    bidiMoney(context, formatPkr(c.cash)),
+                    bidiMoney(context, formatPkr(c.digital)),
+                    bidiMoney(context, formatPkr(c.credit)),
+                  ),
                 ),
-                trailing: Text(formatPkr(c.sales)),
+                trailing: Text(bidiMoney(context, formatPkr(c.sales))),
               ),
           ],
         );
       },
     ),
   );
+  // The grid gives every card a fixed height. When the label and amount do
+  // not fit (a narrow phone, a large text size, or taller Urdu script) they
+  // scale down instead of overflowing; when they fit nothing changes.
   Widget _card(String l, int v, {bool money = true}) => Card(
     child: Padding(
       padding: const EdgeInsets.all(14),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(l, textAlign: TextAlign.center),
-          Text(
-            money ? formatPkr(v) : '$v',
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+      child: LayoutBuilder(
+        builder: (context, box) => FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: box.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l, textAlign: TextAlign.center),
+                Text(
+                  money ? bidiMoney(context, formatPkr(v)) : '$v',
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     ),
   );
   Widget _row(String l, int v, {bool money = true}) => ListTile(
     dense: true,
     title: Text(l),
-    trailing: Text(money ? formatPkr(v) : '$v'),
+    trailing: Text(money ? bidiMoney(context, formatPkr(v)) : '$v'),
   );
   Widget _section(String t, List<Widget> rows) => Card(
     child: ExpansionTile(
@@ -208,17 +256,23 @@ class _State extends State<OwnerDashboardScreen> {
     List<RankedValue> rows, {
     bool money = true,
     bool secondary = false,
+    String Function(String label)? label,
   }) => Card(
     child: ExpansionTile(
       title: Text(t),
       children: rows.isEmpty
-          ? [const ListTile(title: Text('No data'))]
+          ? [ListTile(title: Text(context.l10n.dashNoData))]
           : [
               for (final r in rows)
                 ListTile(
-                  title: Text(r.label),
+                  title: Text(
+                    label == null ? bidiName(context, r.label) : label(r.label),
+                  ),
                   trailing: Text(
-                    '${money ? formatPkr(r.value) : r.value}${secondary ? ' / ${r.secondary}' : ''}',
+                    bidiQuantity(
+                      context,
+                      '${money ? formatPkr(r.value) : r.value}${secondary ? ' / ${r.secondary}' : ''}',
+                    ),
                   ),
                 ),
             ],
@@ -256,7 +310,7 @@ class _TrendChart extends StatelessWidget {
   final List<ReportBucket> rows;
   @override
   Widget build(BuildContext context) => rows.isEmpty
-      ? const Center(child: Text('No period activity'))
+      ? Center(child: Text(context.l10n.dashNoActivity))
       : CustomPaint(painter: _Bars(rows), child: const SizedBox.expand());
 }
 
