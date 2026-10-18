@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../core/domain/enums.dart';
 
 enum ProductUnit {
@@ -14,6 +16,9 @@ enum ProductUnit {
   const ProductUnit(this.label);
   final String label;
 }
+
+/// Catalog rows fetched per browse page.
+const masterCatalogPageSize = 30;
 
 final class MasterCatalogItem {
   const MasterCatalogItem({
@@ -62,11 +67,29 @@ final class ManagedProduct {
     this.measurePresets,
     this.allowCustomQuantity = true,
     this.familyId,
+    this.categoryId,
+    this.baseName,
+    this.movementCount = 0,
   });
 
   final String id;
+
+  /// What lists and the POS show: for a pack variant, its family name plus
+  /// the pack size.
   final String name;
+
+  /// The stored name (a pack variant's family name, without its size); what
+  /// an edit changes. Null means the same as [name].
+  final String? baseName;
+
+  /// Stock movements recorded for this product (opening stock, sales,
+  /// purchases, adjustments). Its unit is fixed once there are any.
+  final int movementCount;
   final String categoryName;
+
+  /// The category's id (null when uncategorized); lets the UI translate a
+  /// built-in category by its stable id. Display only.
+  final String? categoryId;
 
   /// U3: the pack family this variant belongs to, if any.
   final String? familyId;
@@ -93,6 +116,77 @@ final class ManagedProduct {
       sellMode == SellMode.measured ? MeasureUnit.tryParse(unit) : null;
   bool get isLowStock =>
       lowStockLevel != null && stockQuantity <= lowStockLevel!;
+
+  /// The name an edit starts from.
+  String get editableName => baseName ?? name;
+}
+
+/// A validated product edit. Identity fields (name, category, barcode, unit,
+/// pack label) are set only when changed; null leaves them as stored. Stock
+/// and selling mode are never part of an edit: stock changes only through a
+/// recorded stock adjustment.
+final class ProductEdit {
+  const ProductEdit({
+    required this.purchasePriceMinor,
+    required this.salePriceMinor,
+    required this.lowStockLevel,
+    required this.isActive,
+    this.newImage,
+    this.removeImage = false,
+    this.measurePresets,
+    this.allowCustomQuantity,
+    this.name,
+    this.categoryId,
+    this.barcode,
+    this.barcodeChanged = false,
+    this.unit,
+    this.packLabel,
+    this.packLabelChanged = false,
+  });
+  final int purchasePriceMinor, salePriceMinor, lowStockLevel;
+  final bool isActive;
+
+  /// U2, measured products only (null for a piece product): the quick
+  /// quantities and custom-quantity switch.
+  final List<int>? measurePresets;
+  final bool? allowCustomQuantity;
+  final Uint8List? newImage;
+  final bool removeImage;
+
+  /// New stored name; for a pack variant, the family name shared by every
+  /// size.
+  final String? name;
+
+  /// New category; for a pack variant, shared by every size.
+  final String? categoryId;
+
+  /// New barcode (null clears it) when [barcodeChanged].
+  final String? barcode;
+  final bool barcodeChanged;
+
+  /// New counting unit; only while the product has no stock history.
+  final ProductUnit? unit;
+
+  /// New pack label (null clears it) when [packLabelChanged].
+  final String? packLabel;
+  final bool packLabelChanged;
+}
+
+/// Which products the owner's list shows.
+enum ProductListStatus { all, active, archived }
+
+/// Where a product is used. Any history means it can only be archived, never
+/// removed, so old bills, stock history and reports keep it.
+final class ProductUsage {
+  const ProductUsage({
+    required this.saleLines,
+    required this.purchaseLines,
+    required this.returnLines,
+    required this.movements,
+  });
+  final int saleLines, purchaseLines, returnLines, movements;
+  bool get hasHistory =>
+      saleLines + purchaseLines + returnLines + movements > 0;
 }
 
 final class AddProductInput {

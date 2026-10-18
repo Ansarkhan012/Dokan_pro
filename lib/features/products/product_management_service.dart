@@ -10,21 +10,30 @@ final class ProductManagementService {
   final ProductManagementGateway gateway;
   final IdGenerator ids;
 
+  /// Searches the online catalog; an empty [query] browses it page by page.
   Future<List<MasterCatalogItem>> search({
     required String shopId,
     required String query,
-  }) {
-    final normalized = query.trim();
-    if (normalized.isEmpty) return Future.value(const []);
-    return gateway.searchMasterCatalog(shopId: shopId, query: normalized);
-  }
+    int offset = 0,
+  }) => gateway.searchMasterCatalog(
+    shopId: shopId,
+    query: query.trim(),
+    offset: offset,
+  );
 
+  /// Adds a catalog product with the shop's own prices and stock. [name], when
+  /// different from the catalog name, is stored as the shop's name for it.
   Future<String> addMaster({
     required String shopId,
     required String deviceId,
     required MasterCatalogItem product,
     required AddProductInput input,
+    String? name,
   }) {
+    final trimmed = name?.trim() ?? '';
+    final customName = trimmed.isEmpty || trimmed == product.name
+        ? null
+        : trimmed;
     if (product.alreadyAdded) {
       throw const ProductValidationException(
         'This product is already in your shop',
@@ -38,6 +47,7 @@ final class ProductManagementService {
       movementId: ids.next(),
       masterProductId: product.id,
       input: input,
+      customName: customName,
     );
   }
 
@@ -189,6 +199,15 @@ final class ProductManagementService {
       throw const ProductValidationException('Stock values cannot be negative');
     }
   }
+}
+
+/// The catalog product was added to the shop, but the shop's own name for
+/// it was not saved; it shows under the catalog name until edited.
+final class MasterProductRenameFailed implements Exception {
+  const MasterProductRenameFailed(this.productId);
+  final String productId;
+  @override
+  String toString() => 'Product added, but its new name was not saved.';
 }
 
 final class ProductValidationException implements Exception {

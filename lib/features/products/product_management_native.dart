@@ -1,23 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/format/measure_format.dart';
+import '../../core/domain/enums.dart';
 import '../../core/ids/id_generator.dart';
 import '../../core/errors/safe_error_message.dart';
 import '../../core/images/product_image_store.dart';
 import '../../database/app_database.dart';
+import '../../database/repositories/sync_queue_repository.dart';
+import '../../subscription/entitlement_policy.dart';
+import '../../subscription/subscription_runtime.dart';
+import '../../sync/supabase_sale_upload_gateway.dart';
+import '../../sync/sync_health.dart';
+import '../../sync/sync_worker.dart';
+import '../inventory/inventory_management_native.dart'
+    show InventoryAdjustmentDialog;
+import '../inventory/inventory_models.dart';
+import '../inventory/local_inventory_adjustment_service.dart';
 import '../../sync/pull/pull_models.dart';
 import '../../sync/pull/reference_pull_service.dart';
 import '../../sync/pull/supabase_reference_pull_gateway.dart';
 import '../pos/pos_state.dart';
 import '../pos/product_thumbnail.dart';
+import 'product_image_sync.dart';
 import 'custom_product_dialog.dart';
 import 'edit_product_dialog.dart';
+import 'urdu_name_dialog.dart';
 import 'product_duplicates.dart';
 import 'drift_product_management_repository.dart';
+import 'product_management_gateway.dart';
 import 'product_management_models.dart';
 import 'product_management_service.dart';
 import 'supabase_product_management_gateway.dart';
+import '../../core/l10n/digits.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/l10n/bidi.dart';
+import '../../core/l10n/product_names.dart';
+import '../../core/l10n/localized_format.dart';
+import '../../core/l10n/messages.dart';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({
@@ -25,10 +46,15 @@ class ProductManagementScreen extends StatefulWidget {
     required this.client,
     required this.shopId,
     required this.deviceId,
+    this.authorizer,
   });
   final SupabaseClient client;
   final String shopId;
   final String deviceId;
+
+  /// Gate for stock adjustments; null means the subscription-checked
+  /// production authorizer (always, in the app). Tests inject one.
+  final FinancialMutationAuthorizer? authorizer;
 
   @override
   State<ProductManagementScreen> createState() =>
@@ -44,12 +70,39 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   );
   late Future<_ProductData> data = _open();
   bool refreshing = false;
+  ProductImageSync? imageSync;
 
   Future<_ProductData> _open() async {
     final database = db ?? await AppDatabase.open();
     db = database;
+    try {
+      imageSync ??= ProductImageSync(
+        remote: SupabaseProductImageRemote(widget.client),
+        store: await ProductImageStore.ensureInitialized(),
+      );
+    } catch (_) {
+      // No local photo store: photos stay on the catalog image only.
+    }
+    unawaited(_flushImages());
     await _pull(database);
     return _load(database);
+  }
+
+  /// Retries photo uploads left from an offline save.
+  Future<void> _flushImages() async {
+    await imageSync?.flushPending(shopId: widget.shopId);
+  }
+
+  /// Sends a photo chosen (or removed) on this device to the cloud in the
+  /// background; the local copy already shows here.
+  void syncImage(String productId, {required bool removed}) {
+    final sync = imageSync;
+    if (sync == null) return;
+    unawaited(
+      removed
+          ? sync.clear(shopId: widget.shopId, productId: productId)
+          : sync.push(shopId: widget.shopId, productId: productId),
+    );
   }
 
   Future<void> _pull(AppDatabase database) async {
@@ -86,6 +139,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   Future<void> refresh() async {
     if (refreshing || db == null) return;
     setState(() => refreshing = true);
+    unawaited(_flushImages());
     await _pull(db!);
     if (!mounted) return;
     setState(() {
@@ -97,9 +151,70 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   Future<void> afterMutation() async {
     await refresh();
     if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.productsSaved)));
+    }
+  }
+
+  /// Task 1's recorded stock adjustment for [product]: saved locally with
+  /// its movement, audit and sync records, uploaded in the background.
+  /// Returns the new stock, or null when nothing was saved.
+  Future<int?> adjustStock(ManagedProduct product) async {
+    final database = db;
+    if (database == null) return null;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => InventoryAdjustmentDialog(
+        product: InventoryProductRow(
+          id: product.id,
+          name: product.name,
+          unit: product.unit,
+          stockQuantity: product.stockQuantity,
+          lowStockLevel: product.lowStockLevel,
+          isActive: product.isActive,
+          measured: product.sellMode == SellMode.measured,
+        ),
+        onSave: (type, quantity, note) =>
+            LocalInventoryAdjustmentService(
+              database,
+              const UuidV7Generator(),
+              authorizer:
+                  widget.authorizer ?? productionFinancialMutationAuthorizer(),
+            ).record(
+              shopId: widget.shopId,
+              productId: product.id,
+              ownerId: widget.client.auth.currentUser!.id,
+              deviceId: widget.deviceId,
+              type: type,
+              quantity: quantity,
+              note: note,
+            ),
+      ),
+    );
+    if (saved != true) return null;
+    unawaited(_uploadQueued(database));
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product saved to My Products.')),
+        SnackBar(content: Text(context.l10n.inventoryAdjustSaved)),
       );
+    }
+    final rows = await DriftProductManagementRepository(
+      database,
+      shopId: widget.shopId,
+    ).products(limit: 100000);
+    return rows.where((p) => p.id == product.id).firstOrNull?.stockQuantity;
+  }
+
+  Future<void> _uploadQueued(AppDatabase database) async {
+    try {
+      await SyncWorker(
+        queue: SyncQueueRepository(database, shopId: widget.shopId),
+        gateway: SupabaseSaleUploadGateway(widget.client),
+        workerId: uniqueSyncWorkerId('owner-${widget.deviceId}'),
+      ).runOnce();
+    } catch (_) {
+      // Offline: it stays queued and shows under Sync issues.
     }
   }
 
@@ -114,11 +229,11 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     length: 2,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Products'),
+        title: Text(context.l10n.productsTitle),
         actions: [
           IconButton(
             onPressed: refreshing ? null : refresh,
-            tooltip: 'Refresh',
+            tooltip: context.l10n.commonRefresh,
             icon: refreshing
                 ? const SizedBox.square(
                     dimension: 20,
@@ -127,10 +242,10 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 : const Icon(Icons.refresh),
           ),
         ],
-        bottom: const TabBar(
+        bottom: TabBar(
           tabs: [
-            Tab(text: 'My Products'),
-            Tab(text: 'Add Product'),
+            Tab(text: context.l10n.productsTabMine),
+            Tab(text: context.l10n.productsTabAdd),
           ],
         ),
       ),
@@ -139,9 +254,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             if (snapshot.hasError) {
-              return const Center(
-                child: Text('Could not open products. Please try again.'),
-              );
+              return Center(child: Text(context.l10n.productsOpenFailed));
             }
             return const Center(child: CircularProgressIndicator());
           }
@@ -151,7 +264,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 products: snapshot.data!.products,
                 categories: snapshot.data!.categories,
                 loadProducts:
-                    ({query = '', category, limit = 200, offset = 0}) =>
+                    ({
+                      query = '',
+                      category,
+                      limit = 200,
+                      offset = 0,
+                      status = ProductListStatus.all,
+                    }) =>
                         DriftProductManagementRepository(
                           db!,
                           shopId: widget.shopId,
@@ -160,10 +279,18 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                           category: category,
                           limit: limit,
                           offset: offset,
+                          status: status,
                         ),
+                repository: () => DriftProductManagementRepository(
+                  db!,
+                  shopId: widget.shopId,
+                ),
                 gateway: gateway,
                 shopId: widget.shopId,
                 onChanged: afterMutation,
+                onRefresh: refresh,
+                adjustStock: adjustStock,
+                onImageChanged: syncImage,
               ),
               _AddProduct(
                 service: service,
@@ -171,6 +298,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 deviceId: widget.deviceId,
                 categories: snapshot.data!.categories,
                 onChanged: afterMutation,
+                onImageChanged: syncImage,
                 existingProducts: () => DriftProductManagementRepository(
                   db!,
                   shopId: widget.shopId,
@@ -189,9 +317,13 @@ class _MyProducts extends StatefulWidget {
     required this.products,
     required this.categories,
     required this.loadProducts,
+    required this.repository,
     required this.gateway,
     required this.shopId,
     required this.onChanged,
+    required this.onRefresh,
+    required this.adjustStock,
+    required this.onImageChanged,
   });
   final List<ManagedProduct> products;
   final List<ProductCategory> categories;
@@ -200,11 +332,17 @@ class _MyProducts extends StatefulWidget {
     String? category,
     int limit,
     int offset,
+    ProductListStatus status,
   })
   loadProducts;
-  final SupabaseProductManagementGateway gateway;
+  final DriftProductManagementRepository Function() repository;
+  final ProductEditGateway gateway;
   final String shopId;
   final Future<void> Function() onChanged;
+  final Future<void> Function() onRefresh;
+  final Future<int?> Function(ManagedProduct product) adjustStock;
+  final void Function(String productId, {required bool removed})
+  onImageChanged;
 
   @override
   State<_MyProducts> createState() => _MyProductsState();
@@ -214,9 +352,20 @@ class _MyProductsState extends State<_MyProducts> {
   static const pageSize = 200;
   final search = TextEditingController();
   String? category;
+  ProductListStatus status = ProductListStatus.all;
   late List<ManagedProduct> products = List.of(widget.products);
   bool loading = false;
   bool hasMore = true;
+
+  /// Product ids with an archive or restore in progress (one at a time each).
+  final changing = <String>{};
+
+  @override
+  void didUpdateWidget(_MyProducts old) {
+    super.didUpdateWidget(old);
+    // The screen reloaded after a change: show it with the current filters.
+    if (!identical(old.products, widget.products)) _reload();
+  }
 
   @override
   void dispose() {
@@ -239,10 +388,11 @@ class _MyProductsState extends State<_MyProducts> {
                 child: TextField(
                   controller: search,
                   onSubmitted: (_) => _reload(),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    suffixIcon: Icon(Icons.arrow_forward),
-                    labelText: 'Search name or barcode',
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    // Mirrors itself in Urdu (matchTextDirection).
+                    suffixIcon: const Icon(Icons.arrow_forward),
+                    labelText: context.l10n.productsSearchLabel,
                   ),
                 ),
               ),
@@ -250,16 +400,20 @@ class _MyProductsState extends State<_MyProducts> {
                 width: 240,
                 child: DropdownButtonFormField<String?>(
                   initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Category'),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.productsCategoryLabel,
+                  ),
                   items: [
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: null,
-                      child: Text('All categories'),
+                      child: Text(context.l10n.productsAllCategories),
                     ),
                     ...widget.categories.map(
                       (item) => DropdownMenuItem(
                         value: item.name,
-                        child: Text(item.name),
+                        child: Text(
+                          categoryLabel(context, id: item.id, name: item.name),
+                        ),
                       ),
                     ),
                   ],
@@ -269,12 +423,40 @@ class _MyProductsState extends State<_MyProducts> {
                   },
                 ),
               ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<ProductListStatus>(
+                  key: const ValueKey('products-status'),
+                  initialValue: status,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.productsStatusLabel,
+                  ),
+                  items: [
+                    for (final (value, label) in [
+                      (ProductListStatus.all, context.l10n.productsStatusAll),
+                      (
+                        ProductListStatus.active,
+                        context.l10n.productsStatusActive,
+                      ),
+                      (
+                        ProductListStatus.archived,
+                        context.l10n.productsStatusArchived,
+                      ),
+                    ])
+                      DropdownMenuItem(value: value, child: Text(label)),
+                  ],
+                  onChanged: (value) {
+                    status = value ?? ProductListStatus.all;
+                    _reload();
+                  },
+                ),
+              ),
             ],
           ),
         ),
         Expanded(
           child: products.isEmpty
-              ? const Center(child: Text('No products match this filter.'))
+              ? Center(child: Text(context.l10n.productsNoMatch))
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final columns = constraints.maxWidth >= 1000
@@ -298,6 +480,11 @@ class _MyProductsState extends State<_MyProducts> {
                             itemBuilder: (_, index) => _ManagedProductCard(
                               product: products[index],
                               onEdit: () => _edit(context, products[index]),
+                              onRestore:
+                                  products[index].isActive ||
+                                      changing.contains(products[index].id)
+                                  ? null
+                                  : () => _restore(products[index]),
                             ),
                           ),
                         ),
@@ -310,7 +497,9 @@ class _MyProductsState extends State<_MyProducts> {
                                   key: const ValueKey('products-load-more'),
                                   onPressed: loading ? null : _loadMore,
                                   child: Text(
-                                    loading ? 'Loading…' : 'Load more',
+                                    loading
+                                        ? context.l10n.commonLoading
+                                        : context.l10n.productsLoadMore,
                                   ),
                                 ),
                               ),
@@ -333,6 +522,7 @@ class _MyProductsState extends State<_MyProducts> {
         query: search.text.trim(),
         category: category,
         limit: pageSize,
+        status: status,
       );
       if (!mounted) return;
       setState(() {
@@ -353,6 +543,7 @@ class _MyProductsState extends State<_MyProducts> {
         category: category,
         limit: pageSize,
         offset: products.length,
+        status: status,
       );
       if (!mounted) return;
       setState(() {
@@ -365,50 +556,152 @@ class _MyProductsState extends State<_MyProducts> {
   }
 
   Future<void> _edit(BuildContext context, ManagedProduct product) async {
-    var imageSaved = true;
+    var imageSaved = true, stockChanged = false, archived = false;
+    // Every product of the shop, for the duplicate-barcode and pack-size
+    // checks (the server checks barcodes too).
+    final all = await widget.loadProducts(limit: 100000);
+    if (!context.mounted) return;
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => EditProductDialog(
         product: product,
         existingImage: ProductImageStore.instance?.existing(product.id),
+        categories: widget.categories,
+        barcodeOwners: {for (final other in all) ?other.barcode: other.id},
+        familySizes: [
+          for (final other in all)
+            if (product.familyId != null &&
+                other.familyId == product.familyId &&
+                other.id != product.id &&
+                other.packLabel != null)
+              other.packLabel!,
+        ],
         onSubmit: (edit) async {
-          await widget.gateway.updateProduct(
+          await widget.gateway.saveEdit(
             shopId: widget.shopId,
-            productId: product.id,
-            purchasePriceMinor: edit.purchasePriceMinor,
-            salePriceMinor: edit.salePriceMinor,
-            lowStockLevel: edit.lowStockLevel,
-            isActive: edit.isActive,
-            measurePresets: edit.measurePresets,
-            allowCustomQuantity: edit.allowCustomQuantity,
+            product: product,
+            edit: edit,
           );
+          // Accepted by the server: show it now, even if the refresh that
+          // follows cannot reach the cloud.
+          try {
+            await widget.repository().applyAcceptedEdit(product, edit);
+          } catch (_) {
+            // The next refresh brings the same values.
+          }
+          // Only a changed or removed image is touched; otherwise the
+          // product keeps its current one.
           imageSaved = await applyProductImageEdit(
             product.id,
             newImage: edit.newImage,
             remove: edit.removeImage,
           );
+          if (imageSaved && (edit.newImage != null || edit.removeImage)) {
+            widget.onImageChanged(product.id, removed: edit.newImage == null);
+          }
+        },
+        onAdjustStock: () async {
+          final stock = await widget.adjustStock(product);
+          if (stock != null) stockChanged = true;
+          return stock;
+        },
+        onDelete: () async {
+          archived = await confirmArchiveProduct(
+            dialogContext,
+            product: product,
+            usage: widget.repository().usage(product.id),
+            archive: () => _setActive(product, false),
+          );
+          return archived;
         },
       ),
     );
-    if (saved != true) return;
-    await widget.onChanged();
-    if (!imageSaved && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Product saved. The image could not be updated on this tablet.',
+    if (archived) {
+      await widget.onRefresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.archiveDone(
+                productDisplayName(
+                  context,
+                  product.name,
+                  productId: product.id,
+                ),
+              ),
+            ),
           ),
-        ),
+        );
+      }
+      return;
+    }
+    if (saved != true) {
+      if (stockChanged) await widget.onRefresh();
+      return;
+    }
+    if (imageSaved) {
+      await widget.onChanged();
+      return;
+    }
+    // The product was saved but its image was not: say exactly that, never
+    // a plain "saved".
+    await widget.onRefresh();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.productsImageNotUpdated)),
       );
+    }
+  }
+
+  /// Archives or restores on the server (owner only there), then mirrors it.
+  Future<void> _setActive(ManagedProduct product, bool isActive) async {
+    await widget.gateway.setActive(
+      shopId: widget.shopId,
+      productId: product.id,
+      isActive: isActive,
+    );
+    try {
+      await widget.repository().applyAcceptedActive(product.id, isActive);
+    } catch (_) {
+      // The next refresh brings the same value.
+    }
+  }
+
+  Future<void> _restore(ManagedProduct product) async {
+    if (!changing.add(product.id)) return;
+    setState(() {});
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+    final name = productDisplayName(
+      context,
+      product.name,
+      productId: product.id,
+    );
+    try {
+      await _setActive(product, true);
+      await widget.onRefresh();
+      messenger.showSnackBar(SnackBar(content: Text(l10n.restoreDone(name))));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.restoreFailed)));
+    } finally {
+      changing.remove(product.id);
+      if (mounted) setState(() {});
     }
   }
 }
 
 class _ManagedProductCard extends StatelessWidget {
-  const _ManagedProductCard({required this.product, required this.onEdit});
+  const _ManagedProductCard({
+    required this.product,
+    required this.onEdit,
+    this.onRestore,
+  });
   final ManagedProduct product;
   final VoidCallback onEdit;
+
+  /// Set for an archived product.
+  final VoidCallback? onRestore;
   @override
   Widget build(BuildContext context) => Card(
     color: product.isActive
@@ -431,22 +724,42 @@ class _ManagedProductCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  product.name,
+                  productDisplayName(
+                    context,
+                    product.name,
+                    productId: product.id,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  '${product.categoryName} • ${product.barcode ?? 'No barcode'}',
+                  '${categoryLabel(context, id: product.categoryId, name: product.categoryName)} • '
+                  '${product.barcode == null ? context.l10n.posNoBarcode : bidiId(context, product.barcode!)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'Sale ${formatProductMoney(product.salePriceMinor)}${_perUnit(product)} • '
-                  'Purchase ${formatProductMoney(product.purchasePriceMinor)}${_perUnit(product)}',
+                  context.l10n.productsSaleAndPurchase(
+                    _price(context, product, product.salePriceMinor),
+                    _price(context, product, product.purchasePriceMinor),
+                  ),
                 ),
                 Text(
-                  'Stock ${formatLineQuantity(product.stockQuantity, product.measureUnit)}${product.isLowStock ? ' • Low stock' : ''}${product.isActive ? '' : ' • Inactive'}',
+                  [
+                    context.l10n.posStock(
+                      bidiQuantity(
+                        context,
+                        localizedLineQuantity(
+                          context.l10n,
+                          product.stockQuantity,
+                          product.measureUnit,
+                        ),
+                      ),
+                    ),
+                    if (product.isLowStock) context.l10n.posLowStock,
+                    if (!product.isActive) context.l10n.productsInactive,
+                  ].join(' • '),
                   style: TextStyle(
                     color: product.isLowStock ? Colors.orange.shade800 : null,
                   ),
@@ -454,9 +767,26 @@ class _ManagedProductCard extends StatelessWidget {
               ],
             ),
           ),
+          if (!product.isActive)
+            IconButton(
+              key: ValueKey('product-restore-${product.id}'),
+              onPressed: onRestore,
+              tooltip: context.l10n.restoreAction,
+              icon: const Icon(Icons.unarchive_outlined),
+            ),
+          IconButton(
+            key: ValueKey('product-urdu-name-${product.id}'),
+            onPressed: () => showUrduNameDialog(
+              context,
+              productId: product.id,
+              englishName: product.name,
+            ),
+            tooltip: context.l10n.productUrduNameAction,
+            icon: const Icon(Icons.translate),
+          ),
           IconButton(
             onPressed: onEdit,
-            tooltip: 'Edit',
+            tooltip: context.l10n.commonEdit,
             icon: const Icon(Icons.edit_outlined),
           ),
         ],
@@ -472,6 +802,7 @@ class _AddProduct extends StatefulWidget {
     required this.deviceId,
     required this.categories,
     required this.onChanged,
+    required this.onImageChanged,
     required this.existingProducts,
   });
   final ProductManagementService service;
@@ -479,6 +810,8 @@ class _AddProduct extends StatefulWidget {
   final String deviceId;
   final List<ProductCategory> categories;
   final Future<void> Function() onChanged;
+  final void Function(String productId, {required bool removed})
+  onImageChanged;
 
   /// This shop's local products, for the likely-duplicate warning.
   final Future<List<ManagedProduct>> Function() existingProducts;
@@ -492,14 +825,26 @@ class _AddProductState extends State<_AddProduct> {
   bool searching = false;
   String? error;
 
+  /// Browsing (empty search) shows the catalog a page at a time; only
+  /// names, a few fields and photo keys come down, photos load as shown.
+  bool browsing = false, hasMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Open on the catalog itself; offline it just stays empty.
+    search(quiet: true);
+  }
+
   @override
   void dispose() {
     query.dispose();
     super.dispose();
   }
 
-  Future<void> search() async {
+  Future<void> search({bool more = false, bool quiet = false}) async {
     if (searching) return;
+    final text = query.text.trim();
     setState(() {
       searching = true;
       error = null;
@@ -507,11 +852,14 @@ class _AddProductState extends State<_AddProduct> {
     try {
       final rows = await widget.service.search(
         shopId: widget.shopId,
-        query: query.text,
+        query: text,
+        offset: more ? results.length : 0,
       );
       if (mounted) {
         setState(() {
-          results = rows;
+          results = more ? [...results, ...rows] : rows;
+          browsing = text.isEmpty;
+          hasMore = browsing && rows.length == masterCatalogPageSize;
           searching = false;
         });
       }
@@ -519,7 +867,10 @@ class _AddProductState extends State<_AddProduct> {
       if (mounted) {
         setState(() {
           searching = false;
-          error = 'Catalog search failed. Check internet and try again.';
+          if (!quiet) {
+            error = 'Catalog search failed. Check internet and try again.';
+            // Shown through localizedMessage (re-translates on a switch).
+          }
         });
       }
     }
@@ -530,7 +881,7 @@ class _AddProductState extends State<_AddProduct> {
     padding: const EdgeInsets.all(20),
     children: [
       Text(
-        'Search Master Catalog',
+        context.l10n.productsSearchMasterCatalog,
         style: Theme.of(context).textTheme.headlineSmall,
       ),
       const SizedBox(height: 12),
@@ -540,16 +891,20 @@ class _AddProductState extends State<_AddProduct> {
             child: TextField(
               controller: query,
               onSubmitted: (_) => search(),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                labelText: 'Product name, brand, or barcode',
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                labelText: context.l10n.productsCatalogQueryLabel,
               ),
             ),
           ),
           const SizedBox(width: 12),
           FilledButton(
             onPressed: searching ? null : search,
-            child: Text(searching ? 'Searching…' : 'Search'),
+            child: Text(
+              searching
+                  ? context.l10n.commonSearching
+                  : context.l10n.commonSearch,
+            ),
           ),
         ],
       ),
@@ -557,7 +912,7 @@ class _AddProductState extends State<_AddProduct> {
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: Text(
-            error!,
+            localizedMessage(context.l10n, error!),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ),
@@ -568,69 +923,91 @@ class _AddProductState extends State<_AddProduct> {
             leading: ProductThumbnail(
               imagePath: product.imagePath,
               productId: product.shopProductId,
-              width: 56,
-              height: 56,
+              width: 64,
+              height: 64,
             ),
-            title: Text(product.name),
+            title: Text(productDisplayName(context, product.name)),
             subtitle: Text(
-              '${product.brand.isEmpty ? product.categoryName : product.brand} • ${product.barcode}\n${product.unit}${product.packLabel == null ? '' : ' • ${product.packLabel}'}',
+              '${product.brand.isEmpty ? categoryLabel(context, id: product.categoryId, name: product.categoryName) : bidiName(context, product.brand)} • '
+              '${bidiId(context, product.barcode)}\n'
+              '${context.l10n.unitName(product.unit, product.unit)}'
+              '${product.packLabel == null ? '' : ' • ${bidiName(context, product.packLabel!)}'}',
             ),
             isThreeLine: true,
             trailing: product.alreadyAdded
                 ? OutlinedButton(
                     onPressed: () =>
                         DefaultTabController.of(context).animateTo(0),
-                    child: const Text('Open / edit'),
+                    child: Text(context.l10n.productsOpenEdit),
                   )
                 : FilledButton(
                     onPressed: () => _addMaster(product),
-                    child: const Text('Add'),
+                    child: Text(context.l10n.posAdd),
                   ),
+          ),
+        ),
+      if (hasMore)
+        Center(
+          child: TextButton(
+            onPressed: searching ? null : () => search(more: true),
+            child: Text(context.l10n.productsCatalogShowMore),
           ),
         ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
         onPressed: _createCustom,
         icon: const Icon(Icons.add_box_outlined),
-        label: const Text('Create Custom Product'),
+        label: Text(context.l10n.productsCreateCustom),
       ),
     ],
   );
 
   Future<void> _addMaster(MasterCatalogItem product) async {
-    final input = await showDialog<AddProductInput>(
+    final added = await showDialog<_CatalogAdd>(
       context: context,
-      builder: (_) => _StockAndPriceDialog(title: product.name),
+      builder: (_) => _StockAndPriceDialog(
+        title: product.name,
+        imagePath: product.imagePath,
+      ),
     );
-    if (input == null) return;
+    if (added == null) return;
+    void markAdded() => setState(
+      () => results = results
+          .map(
+            (row) => row.id == product.id
+                ? MasterCatalogItem(
+                    id: row.id,
+                    name: row.name,
+                    brand: row.brand,
+                    barcode: row.barcode,
+                    categoryId: row.categoryId,
+                    categoryName: row.categoryName,
+                    unit: row.unit,
+                    alreadyAdded: true,
+                    packLabel: row.packLabel,
+                    imagePath: row.imagePath,
+                  )
+                : row,
+          )
+          .toList(),
+    );
     try {
       await widget.service.addMaster(
         shopId: widget.shopId,
         deviceId: widget.deviceId,
         product: product,
-        input: input,
+        input: added.input,
+        name: added.name,
       );
       await widget.onChanged();
       if (!mounted) return;
-      setState(
-        () => results = results
-            .map(
-              (row) => row.id == product.id
-                  ? MasterCatalogItem(
-                      id: row.id,
-                      name: row.name,
-                      brand: row.brand,
-                      barcode: row.barcode,
-                      categoryId: row.categoryId,
-                      categoryName: row.categoryName,
-                      unit: row.unit,
-                      alreadyAdded: true,
-                      packLabel: row.packLabel,
-                      imagePath: row.imagePath,
-                    )
-                  : row,
-            )
-            .toList(),
+      markAdded();
+    } on MasterProductRenameFailed {
+      await widget.onChanged();
+      if (!mounted) return;
+      markAdded();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.productsAddedNameNotSaved)),
       );
     } catch (e) {
       if (mounted) {
@@ -713,20 +1090,21 @@ class _AddProductState extends State<_AddProduct> {
       ),
     );
     if (draft == null || createdIds.isEmpty) return;
-    // The family's shared image goes to every pack size (local store only).
+    // The family's shared image goes to every pack size: stored on this
+    // device first, then uploaded once (same content, same storage key).
     var imageSaved = true;
     for (final id in createdIds) {
-      imageSaved = await saveProductImage(id, draft.image) && imageSaved;
+      final saved = await saveProductImage(id, draft.image);
+      if (saved && draft.image != null) {
+        widget.onImageChanged(id, removed: false);
+      }
+      imageSaved = saved && imageSaved;
     }
     await widget.onChanged();
     if (!mounted) return;
     if (!imageSaved) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Product created. The image could not be saved on this tablet.',
-          ),
-        ),
+        SnackBar(content: Text(context.l10n.productsImageNotSaved)),
       );
     }
     DefaultTabController.of(context).animateTo(0);
@@ -763,14 +1141,23 @@ Future<bool> saveProductImage(String productId, Uint8List? image) async {
   }
 }
 
+/// What the owner entered to add a catalog product.
+final class _CatalogAdd {
+  const _CatalogAdd(this.input, this.name);
+  final AddProductInput input;
+  final String name;
+}
+
 class _StockAndPriceDialog extends StatefulWidget {
-  const _StockAndPriceDialog({required this.title});
+  const _StockAndPriceDialog({required this.title, this.imagePath});
   final String title;
+  final String? imagePath;
   @override
   State<_StockAndPriceDialog> createState() => _StockAndPriceDialogState();
 }
 
 class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
+  late final name = TextEditingController(text: widget.title);
   final purchase = TextEditingController();
   final sale = TextEditingController();
   final opening = TextEditingController(text: '0');
@@ -778,6 +1165,7 @@ class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
   String? error;
   @override
   void dispose() {
+    name.dispose();
     purchase.dispose();
     sale.dispose();
     opening.dispose();
@@ -787,31 +1175,60 @@ class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
+    title: Text(productDisplayName(context, widget.title)),
     content: SizedBox(
       width: 420,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Row(
+            children: [
+              ProductThumbnail(
+                imagePath: widget.imagePath,
+                width: 64,
+                height: 64,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('catalog-add-name'),
+                  controller: name,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.productsNameInShop,
+                  ),
+                ),
+              ),
+            ],
+          ),
           TextField(
             controller: purchase,
-            decoration: const InputDecoration(labelText: 'Purchase price'),
+            inputFormatters: const [AsciiDigitsFormatter()],
+            decoration: InputDecoration(
+              labelText: context.l10n.fieldPurchasePrice,
+            ),
           ),
           TextField(
             controller: sale,
-            decoration: const InputDecoration(labelText: 'Sale price'),
+            inputFormatters: const [AsciiDigitsFormatter()],
+            decoration: InputDecoration(labelText: context.l10n.fieldSalePrice),
           ),
           TextField(
             controller: opening,
-            decoration: const InputDecoration(labelText: 'Opening stock'),
+            inputFormatters: const [AsciiDigitsFormatter()],
+            decoration: InputDecoration(
+              labelText: context.l10n.fieldOpeningStock,
+            ),
           ),
           TextField(
             controller: low,
-            decoration: const InputDecoration(labelText: 'Low-stock threshold'),
+            inputFormatters: const [AsciiDigitsFormatter()],
+            decoration: InputDecoration(
+              labelText: context.l10n.productsLowStockThreshold,
+            ),
           ),
           if (error != null)
             Text(
-              error!,
+              localizedMessage(context.l10n, error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
         ],
@@ -820,7 +1237,7 @@ class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.commonCancel),
       ),
       FilledButton(
         onPressed: () {
@@ -832,17 +1249,24 @@ class _StockAndPriceDialogState extends State<_StockAndPriceDialog> {
             setState(() => error = 'Enter valid non-negative values.');
             return;
           }
+          if (name.text.trim().isEmpty) {
+            setState(() => error = 'Product name is required');
+            return;
+          }
           Navigator.pop(
             context,
-            AddProductInput(
-              purchasePriceMinor: p,
-              salePriceMinor: s,
-              openingQuantity: o,
-              lowStockLevel: l,
+            _CatalogAdd(
+              AddProductInput(
+                purchasePriceMinor: p,
+                salePriceMinor: s,
+                openingQuantity: o,
+                lowStockLevel: l,
+              ),
+              name.text,
             ),
           );
         },
-        child: const Text('Add to My Shop'),
+        child: Text(context.l10n.productsAddToShop),
       ),
     ],
   );
@@ -855,7 +1279,9 @@ final class _ProductData {
 }
 
 int? parseQuantity(String input) {
-  final match = RegExp(r'^(\d+)(?:\.(\d{1,3}))?$').firstMatch(input.trim());
+  final match = RegExp(
+    r'^(\d{1,9})(?:\.(\d{1,3}))?$',
+  ).firstMatch(normalizeDigits(input).trim());
   if (match == null) return null;
   final whole = int.parse(match.group(1)!);
   final fraction = (match.group(2) ?? '').padRight(3, '0');
@@ -877,6 +1303,27 @@ String formatProductMoney(int minor) {
       '${(absolute % 100).toString().padLeft(2, '0')}';
 }
 
-/// `/kg` or `/L` after a measured product's prices; empty for a piece product.
-String _perUnit(ManagedProduct product) =>
-    product.measureUnit == null ? '' : '/${product.measureUnit!.wholeLabel}';
+/// A product price, `/kg` or `/L` after a measured product's (`فی کلو` in
+/// Urdu), kept left to right inside Urdu.
+String _price(BuildContext context, ManagedProduct product, int minor) {
+  final price = bidiMoney(context, formatProductMoney(minor));
+  return switch (product.measureUnit) {
+    final unit? => localizedUnitPrice(context.l10n, price, unit),
+    null => price,
+  };
+}
+
+/// A category as shown in product screens: built-in categories translated
+/// by their stable id, `Uncategorized` translated, any shop category exactly
+/// as entered.
+String categoryLabel(
+  BuildContext context, {
+  required String? id,
+  required String name,
+}) {
+  final l10n = context.l10n;
+  final label = id == null
+      ? (name == 'Uncategorized' ? l10n.productsUncategorized : name)
+      : localizedCategoryName(l10n, id, name);
+  return bidiName(context, label);
+}

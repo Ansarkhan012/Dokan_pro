@@ -32,6 +32,8 @@ class ProductThumbnail extends StatelessWidget {
       ),
       child: const Icon(Icons.inventory_2_outlined, color: Color(0xff7c9189)),
     );
+    // A photo chosen on this device wins; otherwise the synced one (the
+    // shop's uploaded photo or the catalog photo), cached on disk.
     final local = productId == null ? null : localProductImagePath(productId!);
     final path = local ?? imagePath?.trim();
     if (path == null || path.isEmpty) return placeholder;
